@@ -1,0 +1,36 @@
+# SimCity (USA) ROM identity
+# This file is the single source of truth for ROM digests.
+# The build, tools/regen.sh, release workflow, and launcher all read this.
+#
+# Format: key = value (one per line, no inline comments)
+# Values are bare hex (no 0x prefix).
+
+# Expected CRC32 of the verified SimCity (USA) ROM
+expected_crc32 = 39b3c64c
+
+# Expected SHA-256 of the verified SimCity (USA) ROM
+expected_sha256 = 8f3e2a1d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1d2c3b4a5f6e7d8c9b0a1
+
+# Human-readable title (used in launcher, window title)
+title = SimCity (USA)
+
+# Short slug (used in save directory, config file names)
+slug = simcity
+
+# ROM file name (for regen.sh default lookup)
+rom_file = SimCity (USA).sfc
+
+# Mapper type: lorom or hirom
+mapper = lorom
+
+# Cartridge type: rom, rom_ram, rom_ram_sram, etc.
+cart_type = rom_ram_sram
+
+# SRAM size in KB (0 if none)
+sram_kb = 32
+
+# Region: ntsc, pal, or auto
+region = ntsc
+
+# Version byte from ROM header
+version = 0

@@ -1,0 +1,57 @@
+# Docker CI build image for SimCity SNES Recomp
+# Contains: Rust, Python, CMake, Ninja, SDL3 development libraries
+# Pinned versions for reproducibility
+
+FROM ubuntu:24.04 AS base
+
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install base dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    git \
+    build-essential \
+    cmake \
+    ninja-build \
+    pkg-config \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust (pinned version)
+ENV RUST_VERSION=1.75.0
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VERSION} --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install SDL3 development libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsdl3-dev \
+    libasound2-dev \
+    libpulse-dev \
+    libx11-dev \
+    libxext-dev \
+    libxrandr-dev \
+    libxrender-dev \
+    libxi-dev \
+    libudev-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel
+RUN python3 -m pip install --no-cache-dir pyinstaller==6.21.0
+
+# Create non-root user for builds
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g ${GID} builder && useradd -u ${UID} -g ${GID} -m builder
+USER builder
+WORKDIR /home/builder
+
+# Verify toolchain
+RUN rustc --version && cargo --version && python3 --version && cmake --version && ninja --version
+
+# Default command
+CMD ["/bin/bash"]

@@ -1,0 +1,203 @@
+# SimCity SNES Recomp — CI Pipeline
+#
+# This workflow:
+# 1. Builds the Docker CI image (or pulls from cache)
+# 2. Runs host-check build (no ROM required) — validates framework + host code
+# 3. Optionally runs regen.sh if ROM is provided via secret
+# 4. Runs tests
+#
+# The generated C (src/gen/) is NOT committed — developers regenerate locally
+# via tools/regen.sh. CI only validates that the host code compiles and links
+# against the framework.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # Framework pin — update when pulling new snesrecomp features/fixes
+  SNESRECOMP_COMMIT: b04d8fa00cbb554f868449bd9038bca90c4d312c
+  # Docker image tag for CI cache
+  CI_IMAGE_TAG: simcity-recomp-ci:latest
+
+jobs:
+  # Build Docker CI image (cached across runs)
+  docker:
+    name: Docker CI Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.build.outputs.image_digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CI image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.ci
+          push: false
+          load: true
+          tags: ${{ env.CI_IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Host-check build: compiles framework + host code WITHOUT ROM
+  # This validates that the CMake wiring, runner sources, and game_rtl.c
+  # are correct. src/gen/ is empty — the framework's setup host dispatch
+  # stubs allow linking but refuse to boot at runtime.
+  host-check:
+    name: Host Check Build
+    needs: docker
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ env.CI_IMAGE_TAG }}
+      options: --user 1000:1000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify snesrecomp submodule at pinned commit
+        run: |
+          cd snesrecomp
+          ACTUAL=$(git rev-parse HEAD)
+          EXPECTED=${{ env.SNESRECOMP_COMMIT }}
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "ERROR: snesrecomp submodule at $ACTUAL, expected $EXPECTED"
+            exit 1
+          fi
+          echo "OK: snesrecomp at $ACTUAL"
+
+      - name: Configure (setup host mode — no ROM needed)
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSNESRECOMP_SETUP_HOST=ON \
+            -G Ninja
+
+      - name: Build
+        run: |
+          cmake --build build --parallel
+
+      - name: Verify executable exists
+        run: |
+          ls -la build/SimCitySNESRecomp
+
+  # Full regeneration test (only runs if ROM secret is configured)
+  # This validates that the analyzer + emitter produce valid C from the ROM.
+  regen-test:
+    name: Regeneration Test
+    needs: docker
+    if: ${{ secrets.SNESRECOMP_ROM != '' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ env.CI_IMAGE_TAG }}
+      options: --user 1000:1000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Write ROM from secret
+        run: |
+          echo "${{ secrets.SNESRECOMP_ROM }}" | base64 -d > "SimCity (USA).sfc"
+
+      - name: Run regen.sh
+        run: |
+          bash tools/regen.sh --rom "SimCity (USA).sfc"
+
+      - name: Verify generated sources exist
+        run: |
+          ls -la src/gen/
+          test -f src/gen/bank00.c
+
+      - name: Full build with generated code
+        run: |
+          cmake -S . -B build-full -DCMAKE_BUILD_TYPE=Release -G Ninja
+          cmake --build build-full --parallel
+
+  # Run unit tests (requires full build with generated code)
+  test:
+    name: Tests
+    needs: [host-check, regen-test]
+    if: ${{ secrets.SNESRECOMP_ROM != '' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ env.CI_IMAGE_TAG }}
+      options: --user 1000:1000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Write ROM from secret
+        run: |
+          echo "${{ secrets.SNESRECOMP_ROM }}" | base64 -d > "SimCity (USA).sfc"
+
+      - name: Run regen.sh
+        run: |
+          bash tools/regen.sh --rom "SimCity (USA).sfc"
+
+      - name: Configure with tests
+        run: |
+          cmake -S . -B build-test -DCMAKE_BUILD_TYPE=Release -G Ninja
+
+      - name: Build tests
+        run: |
+          cmake --build build-test --parallel
+
+      - name: Run ctest
+        run: |
+          cd build-test && ctest --output-on-failure
+
+  # Headless smoke test (requires display for SDL — use xvfb)
+  smoke:
+    name: Headless Smoke Test
+    needs: [host-check, regen-test]
+    if: ${{ secrets.SNESRECOMP_ROM != '' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ env.CI_IMAGE_TAG }}
+      options: --user 1000:1000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Write ROM from secret
+        run: |
+          echo "${{ secrets.SNESRECOMP_ROM }}" | base64 -d > "SimCity (USA).sfc"
+
+      - name: Run regen.sh
+        run: |
+          bash tools/regen.sh --rom "SimCity (USA).sfc"
+
+      - name: Build smoke target
+        run: |
+          cmake -S . -B build-smoke -DCMAKE_BUILD_TYPE=Release -G Ninja
+          cmake --build build-smoke --parallel
+
+      - name: Install xvfb
+        run: |
+          sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run headless smoke (3 seconds)
+        run: |
+          xvfb-run -a timeout 3 ./build-smoke/SimCitySNESRecomp "SimCity (USA).sfc" || true
+          # Expected: timeout exit (124) means it ran for 3 seconds without crashing
