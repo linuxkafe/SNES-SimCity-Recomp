@@ -1,0 +1,26 @@
+# Build artifacts
+build/
+bin/
+tmp/
+dist/
+*.o
+*.a
+*.so
+
+# ROMs and dumps (Legal requirement: no proprietary game assets in repo)
+*.sfc
+*.smc
+*.bin
+*.sav
+*.srm
+
+# IDE and tooling
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Test outputs
+Testing/
+*.log
