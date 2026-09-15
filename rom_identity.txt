@@ -6,10 +6,10 @@
 # Values are bare hex (no 0x prefix).
 
 # Expected CRC32 of the verified SimCity (USA) ROM
-expected_crc32 = 39b3c64c
+expected_crc32 = 8aedd3a1
 
 # Expected SHA-256 of the verified SimCity (USA) ROM
-expected_sha256 = 8f3e2a1d4c5b6a7f8e9d0c1b2a3f4e5d6c7b8a9f0e1d2c3b4a5f6e7d8c9b0a1
+expected_sha256 = e9c0bc05511e05a0d7c3e7cc42e761e1e8e532d46f59b9854b6902e1a2e9dd0a
 
 # Human-readable title (used in launcher, window title)
 title = SimCity (USA)
