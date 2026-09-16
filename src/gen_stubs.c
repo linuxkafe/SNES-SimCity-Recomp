@@ -10,9 +10,8 @@
  * Also provides no-op implementations for debug hooks that are declared
  * as extern in the runtime but only defined when SNESRECOMP_TRACE=1.
  *
- * For now, all stubs are empty — the recompiler will emit LLE (low-level
- * emulation) fallbacks for everything. Add HLE hooks here as needed
- * during bring-up.
+ * Mod globals: variables for mod features that can be accessed by
+ * the host's after_config callback and frame callbacks.
  */
 
 #include "common_cpu_infra.h"
@@ -39,31 +38,45 @@ void debug_on_block_enter(uint32_t pc, uint32_t a, uint32_t x, uint32_t y)
     (void)pc; (void)a; (void)x; (void)y;
 }
 
-/* Example HLE stub for SPC upload (if bank cfg declares hle_spc_upload):
+/* ========================================================================
+ * SimCity Mod Globals
  *
- * int RtlUploadSpcImageFromDp(CpuState *cpu) {
- *     // Read DP+0..2 for 24-bit ROM pointer to block stream
- *     // Walk stream: length / target / data blocks
- *     // Write directly to apu->ram
- *     // Jump apu->spc->pc to terminator target
- *     return 0;
- * }
- */
+ * These variables store mod feature state and are accessed by:
+ * - Host's after_config callback (reads env vars)
+ * - Frame callback in host (applies GodMode/Disaster effects)
+ * ======================================================================== */
 
-/* Example HLE stub for custom dispatcher (if bank cfg declares hle_dispatch):
- *
- * void MmxSchedulerTick(CpuState *cpu) {
- *     // Host-side task scheduler selects next PC
- *     // Tail-call into selected task body
- * }
- */
+int g_mod_widescreen_enabled = 0;
+int g_mod_godmode_enabled = 0;
+int g_mod_disaster_toggle = 0;  /* 0=normal, 1=disable all, 2=force random */
 
-/* Example HLE function replacement (if bank cfg declares hle_func):
+/* ========================================================================
+ * Mod Frame Callback
  *
- * void MyOptimizedFunction_M1X1(CpuState *cpu) {
- *     // Hand-written C replacement for a specific (m,x) variant
- * }
- */
+ * Called every frame from host's presenter for persistent mods.
+ * This is called from SimCityBeginSimFrame in main.c.
+ * ======================================================================== */
+
+void SimCity_ModFrameCallback(void)
+{
+    if (!g_mod_godmode_enabled)
+        return;
+
+    extern uint8_t g_ram[];
+    /* Keep money at max (999,999 = 0x0F423F, but game uses 24-bit at $7E:04B7) */
+    g_ram[0x04B7] = 0x3F;  /* Low byte */
+    g_ram[0x04B8] = 0x42;  /* Mid byte */
+    g_ram[0x04B9] = 0x0F;  /* High byte */
+
+    /* Keep instant build flag set */
+    g_ram[0x04B6] = 1;
+
+    /* Force disaster trigger if enabled */
+    if (g_mod_disaster_toggle == 2) {
+        g_ram[0x04C0] = 0xFF;
+        g_ram[0x04C1] = 0;
+    }
+}
 
 /* Placeholder to keep the translation unit non-empty. */
 void GenStubs_Dummy(void) {}
