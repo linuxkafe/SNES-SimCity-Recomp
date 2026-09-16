@@ -139,7 +139,7 @@ add_library(simcity_gfx
     src/gfx/font.cpp
     src/gfx/building_sprites.cpp
 )
-target_include_directories(simcity_gfx PUBLIC src)
+target_include_directories(simcity_gfx PUBLIC src ${CMAKE_SOURCE_DIR} ${SNESRECOMP_RUNNER_INCLUDE_DIRS})
 target_link_libraries(simcity_gfx PUBLIC snes_rom snes_decompress simcity_sim SDL2::SDL2)
 
 add_library(simcity_ui

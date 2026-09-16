@@ -41,7 +41,7 @@ private:
     void blit_tile_cell(uint32_t* px, int pitch4, int cell_x, int cell_y,
                         int tile_index, int sub);
     void blit_building_cell(uint32_t* px, int pitch4, int cell_x, int cell_y,
-                            const BuildingSpriteData::Quad& quad);
+                            const BuildingSpriteData::BuildingMeta& meta);
 
     SDL_Renderer*  renderer_;
     sim::City*     city_;

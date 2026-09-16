@@ -62,11 +62,7 @@ static void SimCityAfterConfig(void);
  * Debug / Watchdog Instrumentation
  * ======================================================================== */
 
-static int g_debug_watchdog = 0;
-static int g_debug_dma = 0;
-static int g_debug_apu = 0;
-static int g_watchdog_triggered = 0;
-static clock_t g_watchdog_frame_start = 0;
+
 static int g_last_watchdog_frame = -1;
 
 /* Custom watchdog handler - captures context before longjmp */
@@ -112,8 +108,7 @@ for (int i = g_recomp_stack_top - 1; i >= 0; i--)
 }
 
 /* Install custom watchdog handler */
-static void SimCity_InstallWatchdogHandler(void)
-{
+extern void SimCity_InstallWatchdogHandler(void) {
     const char *env = getenv("SIMCITY_DEBUG_WATCHDOG");
     g_debug_watchdog = (env && atoi(env) != 0);
     

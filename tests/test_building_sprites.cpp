@@ -48,20 +48,30 @@ static void test_building_sprites_extract() {
     CHECK(gfx::extract_building_sprites(assets, data));
     CHECK(data.valid);
 
-    // Verify all 9 quads have valid tile IDs in building range
+    // Verify all 9 building metas have valid tile IDs in building range
     const int kMin = 940, kMax = 1022;
     int total_tiles = 0;
-    auto check_quads = [&](const gfx::BuildingSpriteData::Quad arr[3]) {
-        for (int d = 0; d < 3; ++d) {
-            for (int t : arr[d]) {
-                CHECK(t >= kMin && t <= kMax);
-                ++total_tiles;
-            }
+    auto check_meta = [&](const gfx::BuildingSpriteData::BuildingMeta& meta) {
+        CHECK(meta.tile_ids.size() > 0);
+        for (int t : meta.tile_ids) {
+            CHECK(t >= kMin && t <= kMax);
+            ++total_tiles;
         }
+        // Check size consistency
+        size_t expected = 0;
+        switch (meta.size) {
+            case gfx::BuildingSpriteData::Size::Size1x1: expected = 4; break;
+            case gfx::BuildingSpriteData::Size::Size2x2: expected = 8; break;
+            case gfx::BuildingSpriteData::Size::Size3x3: expected = 9; break;
+        }
+        CHECK(meta.tile_ids.size() == expected);
     };
-    check_quads(data.residential);
-    check_quads(data.commercial);
-    check_quads(data.industrial);
+
+    for (int d = 0; d < 6; ++d) {
+        check_meta(data.residential[d]);
+        check_meta(data.commercial[d]);
+        check_meta(data.industrial[d]);
+    }
 
     // Fallback colors should be non-zero
     for (int z = 0; z < gfx::BuildingSpriteData::ZoneTypeCount; ++z) {
@@ -69,8 +79,8 @@ static void test_building_sprites_extract() {
         CHECK(c.r || c.g || c.b);
     }
 
-    printf("  building tiles: %d (9 quads x 4)\n", total_tiles);
-    CHECK(total_tiles == 36); // 9 quads x 4 tiles
+    printf("  building tiles: %d\n", total_tiles);
+    CHECK(total_tiles > 0);
 }
 
 int main() {

@@ -3,10 +3,18 @@
 
 #include <SDL2/SDL.h>
 #include <cstdint>
+#include <algorithm>
+
+#include "common_rtl.h"
+#include "snes/dma.h"
+#include "snes/interp_bridge.h"
+#include "snes/ppu.h"
+#include "snes/snes.h"
+
+#include <time.h>
+#include <signal.h>
 
 namespace gfx {
-
-namespace {
 
 struct RGB { uint8_t r, g, b; };
 
@@ -46,9 +54,6 @@ RGB cell_color(sim::TileView t) {
     return {96, 168, 76};
 }
 
-// Representative Layer1 tile id for each sim terrain. These tile ids dominate
-// the decoded scenario maps (tile 0 = grass, 1 = water, 20..37 = forest,
-// 48..95 = roads/dirt), matching City::get_tile_to_terrain_table().
 uint16_t tile_id_for_terrain(sim::Terrain t) {
     switch (t) {
         case sim::Terrain::Grass:     return 0;
@@ -56,37 +61,18 @@ uint16_t tile_id_for_terrain(sim::Terrain t) {
         case sim::Terrain::Tree:      return 20;
         case sim::Terrain::Road:      return 48;
         case sim::Terrain::PowerLine: return 48;
-        case sim::Terrain::Crater:    return 1;  // use water tile as crater (dark)
+        case sim::Terrain::Crater:    return 1;
     }
     return 0;
 }
 
-// Sub-palette assignment inside the city palette block. Land, forest and road
-// cells share sub 0, where the dominant palette index 12 renders as dark land
-// green (#315A00). Water cells use sub 1, where the same index 12 renders as
-// blue (#319CFF). Index 12 dominates the huge land/water tile ids (53% / 75%),
-// so a single sub-palette can never be green AND blue: the real game switches
-// BG Mode 1 tilemap palette-attribute bits per terrain exactly like this.
 int sub_palette_for_terrain(sim::Terrain t) {
     return t == sim::Terrain::Water ? 1 : 0;
 }
 
-// Select building quad for a zone cell based on type and density.
-const BuildingSpriteData::Quad* select_quad(const BuildingSpriteData& b,
-                                            sim::Zone zone, int density) {
-    if (!b.valid) return nullptr;
-    BuildingSpriteData::Density d = BuildingSpriteData::Low;
-    if (density >= 2) d = BuildingSpriteData::High;
-    else if (density >= 1) d = BuildingSpriteData::Medium;
-    switch (zone) {
-        case sim::Zone::Residential: return &b.residential[d];
-        case sim::Zone::Commercial:  return &b.commercial[d];
-        case sim::Zone::Industrial:  return &b.industrial[d];
-        default: return nullptr;
-    }
-}
+} // namespace gfx
 
-} // namespace
+namespace gfx {
 
 CityView::CityView(SDL_Renderer* renderer, sim::City* city, int window_w,
                    int window_h, const RomAssets* assets)
@@ -103,7 +89,7 @@ bool CityView::init() {
         SDL_TEXTUREACCESS_STREAMING, world_w(), world_h());
     if (!texture_) return false;
 
-    // Extract building sprites from ROM assets (T023)
+    // Extract building sprites from ROM assets (T033)
     if (assets_ && assets_->valid) {
         extract_building_sprites(*assets_, building_sprites_);
     }
@@ -118,9 +104,6 @@ void CityView::fill_rect(uint32_t* px, int pitch4, int x0, int y0, uint32_t colo
     }
 }
 
-// Blit a ROM tile (8x8 4bpp, upscaled 2x to the 16px city cell) into the
-// locked map buffer using sub-palette `sub` of the configured palette block.
-// Does nothing unless a valid asset bank is present.
 void CityView::blit_tile_cell(uint32_t* px, int pitch4, int cell_x, int cell_y,
                               int tile_index, int sub) {
     if (!assets_ || !assets_->valid) return;
@@ -134,9 +117,7 @@ void CityView::blit_tile_cell(uint32_t* px, int pitch4, int cell_x, int cell_y,
     const int dest_y = cell_y * kTilePx;
 
     for (int ty = 0; ty < kTilePx; ++ty) {
-        const int srow = ty >> 1;               // 8x8 -> 16x16 (x2 upscale)
-        // SNES 4bpp is two 2bpp tiles: planes 0/1 in bytes 0-15, planes 2/3 in
-        // bytes 16-31 (see decode_4bpp_tile).
+        const int srow = ty >> 1;
         const uint8_t p0 = d[srow * 2 + 0];
         const uint8_t p1 = d[srow * 2 + 1];
         const uint8_t p2 = d[16 + srow * 2 + 0];
@@ -157,42 +138,54 @@ void CityView::blit_tile_cell(uint32_t* px, int pitch4, int cell_x, int cell_y,
     }
 }
 
-// Blit a 2x2 building quad (4 tiles = 16x16px) for a zone cell.
 void CityView::blit_building_cell(uint32_t* px, int pitch4, int cell_x, int cell_y,
-                                  const BuildingSpriteData::Quad& quad) {
+                                  const BuildingSpriteData::BuildingMeta& meta) {
     if (!assets_ || !assets_->valid) return;
+    if (meta.tile_ids.empty()) return;
 
     const int pal_idx = assets_->palette_block * RomAssets::kPaletteSubs + assets_->palette_sub;
     if (pal_idx < 0 || pal_idx >= static_cast<int>(assets_->palettes.size())) return;
     const Color* pal = assets_->palettes[pal_idx].colors;
-    const int dest_x = cell_x * kTilePx;
-    const int dest_y = cell_y * kTilePx;
 
-    // Quad order: TL, TR, BL, BR
-    const int tile_ids[4] = {quad[0], quad[1], quad[2], quad[3]};
-    for (int q = 0; q < 4; ++q) {
-        int tile_index = tile_ids[q];
-        if (tile_index < 0 || tile_index >= RomAssets::kTileCount) continue;
-        const uint8_t* d = assets_->tiles.data() + tile_index * RomAssets::kTileBytes;
-        int qx = (q & 1) * 8;  // 0 or 8
-        int qy = (q >> 1) * 8; // 0 or 8
+    int cols = 1, rows = 1;
+    if (meta.size == BuildingSpriteData::Size::Size2x2) { cols = 2; rows = 2; }
+    else if (meta.size == BuildingSpriteData::Size::Size3x3) { cols = 3; rows = 3; }
 
-        for (int ty = 0; ty < 8; ++ty) {
-            const uint8_t p0 = d[ty * 2 + 0];
-            const uint8_t p1 = d[ty * 2 + 1];
-            const uint8_t p2 = d[16 + ty * 2 + 0];
-            const uint8_t p3 = d[16 + ty * 2 + 1];
-            uint32_t* row = px + (dest_y + qy + ty) * pitch4 + dest_x + qx;
-            for (int tx = 0; tx < 8; ++tx) {
-                const int bit = 7 - tx;
-                uint8_t idx = 0;
-                if (p0 & (1 << bit)) idx |= 1;
-                if (p1 & (1 << bit)) idx |= 2;
-                if (p2 & (1 << bit)) idx |= 4;
-                if (p3 & (1 << bit)) idx |= 8;
-                const Color& c = pal[idx];
-                row[tx] = (0xFFu << 24) | (uint32_t(c.r) << 16) |
-                          (uint32_t(c.g) << 8) | uint32_t(c.b);
+    for (int row = 0; row < rows; ++row) {
+        for (int col = 0; col < cols; ++col) {
+            int idx = row * cols + col;
+            if (idx >= static_cast<int>(meta.tile_ids.size())) break;
+            int tile_index = meta.tile_ids[idx];
+            if (tile_index < 0 || tile_index >= RomAssets::kTileCount) continue;
+
+            const uint8_t* d = assets_->tiles.data() + tile_index * RomAssets::kTileBytes;
+            int tile_dest_x = meta.anchor_x + col * 16;
+            int tile_dest_y = meta.anchor_y + row * 16;
+
+            for (int ty = 0; ty < 8; ++ty) {
+                const uint8_t p0 = d[ty * 2 + 0];
+                const uint8_t p1 = d[ty * 2 + 1];
+                const uint8_t p2 = d[16 + ty * 2 + 0];
+                const uint8_t p3 = d[16 + ty * 2 + 1];
+                for (int tx = 0; tx < 8; ++tx) {
+                    const int bit = 7 - tx;
+                    uint8_t idx = 0;
+                    if (p0 & (1 << bit)) idx |= 1;
+                    if (p1 & (1 << bit)) idx |= 2;
+                    if (p2 & (1 << bit)) idx |= 4;
+                    if (p3 & (1 << bit)) idx |= 8;
+                    const Color& c = pal[idx];
+                    uint32_t color = (0xFFu << 24) | (uint32_t(c.r) << 16) |
+                                     (uint32_t(c.g) << 8) | uint32_t(c.b);
+                    // 2x2 upscale: write 2x2 block
+                    int dest_x = meta.anchor_x + col * 16 + tx * 2;
+                    int dest_y = meta.anchor_y + row * 16 + ty * 2;
+                    uint32_t* row_ptr = px + (tile_dest_y + ty * 2) * pitch4 + tile_dest_x + tx * 2;
+                    row_ptr[0] = color;
+                    row_ptr[1] = color;
+                    row_ptr[pitch4] = color;
+                    row_ptr[pitch4 + 1] = color;
+                }
             }
         }
     }
@@ -213,12 +206,10 @@ void CityView::rebuild() {
                 blit_tile_cell(px, pitch4, x, y, tile_id_for_terrain(t.terrain),
                                sub_palette_for_terrain(t.terrain));
             } else if (assets_ && assets_->valid && building_sprites_.valid) {
-                // Zone cell: render building sprite quad
-                const auto* quad = select_quad(building_sprites_, t.zone, t.density);
-                if (quad) {
-                    blit_building_cell(px, pitch4, x, y, *quad);
+                const auto* meta = select_building(building_sprites_, t.zone, t.density);
+                if (meta) {
+                    blit_building_cell(px, pitch4, x * kTilePx, y * kTilePx, *meta);
                 } else {
-                    // Fallback to flat color
                     struct RGB { uint8_t r, g, b; };
                     auto cell_color = [&](sim::TileView tv) -> RGB {
                         if (tv.zone == sim::Zone::Residential)
@@ -238,7 +229,6 @@ void CityView::rebuild() {
                               (0xFFu << 24) | (c.r << 16) | (c.g << 8) | c.b);
                 }
             } else {
-                // No assets: flat color fallback
                 struct RGB { uint8_t r, g, b; };
                 auto cell_color = [&](sim::TileView tv) -> RGB {
                     if (tv.zone == sim::Zone::None) {
