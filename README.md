@@ -8,8 +8,6 @@ Native recompilation of SimCity (SNES) for PC using [snesrecomp](https://github.
 ✅ **APU sync fixed**: No more startup timeout  
 ✅ **Watchdog fixed**: VBlank wait loop at $00927C forced to interpreter  
 ✅ **NMI handler stabilized**: Forced to interpreter at $0080B2  
-✅ **All tests pass**: 10/10 ctest including deterministic replay  
-✅ **Native widescreen**: 336px frame (40px margins), BG3 HUD clamped  
 ✅ **Deterministic replay**: Bit-identical state traces verified  
 
 ## Pre-built artifacts
@@ -18,10 +16,12 @@ The `build/` directory is committed. After cloning you can run the game
 directly with your own `SimCity (USA).sfc`:
 
 ```bash
-./build/SimCitySNESRecomp "SimCity (USA).sfc"
+./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 ```
 
-A clean source build (below) is also supported.
+A clean source build (below) is also supported. Pass an absolute ROM path:
+the host chdirs to the executable directory, so a bare relative filename
+resolves there, not in your shell's working directory.
 
 ## Requirements
 
@@ -47,13 +47,13 @@ Note: the `snesrecomp` submodule is pinned to a small fork
 
 ```bash
 # Place your SimCity (USA).sfc in the project root
-./build/SimCitySNESRecomp "SimCity (USA).sfc"
+./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 
 # Debug flags
-SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 ./build/SimCitySNESRecomp "SimCity (USA).sfc"
+SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 
 # Headless test
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/SimCitySNESRecomp "SimCity (USA).sfc"
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 ```
 
 ## Mod Support
@@ -104,7 +104,7 @@ cd build && ctest --output-on-failure
 # Deterministic replay test
 SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
   SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-  timeout 30 ./build/SimCitySNESRecomp --script tests/deterministic_replay.script "SimCity (USA).sfc"
+  timeout 30 ./build/SimCitySNESRecomp --script tests/deterministic_replay.script "$PWD/SimCity (USA).sfc"
 ```
 
 ## Status

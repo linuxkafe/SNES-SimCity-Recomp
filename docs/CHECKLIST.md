@@ -16,9 +16,9 @@
 |------|---------|------|--------|
 | Full Test Suite | `ctest --output-on-failure` | BLOCKER | required |
 | Coverage | `ctest -T Test` (requires gcov/lcov) | WARNING | optional |
-| Headless Smoke | `SDL_VIDEODRIVER=dummy timeout 3 ./build/simcity "SimCity (USA).sfc"` | BLOCKER | required |
-| ROM Validation | `./build/rominfo "SimCity (USA).sfc" | grep -q "Checksum valid YES"` | BLOCKER | required |
-| Tile View Smoke | `SIMCITY_TILEVIEW_AUTOEXIT=1 SDL_VIDEODRIVER=dummy ./build/tileview "SimCity (USA).sfc" 0x10000` | BLOCKER | required |
+| Headless Smoke | `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 3 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"` | BLOCKER | required |
+| ROM Contract | Executable only launches if ROM hash matches `rom_identity.txt` (host_contract.c); validated by the Headless Smoke gate | BLOCKER | required |
+| Deterministic Replay | `cd build && ctest -R test_deterministic_replay --output-on-failure` | BLOCKER | required |
 | Docs Updated | `git diff --name-only HEAD~5..HEAD | grep -E "(docs/|CLAUDE\\.md)" || echo "no doc changes"` | WARNING | optional |
 | Git Clean | `git status --porcelain | grep -v "^??" | wc -l` | BLOCKER | required |
 
@@ -50,6 +50,6 @@
 
 ```make
 # In docs/CHECKLIST.md — configure per-project
-BLOCKER_GATES = unit_tests lint format no_debug no_todo headless_smoke rom_validation tile_smoke git_clean aes_ticket kanban sprint
+BLOCKER_GATES = unit_tests lint format no_debug no_todo headless_smoke rom_contract replay git_clean aes_ticket kanban sprint
 WARNING_GATES = coverage docs aes_shadow index cpp17 crt_warnings mem_leaks
 ```
