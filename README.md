@@ -78,12 +78,55 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 ./build/SimCitySNESRecomp "$PWD/Sim
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 ```
 
+## Controls
+
+All defaults below; every binding is rebindable through a `keybinds.ini`
+`[KeyMap]` beside the executable (dump what a build resolved with
+`SNESRECOMP_KEYMAP_DUMP=1`).
+
+**Quick save / load** (10 slots)
+- `F1`–`F10` — quick **load** slot 1–10
+- `Shift+F1`–`Shift+F10` — quick **save** slot 1–10
+- `F11` — save-state menu (thumbnail browser)
+- `F12` — rewind filmstrip (≈60 snapshots, ~6 s of history)
+- Controller: **Select + R** opens the save-state menu
+
+**Time and speed**
+- `Tab` — **turbo**: run the simulation as fast as the machine allows and
+  render every 16th frame (use to fast-forward a growing city)
+- `P` / `Shift+P` — pause (paused screen dimmed/not)
+
+**Other**
+- `Ctrl+R` — reset
+- `Alt+Enter` — fullscreen toggle
+- `Alt+W` — widescreen toggle
+- `F` — display performance readout
+- `Keypad +` / `Keypad −` — volume up/down
+
+Save-state slots are stored as `saves/save1.sav` … `saves/save10.sav` in the
+`saves/` directory beside the executable; battery SRAM (the in-game "SAVE" /
+"LOAD" menus) uses `saves/save.srm`.
+
 ## Mod Support
 
-Environment variable toggles:
-- `SIMCITY_WIDESCREEN=1` - Enable widescreen
-- `SIMCITY_GODMODE=1` - Infinite money, instant build
-- `SIMCITY_DISASTER_TOGGLE=1` - Disable disasters / `=2` force random
+The recompiled core stays **byte-deterministic**: acceleration or save/load
+only changes *how many* simulated frames run or when the timeline jumps —
+never the state of any single frame.
+
+**Built-in QoL toggles** (environment variables, off by default):
+- `SIMCITY_WIDESCREEN=1` — widen the isometric view (336 px frame)
+- `SIMCITY_GODMODE=1` — infinite money, instant build
+- `SIMCITY_DISASTER_TOGGLE=1` — disable disasters; `=2` force random ones
+
+```bash
+SIMCITY_GODMODE=1 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
+```
+
+**Mod packages (`.snesmod`)**: the framework's package loader is enabled and
+stages `mods/preloaded/packages/` beside the executable; a launcher Mods page
+installs and uninstalls packages. This port ships **no** packages by default
+(its own mods are the `SIMCITY_*` toggles above). The package format is
+documented in the framework at `snesrecomp/docs/MOD_PACKAGES.md`.
 
 ## Debug Flags
 
@@ -156,7 +199,9 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | ROM font | 🔄 In progress (T019) |
 | Widescreen renderer | 🔄 In progress (T028) |
 | Scenarios | ⏳ Backlog (T011) |
-| Save/Load | ⏳ Backlog (T012) |
+| Quick save/load (10 slots) | ✅ Working |
+| Save-state menu + rewind | ✅ Working |
+| Turbo | ✅ Working |
 
 ## License
 
