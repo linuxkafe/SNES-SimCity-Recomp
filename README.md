@@ -170,7 +170,11 @@ sponsored by, or endorsed by Nintendo, Electronic Arts, or Maxis.**
 - This project does not circumvent copy protection and is offered for
   **non-commercial** preservation and research use.
 - Project license: **PolyForm Noncommercial 1.0.0** — non-commercial use only.
-- snesrecomp framework: PolyForm Noncommercial 1.0.0.
+- snesrecomp framework: PolyForm Noncommercial 1.0.0, copyright © 2026 Matthew
+  Stanley. The runner statically links MIT/ISC third-party components
+  (snesrev's zelda3/smw ports, LakeSnes, ares-derived coprocessor cores);
+  the required license notices ship with every distributed build in
+  [`THIRD_PARTY_ATTRIBUTION.md`](THIRD_PARTY_ATTRIBUTION.md).
 
 ## Development
 
@@ -191,14 +195,13 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 
 | Feature | Status |
 |---------|--------|
-| Core recompilation | ✅ Done |
+| Core recompilation (recompiled 65816 drives the PPU) | ✅ Done |
 | Runtime stability | ✅ Done (10k+ frames) |
 | Title screen | ✅ Working |
-| Native widescreen | ✅ Done (336px) |
-| Building sprites | 🔄 In progress (T033) |
-| ROM font | 🔄 In progress (T019) |
-| Widescreen renderer | 🔄 In progress (T028) |
-| Scenarios | ⏳ Backlog (T011) |
+| Native widescreen (336 px, game-native renderer) | ✅ Done |
+| Game-native graphics (terrain, buildings, font) | ✅ Working (verified interactively) |
+| Building/visual verification (headless capture) | 🔄 T033 — blocked by headless-present bug (T039) |
+| Scenarios (all 5 US) | ⏳ T011 — verify in recompiled game |
 | Quick save/load (10 slots) | ✅ Working |
 | Save-state menu + rewind | ✅ Working |
 | Turbo | ✅ Working |
