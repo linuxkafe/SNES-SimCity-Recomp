@@ -2,6 +2,28 @@
 
 Native recompilation of SimCity (SNES) for PC using [snesrecomp](https://github.com/RetroPortingToolKit/snesrecomp).
 
+An unofficial, non-commercial project that statically recompiles the Super
+Nintendo game **SimCity** (Nintendo, 1991) into native C++17 for PC. All
+graphics, palettes, map data and audio are read at runtime from a copy of the
+original ROM that **you** supply; the ROM and any ripped assets are never
+included. Built on the **snesrecomp** framework.
+
+## About the Game
+
+**SimCity** is an open-ended city-building simulation created by **Will Wright**
+and published by **Maxis** in 1989. You play as the mayor of an empty plot of
+land: you zone residential, commercial and industrial areas, lay roads, power
+and water, set taxes and a budget, and watch the simulation grow — or go broke.
+Disasters (fires, floods, earthquakes, and a certain giant monster) keep you on
+your toes.
+
+The **Super Nintendo Entertainment System (SNES)** version was developed by
+**Nintendo EAD** under license from Maxis and published by Nintendo in 1991
+(JP April 26, NA August 23; EU September 24, 1992). It is widely regarded as
+the best console adaptation of the original: seasons recolour the map, Nintendo
+cameos appear (a Mario statue, a Bowser rampage), and extra scenario missions
+were added. This port reproduces that SNES release.
+
 ## Status
 
 ✅ **Runtime stable**: 10,000+ frames headless without watchdog timeout  
@@ -84,13 +106,28 @@ recomp/
 └── funcs.h             # Function declarations (auto-synced)
 ```
 
-## Legal
+## Legal & Attribution
 
-- **ROM not included** - User must provide own `SimCity (USA).sfc`
-- Published binaries contain recompiled 65C816→C code derived from the user's
-  ROM; the ROM image itself is never committed
-- **PolyForm Noncommercial 1.0.0** - Non-commercial use only
-- snesrecomp framework (PolyForm Noncommercial 1.0.0)
+This is an **unofficial, fan-made project**. It is **not affiliated with,
+sponsored by, or endorsed by Nintendo, Electronic Arts, or Maxis.**
+
+- **SimCity®** and the SimCity logo are registered trademarks of
+  **Electronic Arts Inc.** SimCity was originally created by **Will Wright**
+  and published by **Maxis** (1989); the SNES version was developed by
+  **Nintendo EAD** under license from Maxis and published by **Nintendo**
+  (1991). All game code, graphics, audio and other assets are © their
+  respective owners (Maxis / Electronic Arts / Nintendo).
+- **Super Nintendo Entertainment System**, **SNES** and **Super Famicom** are
+  trademarks of **Nintendo**.
+- **ROM not included** — you must legally own and supply your own
+  `SimCity (USA).sfc`. No copyrighted ROM, ripped tiles, palettes or audio are
+  committed to this repository.
+- Published binaries contain recompiled 65C816→C code **derived from your
+  ROM**; the ROM image itself is never committed or distributed.
+- This project does not circumvent copy protection and is offered for
+  **non-commercial** preservation and research use.
+- Project license: **PolyForm Noncommercial 1.0.0** — non-commercial use only.
+- snesrecomp framework: PolyForm Noncommercial 1.0.0.
 
 ## Development
 
@@ -107,7 +144,7 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
   timeout 30 ./build/SimCitySNESRecomp --script tests/deterministic_replay.script "$PWD/SimCity (USA).sfc"
 ```
 
-## Status
+## Feature Status
 
 | Feature | Status |
 |---------|--------|
