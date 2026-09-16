@@ -1,5 +1,6 @@
 # Build artifacts
 build/
+build-*/
 bin/
 tmp/
 dist/
@@ -7,12 +8,24 @@ dist/
 *.a
 *.so
 
+# Generated recompiler output (derived from copyrighted ROM, never committed)
+src/gen/
+
 # ROMs and dumps (Legal requirement: no proprietary game assets in repo)
 *.sfc
 *.smc
 *.bin
 *.sav
 *.srm
+
+# AES internal (never committed - local project management only)
+aes/
+.aes/
+
+# snesrecomp specific
+rom.cfg
+mods/preloaded/packages/*.snesmod
+.snesrecomp-cache.json
 
 # IDE and tooling
 .vscode/
@@ -24,3 +37,6 @@ dist/
 # Test outputs
 Testing/
 *.log
+
+# Docker
+.docker/
