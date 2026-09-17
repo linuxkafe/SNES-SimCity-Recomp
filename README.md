@@ -71,6 +71,12 @@ Note: the `snesrecomp` submodule is pinned to a small fork
 # Place your SimCity (USA).sfc in the project root
 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 
+# Resolution presets — pin the window to a fixed display size
+SNESRECOMP_RESOLUTION=720p ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"   # 1280x720
+SNESRECOMP_RESOLUTION=800p ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"   # 1280x800
+SNESRECOMP_RESOLUTION=1080p ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"  # 1920x1080
+SNESRECOMP_RESOLUTION=2560x1440 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"  # raw WxH also works
+
 # Debug flags
 SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 
@@ -205,6 +211,7 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | Quick save/load (10 slots) | ✅ Working |
 | Save-state menu + rewind | ✅ Working |
 | Turbo | ✅ Working |
+| Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
 
 ## License
 
