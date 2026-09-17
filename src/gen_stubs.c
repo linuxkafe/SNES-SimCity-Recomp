@@ -21,7 +21,9 @@
 /* Debug hooks — no-op stubs for production builds (SNESRECOMP_TRACE=0).
  * The debug_server.h header provides static-inline no-op stubs when
  * SNESRECOMP_TRACE=0, but the runtime also calls extern functions
- * that need definitions. These provide those definitions. */
+ * that need definitions. These provide those definitions. When
+ * SNESRECOMP_TRACE=1 the real definitions come from debug_server.c. */
+#if !SNESRECOMP_TRACE
 
 void debug_on_wram_write_byte(uint32_t addr, uint8_t old_val, uint8_t new_val)
 {
@@ -37,6 +39,8 @@ void debug_on_block_enter(uint32_t pc, uint32_t a, uint32_t x, uint32_t y)
 {
     (void)pc; (void)a; (void)x; (void)y;
 }
+
+#endif /* !SNESRECOMP_TRACE */
 
 /* ========================================================================
  * SimCity Mod Globals
