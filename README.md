@@ -82,6 +82,12 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 ./build/SimCitySNESRecomp "$PWD/Sim
 
 # Headless test
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
+
+# SNES Mouse on player 2 (opt-in; host cursor hidden, guest cursor takes over)
+SNESRECOMP_MOUSE=1 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
+
+# Input diagnostics — manual+auto read depth, auto word seen by the guest
+SNESRECOMP_MOUSE=1 SNESRECOMP_PAD_PROBE=1 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 ```
 
 ## Controls
@@ -212,6 +218,7 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | Save-state menu + rewind | ✅ Working |
 | Turbo | ✅ Working |
 | Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
+| SNES Mouse on player 2 (`SNESRECOMP_MOUSE=1`, bsnes-exact protocol) | ✅ Device-level done (T042, ROM-free verified) |
 
 ## License
 
