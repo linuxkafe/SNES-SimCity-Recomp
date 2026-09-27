@@ -257,12 +257,29 @@ static void SimCityBeginSimFrame(unsigned number)
     if (g_ws_active && g_ws_extra > 0) {
         /* Set symmetric widescreen border */
         PpuSetExtraSpace(g_ppu, (uint16_t)g_ws_extra);
-        
-        /* For isometric city view: background layers (BG1=terrain, BG2=sprites) 
-         * should render into margins. HUD layers should stay clamped. */
-        /* BG1 (terrain) and BG2 (buildings/sprites) get widescreen */
-        /* BG3 (HUD) stays clamped to native 256 */
-        PpuSetWidescreenLayerClamp(g_ppu, 0x04);  /* Clamp BG3 only (bit 2 = layer 3) */
+
+        /* T052: the margin policy is PER SCREEN, and the discriminator is the
+         * game's own. $000012 is the screen gate its NMI handler dispatches on
+         * ($80D3 LDA $12 / BNE full / JMP $81B5): zero through the title, the
+         * scenario dialogs and the city load, non-zero once the city is up.
+         * Measured over s3.script: $12=00 at f600 (the dialog that repeats),
+         * $12=01 from f770, which is where the city view starts.
+         *
+         * City view: the field is full-bleed, so the margins should read as
+         * "the map continues" — the default wrap is right, and a mirror here
+         * puts a visible reversed smear with a seam at x=40.
+         *
+         * Everything else (dialogs, title, load): the field is NOT full-bleed,
+         * and the wrap repeats it — the scenario dialog shows up three times.
+         * A mirror reflects the field's edge instead, so nothing readable is
+         * duplicated. Measured: mask 0x0F takes the margin from 0% to 28-30%
+         * agreement with the field edge and the readable repeat is gone.
+         *
+         * Both setters are re-applied per frame (the masks are state, not
+         * latches), so the inactive one is explicitly zeroed. */
+        const int in_city = (g_ram[0x0012] != 0);
+        PpuSetWidescreenLayerClamp(g_ppu, 0x04);            /* BG3 (HUD) always */
+        PpuSetWidescreenLayerMirror(g_ppu, in_city ? 0x00 : 0x0F);
     }
     
     /* Run mod frame callback for persistent mods (GodMode, forced disasters) */
