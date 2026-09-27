@@ -258,37 +258,40 @@ static void SimCityBeginSimFrame(unsigned number)
         /* Set symmetric widescreen border */
         PpuSetExtraSpace(g_ppu, (uint16_t)g_ws_extra);
 
-        /* T052: the margin policy is PER SCREEN, and the discriminator is the
-         * game's own. $000012 is the screen gate its NMI handler dispatches on
-         * ($80D3 LDA $12 / BNE full / JMP $81B5): zero through the title, the
-         * menus, the scenario dialogs and the city load, non-zero once the city
-         * is up. Measured on s3.script: $12=00 at f500 (the menu) and f600 (the
-         * scenario dialog), $12=01 from f770, which is where the city starts.
+        /* T052: clamp every layer, always, and never mirror or repeat.
          *
-         * CITY VIEW: the field is full-bleed, so the margins should read as
-         * "the map continues". That is the default overflow wrap, and it is
-         * what the user sees and approves of. BG3 (the HUD) stays clamped to
-         * the authentic 256 columns so the status bar does not smear.
+         * The margins cannot carry meaningful content, and the reason is
+         * structural rather than a policy choice: the game renders 256
+         * columns, and NOTHING renders columns 256-295. The PPU's overflow is
+         * the field's own left/right columns brought back around, so every
+         * margin pixel is a copy of the field - a self-repeat.
          *
-         * EVERY OTHER SCREEN: the field is NOT full-bleed, and the wrap repeats
-         * it — the scenario cards and the menu box appear two extra times.
-         * A mirror only reverses the duplication (the cards are still there,
-         * mirrored), so mirroring is NOT a fix. Clamping every layer is: the
-         * margins become the backdrop, i.e. clean pillarbox, which is what a
-         * 4:3 screen on a wider window should be.
+         * Measured on s3.script f1000 (city view): 85% of the left margin is
+         * pixel-identical to the field's own row shifted (margin[x] ==
+         * field[256+x]), only 14% diverges. The wrap "looks like" the map
+         * continuing because the image sits next to itself, and on a
+         * full-bleed terrain map that is convincing - but it is a repeat, and
+         * the discontinuity is visible wherever the map is not uniform
+         * (building edges, road junctions, the map's authored border). The
+         * user reported exactly that on the city view, after an earlier
+         * iteration had wrongly been read as continuity.
          *
-         * Why all layers and not just the content layer: the wood background
-         * and the menu box share BG1, so no mask keeps the wood and drops the
-         * box. Measured on s3.script f500, dark pixels in a 40x224 margin:
-         *   clamp 0x00 -> 678  (7%)   the menu box duplicated
-         *   clamp 0x04 -> 678  (7%)   no effect
-         *   clamp 0x0F -> 8960 (100%)  margin is uniformly backdrop
+         * The same measurement on the menu (f500) shows the repeat is obvious
+         * there: the black menu box is duplicated into both margins.
          *
-         * Both setters are re-applied per frame (the masks are state, not
-         * latches), so the inactive one is explicitly zeroed. */
-        const int in_city = (g_ram[0x0012] != 0);
-        PpuSetWidescreenLayerClamp(g_ppu, in_city ? 0x04 : 0x0F);
+         * So the honest margin policy is the only one that is not a lie:
+         * backdrop. Clamping all four BG layers leaves the margins uniformly
+         * empty, and a 4:3 game gets clean pillarbox on a wider window.
+         *
+         * Filling those columns with real map is T051's job, and it is a
+         * different kind of work: the game's OWN authored world has to be
+         * extended into them (WIDESCREEN_PATTERNS.md P1/P2b), not the PPU's
+         * overflow recycled. A per-screen policy is not wanted here - the
+         * city never had a legitimate special case, only a plausible-looking
+         * one. */
+        PpuSetWidescreenLayerClamp(g_ppu, 0x0F);
         PpuSetWidescreenLayerMirror(g_ppu, 0x00);
+        PpuSetWidescreenLayerRepeat(g_ppu, 0x00);
     }
     
     /* Run mod frame callback for persistent mods (GodMode, forced disasters) */
