@@ -261,25 +261,34 @@ static void SimCityBeginSimFrame(unsigned number)
         /* T052: the margin policy is PER SCREEN, and the discriminator is the
          * game's own. $000012 is the screen gate its NMI handler dispatches on
          * ($80D3 LDA $12 / BNE full / JMP $81B5): zero through the title, the
-         * scenario dialogs and the city load, non-zero once the city is up.
-         * Measured over s3.script: $12=00 at f600 (the dialog that repeats),
-         * $12=01 from f770, which is where the city view starts.
+         * menus, the scenario dialogs and the city load, non-zero once the city
+         * is up. Measured on s3.script: $12=00 at f500 (the menu) and f600 (the
+         * scenario dialog), $12=01 from f770, which is where the city starts.
          *
-         * City view: the field is full-bleed, so the margins should read as
-         * "the map continues" — the default wrap is right, and a mirror here
-         * puts a visible reversed smear with a seam at x=40.
+         * CITY VIEW: the field is full-bleed, so the margins should read as
+         * "the map continues". That is the default overflow wrap, and it is
+         * what the user sees and approves of. BG3 (the HUD) stays clamped to
+         * the authentic 256 columns so the status bar does not smear.
          *
-         * Everything else (dialogs, title, load): the field is NOT full-bleed,
-         * and the wrap repeats it — the scenario dialog shows up three times.
-         * A mirror reflects the field's edge instead, so nothing readable is
-         * duplicated. Measured: mask 0x0F takes the margin from 0% to 28-30%
-         * agreement with the field edge and the readable repeat is gone.
+         * EVERY OTHER SCREEN: the field is NOT full-bleed, and the wrap repeats
+         * it — the scenario cards and the menu box appear two extra times.
+         * A mirror only reverses the duplication (the cards are still there,
+         * mirrored), so mirroring is NOT a fix. Clamping every layer is: the
+         * margins become the backdrop, i.e. clean pillarbox, which is what a
+         * 4:3 screen on a wider window should be.
+         *
+         * Why all layers and not just the content layer: the wood background
+         * and the menu box share BG1, so no mask keeps the wood and drops the
+         * box. Measured on s3.script f500, dark pixels in a 40x224 margin:
+         *   clamp 0x00 -> 678  (7%)   the menu box duplicated
+         *   clamp 0x04 -> 678  (7%)   no effect
+         *   clamp 0x0F -> 8960 (100%)  margin is uniformly backdrop
          *
          * Both setters are re-applied per frame (the masks are state, not
          * latches), so the inactive one is explicitly zeroed. */
         const int in_city = (g_ram[0x0012] != 0);
-        PpuSetWidescreenLayerClamp(g_ppu, 0x04);            /* BG3 (HUD) always */
-        PpuSetWidescreenLayerMirror(g_ppu, in_city ? 0x00 : 0x0F);
+        PpuSetWidescreenLayerClamp(g_ppu, in_city ? 0x04 : 0x0F);
+        PpuSetWidescreenLayerMirror(g_ppu, 0x00);
     }
     
     /* Run mod frame callback for persistent mods (GodMode, forced disasters) */
