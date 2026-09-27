@@ -32,6 +32,7 @@
 #include "game_rtl.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common_cpu_infra.h"
@@ -71,11 +72,91 @@ static uint32_t reset_vector(void) { return read_vector(0x00FFFCu); }
 static uint32_t nmi_vector(void)   { return read_vector(0x00FFEAu); }
 static uint32_t irq_vector(void)   { return read_vector(0x00FFEEu); }
 
+/* T050 diagnostic (SNESRECOMP_FRAME_SLOG=1): per-frame boundary log of the
+ * guest stack pointer, program bank and resume PC. Valid ONLY at frame
+ * boundaries — the bridge syncs the interpreter into g_cpu there, whereas
+ * inside an interrupt run g_cpu describes the AOT tier, not the interpreter
+ * (the mistake that produced T050's first, refuted hypothesis). The question
+ * it answers: on which frame does S leave the main loop's value, and does the
+ * NMI of that frame move it. Off unless armed. */
+static int frame_slog_enabled(void)
+{
+    static int on = -1;
+    if (on < 0) {
+        const char *e = getenv("SNESRECOMP_FRAME_SLOG");
+        on = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    return on;
+}
+
+static void frame_slog(const char *tag)
+{
+    if (!frame_slog_enabled())
+        return;
+    extern int snes_frame_counter;
+    fprintf(stderr, "[fslog] f=%d %-7s S=%04X PB=%02X DP=%04X resume=%06X\n",
+            snes_frame_counter, tag, (unsigned)g_cpu.S, (unsigned)g_cpu.PB,
+            (unsigned)g_cpu.D, (unsigned)g_resume_pc);
+}
+
+/* T050 (SNESRECOMP_NMI_PRESERVE_S=1): make the NMI atomic with respect to the
+ * guest's own registers.
+ *
+ * MEASURED (f878, s3.script, SNESRECOMP_FRAME_SLOG=1):
+ *
+ *   f=877 slice0 enter  S=1FEA resume=009313
+ *   f=877 slice0 exit   S=1FEA resume=009315
+ *   f=878 post-nmi      S=1F7F resume=009315   <-- NMI moved S by -107
+ *   f=878 slice0 enter  S=1F7F resume=009315   <-- main loop resumes MID-ROUTINE
+ *   f=878 slice0 exit   S=1F76 resume=00375E   <-- RTS $9317 popped $0000
+ *
+ * $9311 INC $C7 / $9313 LDA $B9 / $9315 BEQ / $9317 RTS is the guest's vblank
+ * wait AND this host's frame park point. The main loop is inside it with its
+ * JSR return frame on the stack; the NMI handler's long path relocates the
+ * guest stack to its own base and leaves it there, so the RTS that follows
+ * pops a stack the main loop is not using.
+ *
+ * The 65816 interrupt frame does not carry S, so nothing forces the handler to
+ * put it back — and this handler restores a CONSTANT ($1F7F), not the
+ * interrupted S ($1FEA). Holding a resume PC inside a subroutine while letting
+ * the handler move the stack under it is this host's inconsistency, not the
+ * game's: the frame boundary is our artefact, hardware has no such thing
+ * mid-subroutine.
+ *
+ * Env-gated only so it can be A/B'd against a build without it;
+ * SNESRECOMP_NMI_PRESERVE_S=0 restores the old behaviour. Default ON: the
+ * gates below are the evidence, not the argument.
+ *
+ *   s3.script, 1200 frames, headless luma of the presented frame
+ *     off:  f900..f1200  mean=0.00   (black; $2100 pinned to 00)
+ *     on:   f900..f1200  mean=122.8  (city view, live and stable)
+ *   s2.script, 1400 frames
+ *     off:  f925..f1400  static VRAM garbage (two luma values, scene frozen)
+ *     on:   f900..f1400  mean=122.8  (city view, live and stable)
+ *   SNESRECOMP_TRAP_BADPB=1, s3.script, 3000 frames
+ *     off:  trap at frame 878 ($009317 RTS popped $0000 -> $000001)
+ *     on:   0 hits, exit 0
+ */
+static int nmi_preserve_regs(void)
+{
+    static int on = 1;
+    if (on < 0) {
+        const char *e = getenv("SNESRECOMP_NMI_PRESERVE_S");
+        on = (e && e[0] && e[0] == '0') ? 0 : 1;
+    }
+    return on;
+}
+
 /* Run one interrupt handler to its RTI, entered as hardware enters it: the
  * frame is pushed at the PC the guest was interrupted AT, so the handler's
  * terminal RTI returns into that instruction stream. */
 static void game_run_interrupt(uint32_t vector, uint64_t frame_end)
 {
+    const int preserve = nmi_preserve_regs();
+    const uint16_t s0 = g_cpu.S, d0 = g_cpu.D;
+    const uint8_t pb0 = g_cpu.PB, db0 = g_cpu.DB;
+    const uint32_t resume0 = g_resume_pc;
+
     cpu_push_interrupt_frame_at(&g_cpu, g_resume_pc);
     interp_bridge_set_master_deadline(frame_end);
     (void)interp_bridge_run_interrupt(&g_cpu, vector);
@@ -83,7 +164,13 @@ static void game_run_interrupt(uint32_t vector, uint64_t frame_end)
      * prologue afterwards, which turns every compiled body into an immediate
      * yield-unwind. */
     interp_bridge_set_master_deadline(0);
-    {
+    if (preserve) {
+        /* The handler's RTI already returns to the PC it was entered from;
+         * what it must not do is relocate the stack we are holding a resume
+         * PC inside. Restore the interrupted register set wholesale. */
+        g_cpu.S = s0; g_cpu.D = d0; g_cpu.PB = pb0; g_cpu.DB = db0;
+        g_resume_pc = resume0;
+    } else {
         uint32_t resume = interp_bridge_lle_resume_pc();
         if (resume)
             g_resume_pc = resume;
@@ -105,7 +192,9 @@ void GameRunOneFrame(void)
      * has not run yet, so there is no instruction stream to interrupt. */
     if (!booting && g_snes->nmiEnabled) {
         g_snes->inNmi = true;
+        frame_slog("pre-nmi");
         game_run_interrupt(nmi_vector(), frame_end);
+        frame_slog("post-nmi");
         g_snes->inNmi = false;
     }
 
@@ -118,12 +207,31 @@ void GameRunOneFrame(void)
         if (g_cpu.master_cycles >= frame_end)
             break;
         interp_bridge_set_master_deadline(frame_end);
+        {
+            /* T050: the resume PC this slice STARTS at is the one that decides
+             * whether a guest `RTS` later has a return frame to pop. A slice
+             * that starts mid-subroutine must have inherited that subroutine's
+             * JSR frame; log it before the run so the two can be compared. */
+            extern int snes_frame_counter;
+            if (frame_slog_enabled())
+                fprintf(stderr, "[fslog] f=%d slice%-2d enter  S=%04X resume=%06X\n",
+                        snes_frame_counter, slice, (unsigned)g_cpu.S,
+                        (unsigned)g_resume_pc);
+        }
         interp_bridge_run_until_quiescent(&g_cpu, g_resume_pc);
         interp_bridge_set_master_deadline(0);
         {
             uint32_t resume = interp_bridge_lle_resume_pc();
             if (resume)
                 g_resume_pc = resume;
+        }
+        {
+            extern int snes_frame_counter;
+            if (frame_slog_enabled())
+                fprintf(stderr, "[fslog] f=%d slice%-2d exit   S=%04X resume=%06X wai=%d\n",
+                        snes_frame_counter, slice, (unsigned)g_cpu.S,
+                        (unsigned)g_resume_pc,
+                        interp_bridge_lle_took_wai() ? 1 : 0);
         }
 
         /* A raster IRQ asserted while the guest ran: service it before
@@ -137,6 +245,7 @@ void GameRunOneFrame(void)
         if (interp_bridge_lle_took_wai())
             break;
     }
+    frame_slog("frame-end");
 }
 
 void GameDrawPpuFrame(void)
