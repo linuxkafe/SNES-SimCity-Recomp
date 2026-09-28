@@ -25,8 +25,9 @@ SNESRECOMP_SCREENSHOT=/tmp/bc.ppm SNESRECOMP_SCREENSHOT_FRAME=9000 \
 | 5 | `press right 4` / `press up 4` | **Bern Traffic 1965** highlighted |
 | 6 | `press b 4` | the scenario briefing |
 | 7 | `press b 5` x14 | the MAP SELECT screen |
-| 8 | `press down 4` twice | **"Enter name of the city"** with an on-screen keyboard |
-| 9 | *(not yet solved)* | move to `ENT` and confirm -> the running city |
+| 8 | `press down 4` twice, then `press b 5` ten times | **"Enter name of the city"** with an on-screen keyboard |
+| 9 | `press right` x10, `press down` x3 | the hand sits **exactly on `ENT`** (verified by screenshot) |
+| 10 | *(BLOCKED)* | confirming `ENT` -> the running city |
 
 ## Two things that are not guessable
 
@@ -38,6 +39,21 @@ same as eight other buttons, which is what a clean control looks like.
 SELECT SCENARIO. This cost two runs: the third press silently undid the first
 two, and the run entered a new city instead of a scenario, which looks like the
 navigation failing rather than like a wrap.
+
+**A single `b` does not leave MAP SELECT; ten do.** One press appears to do
+nothing, and the screen is unchanged, so it reads as "the button is not
+activated" rather than as "one press is not enough".
+
+**The d-pad does not move the hand on MAP SELECT.** `press right` there changes
+nothing at all - the hand stays on `OK`. The hand only becomes d-pad-navigable
+on the name-entry keyboard, where `right` moves it along a row **and wraps**
+(twelve presses returned it to the left edge).
+
+**Confirming `ENT` on the name keyboard is the unsolved step.** Measured and
+rejected: `b` once, `a`, `b` three times, and `start` all leave the screen
+unchanged. The hand ends up on `SPACE` after the first `b`, which suggests `b`
+is reaching the keyboard and doing something other than confirming - possibly
+inserting the default placeholder. Whatever confirms it is not in {A, B, START}.
 
 ## Why a scenario, not a new city
 
