@@ -39,4 +39,5 @@ Testing/
 *.log
 
 # Docker
-.docker/
+.docker/saves/
+last_run_report.json
