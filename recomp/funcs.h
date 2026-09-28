@@ -15,7 +15,7 @@
 
 #include "cpu_state.h"
 
-/* 151 functions across all banks (5 decls each). */
+/* 152 functions across all banks (5 decls each). */
 
 void Reset_Entry(CpuState *cpu);  /* $00:8000 alias */
 RecompReturn Reset_Entry_M0X0(CpuState *cpu);
@@ -62,6 +62,11 @@ RecompReturn BRK_Handler_M0X0(CpuState *cpu);
 RecompReturn BRK_Handler_M0X1(CpuState *cpu);
 RecompReturn BRK_Handler_M1X0(CpuState *cpu);
 RecompReturn BRK_Handler_M1X1(CpuState *cpu);
+void PPU_Bitpack_8EA9(CpuState *cpu);  /* $00:8EA9 alias */
+RecompReturn PPU_Bitpack_8EA9_M0X0(CpuState *cpu);
+RecompReturn PPU_Bitpack_8EA9_M0X1(CpuState *cpu);
+RecompReturn PPU_Bitpack_8EA9_M1X0(CpuState *cpu);
+RecompReturn PPU_Bitpack_8EA9_M1X1(CpuState *cpu);
 void City_Update(CpuState *cpu);  /* $01:8000 alias */
 RecompReturn City_Update_M0X0(CpuState *cpu);
 RecompReturn City_Update_M0X1(CpuState *cpu);
