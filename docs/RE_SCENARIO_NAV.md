@@ -49,6 +49,21 @@ nothing at all - the hand stays on `OK`. The hand only becomes d-pad-navigable
 on the name-entry keyboard, where `right` moves it along a row **and wraps**
 (twelve presses returned it to the left edge).
 
+**`loadstate` does not restore a mid-flow state, so it is not a shortcut past
+this screen.** A `savestate 0` written on the naming screen restores to the
+**title screen** - the load reports success and the screen is nevertheless the
+attract loop. `GameReset()` is not the cause: SimCity does not define
+`on_reset`, so that call does nothing game-specific. Whatever the state
+directory misses, it is enough to send a mid-flow frame back to the title. This
+is recorded because the natural next idea - "just save past the screen" - is
+already refuted, and re-testing it costs a five-minute run.
+
+`host_main.c` gained a `savestate N` script command to go with the existing
+`loadstate N`, which had been able to restore states a script could not create.
+It is worth keeping even though the shortcut failed: reaching this screen costs
+~8000 frames, and the next experiments should be able to start from a nearby
+point.
+
 **Confirming `ENT` on the name keyboard is the unsolved step.** Measured and
 rejected: `b` once, `a`, `b` three times, and `start` all leave the screen
 unchanged. The hand ends up on `SPACE` after the first `b`, which suggests `b`
