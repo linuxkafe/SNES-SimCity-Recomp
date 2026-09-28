@@ -103,3 +103,71 @@ much because audio pacing dominates, and `EnableAudio = 0` is what actually
 buys speed. A scenario needs roughly 6000 frames to settle, so budget two to
 three minutes per run and run candidates four at a time - twelve at once
 starved each process and none finished.
+
+## The VBlank handshake, both ends proven
+
+Found while working out whether the hot `$009311` could be recompiled. It cannot,
+and now there is a reason rather than a comment.
+
+The flag the spin waits on is **`$B9`, a direct-page byte**, and the NMI handler
+increments it. `INC dp $B9` occurs **exactly once in the ROM**, at `$0080BC`,
+which is ten bytes inside `func NMI_Handler 0x80B2`:
+
+```
+NMI_Handler $80B2
+  $80B2  78           SEI
+  $80B3  E2 20        SEP #$20
+  $80B5  48           PHA
+  $80B6  AF B1 00 00  LDA $00B1,X
+  $80BA  30 04        BIT $04
+  $80BC  E6 B9        INC $B9      <- the writer
+  $80BE  68           PLA
+  $80BF  40           RTI          <- fast path
+```
+
+and the consumer:
+
+```
+main loop  $930F  STZ $B9      ; clear the flag
+           $9311  INC $C7      ; count spin iterations
+           $9313  LDA $B9
+           $9315  BEQ $9311    ; wait for the next VBlank
+           $9317  RTS
+```
+
+A debugger watch on `$7E:00B9` confirms the consuming side: it goes to `0x01`
+once per frame.
+
+**That one fact explains all three observations:**
+
+- `$9311` dominating execution is the game spending the frame waiting for the
+  next VBlank - not doing work there.
+- `force_lle 0x009311` is correct because the NMI must be delivered *during* the
+  spin, and delivery happens at AOT call boundaries; this spin **is** one of
+  those boundaries. A native spin never returns.
+- The watchdog at frame 2607 is `$C7` overflowing.
+
+It also settles the shape of the fix: "wait for the next VBlank" is what Super
+Metroid solves with `WaitForNMI`, named in `LLE_SCHEDULER.md` as the analogous
+seam. The overlay would wait for the VBlank, deliver the pending NMI, and
+return.
+
+**How it was found, and one correction.** The debugger's write-watchpoint on
+`$B9` reports `pc24=0x000000` - it does not record the writing PC for interpreted
+code - so the writer came from scanning the ROM for stores to that direct-page
+byte. And I earlier reported "no return address anywhere in low WRAM" as a
+finding; that was my search being wrong. The watch reported `S=0x1FDF` and I had
+only read `$0000-$0FFF`, so the stack was a kilobyte past the end of my window.
+
+## Running the debugger
+
+The TCP debug server is compiled out by default: `debug_server.h` turns every
+entry point into a `static inline` no-op unless `SNESRECOMP_TRACE` is 1, so
+configure with `-DSNESRECOMP_ENABLE_TRACE=ON`. On a machine without XTEST that
+also needs `-DSDL_X11_XTEST=OFF` or SDL3's configure step fails.
+
+Useful once it is up - `wram_watch_log_get` records the frame and the full
+register set at each write, but **not** the writing PC:
+
+    set_wram_watch 7E 00B9 1 0 00 1
+    wram_watch_log_get b9 0 3000 16
