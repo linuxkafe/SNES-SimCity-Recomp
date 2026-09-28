@@ -1,0 +1,6 @@
+This directory must exist in a fresh clone.
+
+snesrecomp_target_mod_catalog() fails CONFIGURATION if it is absent, and git
+does not track empty directories - so without this file a clean checkout cannot
+configure at all. The .gitignore rule covers only *.snesmod inside packages/,
+so the intent was always for this path to be tracked.
