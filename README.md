@@ -32,18 +32,22 @@ were added. This port reproduces that SNES release.
 ✅ **NMI handler stabilized**: Forced to interpreter at $0080B2  
 ✅ **Deterministic replay**: Bit-identical state traces verified  
 
-## Pre-built artifacts
+## Building
 
-The `build/` directory is committed. After cloning you can run the game
-directly with your own `SimCity (USA).sfc`:
+`build/` is **not** committed — it holds a full SDL3 build and no binary belongs
+in the repository. Build from source first:
+
+```bash
+make build
+```
+
+Then run with your own `SimCity (USA).sfc`, **by absolute path**: the host chdirs
+to the executable directory, so a bare relative filename resolves there, not in
+your shell's working directory.
 
 ```bash
 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 ```
-
-A clean source build (below) is also supported. Pass an absolute ROM path:
-the host chdirs to the executable directory, so a bare relative filename
-resolves there, not in your shell's working directory.
 
 ## Requirements
 
@@ -212,13 +216,19 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | Title screen | ✅ Working |
 | Native widescreen (336 px, game-native renderer) | ✅ Done |
 | Game-native graphics (terrain, buildings, font) | ✅ Working (verified interactively) |
-| Building/visual verification (headless capture) | 🔄 T033 — blocked by headless-present bug (T039) |
-| Scenarios (all 5 US) | ⏳ T011 — verify in recompiled game |
-| Quick save/load (10 slots) | ✅ Working |
-| Save-state menu + rewind | ✅ Working |
-| Turbo | ✅ Working |
-| Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
+| Headless capture | ✅ Fixed (T039) — `make test-rom` gates it |
+| AOT compilation of declared functions | ✅ Done (187 functions, T057) |
+| Config bar over the game | ✅ Done (T054) |
 | SNES Mouse on player 2 (`SNESRECOMP_MOUSE=1`, bsnes-exact protocol) | ✅ Device-level done (T042, ROM-free verified) |
+| Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
+| Quick save/load (10 slots), save-state menu, rewind, turbo | ✅ Working |
+| **City simulation runs (date, population, treasury advance)** | ❌ **T058 — the city view loads and then zero simulation ticks run** |
+| Scenarios (all 5 US) | ⏳ T011 — confirm ENT step is the gate (see `docs/RE_SCENARIO_NAV.md` step 10) |
+| Building/visual verification (headless capture) | 🔄 T033 — unblocked by T039 |
+
+The city view renders correctly and the frame loop runs once per frame
+throughout; the game state never leaves its initial values, so the date,
+population and treasury never change. See `aes/tickets/T058-city-clock-does-not-advance.md`.
 
 ## License
 
