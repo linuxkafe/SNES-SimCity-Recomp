@@ -314,3 +314,30 @@ So the honest summary of T058: **the clock did not advance because the city was
 never created, and the city was never created because the last two inputs are
 pointer inputs that no script can make.** Not a hang, not a PPU bug, not the
 automatic read, not the widescreen margins.
+
+### Making the pointer scriptable
+
+Steps 5-6 above are pointer inputs, and until now no script could produce
+them — which is why the route existed only as prose. The harness now has two
+verbs for it:
+
+```text
+mousemove <dx> <dy> [frames]   move the pointer; the soft mouse turns it into
+                               the d-pad pulses a hand would produce
+mouseclick <l|r|lr> [frames]   hold a mouse button
+```
+
+`mousemove` is an **impulse, not a stream**: the delta lands on the first frame
+and zero on the rest, so the shim's own threshold (4 px per press) and pulse
+queue decide what the motion is worth. One `mousemove 40 0 6` is **one**
+right press held four frames, not ten — measured, not assumed. To walk N grid
+steps, repeat it N times.
+
+Verified headlessly: the CRCs for `mousemove` and the equivalent `press` land
+on the same naming-screen states, and `mouseclick right` reproduces the select
+the right mouse button performs in the working route.
+
+What this does not yet do is reach the city: the pointer coordinates of `ENT`
+are only known from a hand, because a headless run has no pointer to read them
+off. Once they are, the whole route becomes a `--script` and the clock can be
+gated instead of measured by hand.
