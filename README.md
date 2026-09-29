@@ -233,3 +233,23 @@ population and treasury never change. See `aes/tickets/T058-city-clock-does-not-
 ## License
 
 PolyForm Noncommercial 1.0.0 - See [LICENSE](LICENSE) for details.
+
+### Widescreen (16:9)
+
+`Widescreen = 1` is a per-title PPU contract and does nothing here, for a
+reason worth stating plainly: SimCity draws a fixed 256 columns, and the
+`frame_width` of 336 is 256 plus 40 blank pixels per side. Nothing renders past
+column 256, so the margins are empty by construction - a PPU-side 16:9 would be
+71 blank pixels per side instead.
+
+What works is 16:9 as a **presentation**: the authentic 256-wide picture
+stretched to 16:9, filling the window edge to edge with no bars.
+
+```ini
+[Graphics]
+DisplayAspect=16:9
+```
+
+The default is unchanged. The toggle key cycles 4:3 <-> 16:9. This is
+presentation only - `make test-rom` confirms the emulated picture is
+byte-identical either way.

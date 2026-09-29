@@ -116,6 +116,17 @@ add_executable(test_deterministic_replay
 )
 add_test(NAME test_deterministic_replay COMMAND test_deterministic_replay)
 
+# Display-aspect gate: the 16:9 presentation is arithmetic on a header, and
+# the arithmetic is what silently regresses. Header-only, so it needs the
+# runner's desktop include path and nothing to link.
+add_executable(test_display_aspect
+    tests/test_display_aspect.c
+)
+target_include_directories(test_display_aspect PRIVATE
+    ${CMAKE_SOURCE_DIR}/snesrecomp/runner/src/desktop
+)
+add_test(NAME test_display_aspect COMMAND test_display_aspect)
+
 # Custom target to run regeneration
 add_custom_target(regen
     COMMAND bash ${CMAKE_SOURCE_DIR}/tools/regen.sh

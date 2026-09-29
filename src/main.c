@@ -239,10 +239,24 @@ int main(int argc, char **argv)
 
 static void SimCityPrepareFrame(int drawable_w, int drawable_h, int *frame_w, int *frame_h)
 {
-    /* Compute frame width based on widescreen setting.
-     * Use the game descriptor's frame_width (336 = 256 + 2*40) directly
-     * since g_snes_width is set after prepare_frame returns. */
-    *frame_w = 336;  /* 256 + 2*40 (default 40px margins per side) */
+    (void)drawable_w; (void)drawable_h;
+    /* The PPU extra-space margins are blank, and cannot be anything else: the
+     * game renders 256 columns and nothing renders past them, so every margin
+     * pixel is either empty or, before T052's clamp, the field's own columns
+     * brought back around. So the 336-wide default is not "more picture", it is
+     * 40 blank pixels per side.
+     *
+     * 16:9 therefore has to be a presentation choice, not a wider field: drop
+     * the margins so the PPU frame is the authentic 256, and let the host
+     * stretch that to 16:9 at present time. The picture reaches the window
+     * edge with no empty bars, and the guest is left exactly as the cartridge
+     * wrote it. 336 + 2*71 = 398 is what a PPU-side 16:9 would need, and it
+     * would be 71 blank pixels per side instead. */
+    if (snesrecomp_desktop_display_aspect() == 3 /* kSnesDisplayAspect_Wide16x9 */) {
+        *frame_w = 256;
+    } else {
+        *frame_w = 336;  /* 256 + 2*40 (default 40px margins per side) */
+    }
     *frame_h = 224;
 }
 
