@@ -267,3 +267,50 @@ with and without them. Moving the pointer in 3 px steps does move the hand, so
 the soft mouse works and the real mouse does not arrive. The Deck is also not
 reproducible — the naming screen appears two `b` presses later there, which
 moves the cursor and makes `left`/`a` land in the wrong place.
+
+---
+
+## The route that works (2026-09-28) — confirmed by hand
+
+This one starts a city. Everything above it is either a different destination
+or a dead end.
+
+```bash
+SNESRECOMP_MOUSE=1 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
+```
+
+| step | input | lands on |
+|---|---|---|
+| 1 | `START` | leaves the attract |
+| 2 | menu → **START NEW CITY** | |
+| 3 | **B** | MAP SELECT, map already drawn |
+| 4 | **B** ×12, ~80 frames apart | "Enter name of the city" |
+| 5 | **move the mouse**, **right-click** a letter | the letter goes in the name |
+| 6 | **click `ENT`** with the mouse | **the city starts** |
+
+**Step 5 and 6 need a pointer, and the pointer needs the soft mouse.** Step 4
+and 5 are the same mechanism: the soft mouse turns pointer motion into d-pad
+pulses (4 px per press, 2-frame pulse), the guest's own d-pad moves its cursor
+across the keyboard grid, and the shim reads the right button as B, which the
+guest consumes as "select the key under the cursor".
+
+The real SNES Mouse on port 2 is **not** what moves this cursor. It feeds the
+guest's 7-bit counters, and every scripted run that tried to use it for this
+screen did nothing. This is worth stating because the two look interchangeable
+and only one of them works.
+
+### What is scripted and what is not
+
+`--script` can do steps 1-4: the d-pad works headlessly and the naming screen
+is reached deterministically. **Steps 5-6 cannot**, because a headless run has
+no pointer for the shim to read, so it never pulses. That is the whole reason
+T058 looked like a game-flow loop for hours: measured headlessly, `A` and `B`
+left the naming screen and the game returned to the logo, which reads exactly
+like the game refusing to start a city. It was refusing nothing. The button
+that selects a letter was never pressed, because the thing that presses it is
+a mouse.
+
+So the honest summary of T058: **the clock did not advance because the city was
+never created, and the city was never created because the last two inputs are
+pointer inputs that no script can make.** Not a hang, not a PPU bug, not the
+automatic read, not the widescreen margins.
