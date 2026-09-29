@@ -368,3 +368,26 @@ It is plumbing, not a conclusion: the run above used a state from the title
 screen, so it was reading the attract animation. What it proves is that the
 measurement is one command away from a real state, and that the clock can
 become a gate in `make test-rom` instead of a thing a person has to watch.
+
+### The measurement, and the thing it nearly fooled us about
+
+`clock-probe.sh` now screenshots the state it loaded, and says plainly when the
+state is not a running city.
+
+That verdict exists because of how this first went. The first real run reported
+27 changed bytes, and 27 looked like a plausible "the slow state is all that
+moved". It is not plausible: a live city moves population, treasury, agents and
+tiles, and would change thousands. Checking it against states that are
+*definitely* not cities showed the trap — **the title screen, the naming screen
+and a running city all move about 27 bytes in 3600 frames.** A still screen and
+a dead clock are indistinguishable by byte counts, so a probe that only prints a
+table will confidently explain a state that never contained a city.
+
+So `wram-diff.py --city` judges, and the probe screenshots:
+
+- **under 1000 bytes moved** → not a running city. Look at the picture.
+- **thousands** → a running city; the slow runs are the tick candidates.
+
+Verified on both sides: a state saved on the naming screen loads, runs and
+screenshots as the naming screen, so the load is faithful and the probe is
+measuring what it claims to.

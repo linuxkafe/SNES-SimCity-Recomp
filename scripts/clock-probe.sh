@@ -68,6 +68,8 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
   SNESRECOMP_RUN_FRAMES="$TAIL" \
   SNESRECOMP_WRAM_DUMP="$DUMP/wram" \
   SNESRECOMP_WRAM_DUMP_AT="$EARLY,$LATE" \
+  SNESRECOMP_SCREENSHOT="$DUMP/loaded.ppm" \
+  SNESRECOMP_SCREENSHOT_FRAME="$LATE" \
   "$EXE" --config build/config.ini --script "$DUMP/probe.script" "$ROM" \
   2>&1 | grep -iE "savestate|slot|wramdump|error" | head -10
 
@@ -80,7 +82,30 @@ fi
 
 echo
 echo "== what moved in the city between frame ${EARLY} and ${LATE} =="
-python3 scripts/wram-diff.py "$A" "$B" --frames $((LATE - EARLY))
+python3 scripts/wram-diff.py "$A" "$B" --frames $((LATE - EARLY)) --city
+echo
+echo "== what the loaded state actually shows =="
+# The screenshot is the real check. Everything above is arithmetic on a state
+# that may not contain a city, and a still screen is indistinguishable from a
+# dead clock by byte counts alone - three different still screens all move 27
+# bytes in 3600 frames. Convert it so there is nothing to do but open it.
+python3 - "$DUMP/loaded.ppm" "$DUMP/loaded.png" <<'PYEOF' 2>/dev/null || echo "  (screenshot em $DUMP/loaded.ppm)"
+import struct, sys, zlib
+d = open(sys.argv[1], 'rb').read()
+parts = d.split(b'\n', 3)
+w, h = map(int, parts[1].split())
+px = parts[3]
+raw = b''.join(b'\x00' + px[y * w * 3:(y + 1) * w * 3] for y in range(h))
+def chunk(tag, data):
+    return (struct.pack('>I', len(data)) + tag + data +
+            struct.pack('>I', zlib.crc32(tag + data) & 0xffffffff))
+open(sys.argv[2], 'wb').write(
+    b'\x89PNG\r\n\x1a\n'
+    + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+    + chunk(b'IDAT', zlib.compress(raw, 6))
+    + chunk(b'IEND', b''))
+print("  screenshot: %s" % sys.argv[2])
+PYEOF
 echo
 echo "A field that changes once in the window, and not every frame, is a"
 echo "candidate for the month tick. Re-run with a longer window to tell a"

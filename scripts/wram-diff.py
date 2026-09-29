@@ -51,6 +51,9 @@ def main():
     ap.add_argument("--frames", type=int, default=0,
                     help="frames between the two dumps, for rate")
     ap.add_argument("--max", type=int, default=60, help="max runs to print")
+    ap.add_argument("--city", action="store_true",
+                    help="judge the result as a running city rather than a "
+                         "listing of candidates")
     args = ap.parse_args()
 
     a = open(args.a, "rb").read()
@@ -104,6 +107,26 @@ def main():
         print("  $%04X-$%04X  %2d bytes  %-28s %s" %
               (lo, hi, n, detail, rate))
         shown += 1
+    if args.city:
+        # A verdict, because the listing alone is easy to misread. 27 bytes
+        # over 3600 frames is not a running city: a live one moves population,
+        # treasury, agents and tiles, and would change thousands. What changes
+        # that little is a still attract screen - and the trap is that the
+        # probe is perfectly happy either way, printing the same confident
+        # table for a state that never contained a city.
+        print()
+        if len(diffs) < 1000:
+            print("VERDICT: this does not look like a running city.")
+            print("  %d bytes moved in %d frames. A live city moves thousands."
+                  % (len(diffs), args.frames or 0))
+            print("  Look at the screenshot before reading anything into the")
+            print("  table above: this is most likely a state taken before the")
+            print("  city was running, and the probe is measuring the still")
+            print("  screen behind it.")
+        else:
+            print("VERDICT: enough moved to be a running city. The slow runs")
+            print("  above are the candidates; narrow the window to separate a")
+            print("  per-second counter from the month tick.")
     return 0
 
 
