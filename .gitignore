@@ -41,3 +41,4 @@ Testing/
 # Docker
 .docker/saves/
 last_run_report.json
+states/
