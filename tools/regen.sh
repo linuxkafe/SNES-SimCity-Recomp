@@ -13,7 +13,15 @@
 #                 SNESRECOMP_ROM sets it once for a shell.
 #   --no-verify   skip the ROM digest check (for a revision this project has
 #                 not been pinned to yet — expect the generated C to differ)
-#   --cfg-roots   seed analysis from every func declaration in recomp/*.cfg
+#   --no-cfg-roots  do NOT seed analysis from recomp/*.cfg func declarations.
+#                 Default is to seed them: the declarations in recomp/*.cfg are
+#                 the project's stated AOT surface, and recomp/bank00.cfg
+#                 carries PPU_Bitpack_8EA9 precisely so the profile can put hot
+#                 code under AOT. Without the seed those declarations are
+#                 inert and the regen emits 0 AOT functions. See
+#                 aes/tickets/T057-gen-regen-black-screen.md -- seeding was how
+#                 the screen went black, and recomp/bank00.cfg's
+#                 "force_lle 0x00804D" is what makes seeding safe.
 #   -h|--help     this message
 set -euo pipefail
 
@@ -22,13 +30,13 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 VERIFY=1
-CFG_ROOTS=0
+CFG_ROOTS=1
 ROM="${SNESRECOMP_ROM:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --rom) ROM=$2; shift 2 ;;
     --no-verify) VERIFY=0; shift ;;
-    --cfg-roots) CFG_ROOTS=1; shift ;;
+    --no-cfg-roots) CFG_ROOTS=0; shift ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed -n '/^# /p' | sed 's/^# //'; exit 0 ;;
     *) echo "regen.sh: unknown flag: $1 (try --help)" >&2; exit 2 ;;
   esac
