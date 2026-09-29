@@ -232,3 +232,38 @@ to START NEW CITY, confirm the map, and on the name screen move the pointer
 onto `ENT` and click. If the city starts, the date advances and the population
 grows, then the remaining work is to reproduce the click headlessly — or to
 establish that this screen genuinely needs the mouse and document that.
+
+---
+
+## 2026-09-28 — the loop, and the mouse boundary
+
+Re-measured with the script actually loading. See T058 for the full table.
+
+**The game never reaches a playable city. It loops between the naming screen
+and the logo screen.** `a` on the last key leaves the naming screen for the
+logo; `start` or `b` on the logo returns to the naming screen. 11000 frames
+with no exception, trap or error — the game chooses this path. The naming
+screen itself is stable and does not time out: frames 1800 through 3000 are
+byte-identical.
+
+**On the naming screen, navigating and typing are disconnected.** `right`×13
+puts the hand on `S`, so the d-pad navigates; `a` on `S` still writes `1`. What
+chooses the character is the mouse. `left`×5 equals `left`×1, so the key list
+wraps to the end and stops rather than returning to the start.
+
+**The mouse is served and is the boundary.** `SNESRECOMP_MOUSE=1` logs *"SNES
+Mouse enabled on port 2"* and the probe serves `p1w=0001` — present, no buttons,
+position 0,0. The implementation is relative, while an SNES Mouse is absolute,
+and headless has no pointer to move.
+
+**The Steam Deck answers the geometry but not the click.** No toolchain there,
+so the binary is built here and copied — the SDL3 is static and the ELF needs
+only six system libraries. `DISPLAY=:1` is the 1280x800 screen; the window is
+1008x672 centred, so **field(x, y) maps to screen(136 + 3x, 64 + 3y)**, which
+the host's own `window created: 1008x672` confirms. `xdotool` and
+`ffmpeg -f x11grab` both work. But SDL3 presents nothing visible on `:1` and
+`xdotool` clicks have no measurable effect: the final frame is byte-identical
+with and without them. Moving the pointer in 3 px steps does move the hand, so
+the soft mouse works and the real mouse does not arrive. The Deck is also not
+reproducible — the naming screen appears two `b` presses later there, which
+moves the cursor and makes `left`/`a` land in the wrong place.
