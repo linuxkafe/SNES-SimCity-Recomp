@@ -171,3 +171,64 @@ register set at each write, but **not** the writing PC:
 
     set_wram_watch 7E 00B9 1 0 00 1
     wram_watch_log_get b9 0 3000 16
+
+---
+
+## 2026-09-28 — the short path, and what is still blocked
+
+Re-derived while investigating T058. **Everything below was measured on the
+current build; the table above is unchanged and still describes the scenario
+route, which also works.**
+
+### The short route to the city-name screen
+
+Six menus and a briefing are not needed to reach it. From a cold boot:
+
+| step | input | result |
+|---|---|---|
+| 1 | `press start` | main menu: PRACTICE, **START NEW CITY**, SELECT SCENARIO |
+| 2 | `press down` | START NEW CITY highlighted |
+| 3 | `press b` | **MAP SELECT**, with the map already drawn — NEXT / OK, "000-999", "No 0.00" |
+| 4 | `press b` ×12, ~80 frames apart | **"Enter name of the city"** with the on-screen keyboard |
+
+The d-pad does not move the cursor on MAP SELECT, which is why step 4 is a
+run of `b` presses rather than a direction. Each `b` on the name screen appends
+the character under the cursor — eight presses produce `11111111` — so **`b`
+selects a key; it does not confirm.** The cursor starts on `1` and `left`
+wraps it to the end of the list, so the list is linear and walks.
+
+### What is still blocked, precisely
+
+**Confirming `ENT` is still not reachable from a script.** A sweep of every
+button on that screen — `b start x y l r a`, one run each, measured by WRAM
+diff — produced 8 changed bytes per button, which is the idle noise floor, and
+`a` with the cursor on a letter key wrote nothing. The d-pad moves the cursor;
+the buttons select characters. The final press, on `ENT`, does not leave the
+screen.
+
+`T042` measured that SimCity is **auto-read-only** — `SNESRECOMP_PAD_PROBE=1`
+gives `p0 reads=0 maxshift=0 auto=440`, so the automatic read is its only
+input path, with no serial read at all. `SNESRECOMP_JOYPAD_READ_LOG=<n>` prints
+the host state, the reversed word and both served bytes for automatic reads
+that happen while a button is held, which is how the translation was checked.
+
+**Attempted and reverted:** serving the automatic read without the bit reversal
+looked right by construction and was measured to be wrong — with it, no input
+reaches the game at all (0 of 2200 frames diverge from an idle run, against
+1946 with the original mapping). The original mapping and the two tests that
+pin it are correct. See `aes/tickets/T058-city-clock-does-not-advance.md`.
+
+### Why this is worth trying by hand
+
+The name screen's cursor is a **hand**, and the guest cursor is driven by the
+SNES Mouse on player 2 with the host pointer standing in for it
+(`SNESRECOMP_SOFT_MOUSE`). A headless run has no pointer to move, so the
+scripted route can only walk the cursor with d-pad pulses, and the one press
+that matters never lands. **In a window, moving the mouse onto `ENT` and
+clicking is the one thing a script cannot do.**
+
+That is the next experiment, and it is a hand experiment: start the game, get
+to START NEW CITY, confirm the map, and on the name screen move the pointer
+onto `ENT` and click. If the city starts, the date advances and the population
+grows, then the remaining work is to reproduce the click headlessly — or to
+establish that this screen genuinely needs the mouse and document that.
