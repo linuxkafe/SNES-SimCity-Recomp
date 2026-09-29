@@ -24,7 +24,10 @@ EARLY="${2:-8000}"
 LATE="${3:-14000}"
 # states/ is gitignored and survives `rsync --delete` of build/, which is where the
 # owner can leave the dumps for handoff.
-DUMP=states/live
+# ABSOLUTE on purpose: the host chdir()s to the exe directory, so a relative
+# output path lands in build/ - successfully, and in the wrong place, with no
+# warning. Verified: SNESRECOMP_SCREENSHOT=relout.ppm writes build/relout.ppm.
+DUMP="$PWD/states/live"
 
 rm -rf "$DUMP"
 mkdir -p "$DUMP"
@@ -39,6 +42,19 @@ Quit with the window when you are done; the dumps are written along the way.
   dumps at frame ${EARLY} and ${LATE}
 
 EOF
+
+# The guest's battery-backed SRAM lives in <exe dir>/saves/save.srm, is
+# per-machine, is gitignored, and is read by the game - so it changes WRAM and
+# it changes it CONTEXTUALLY. Measured on a 3000-frame menu run: 44 of 131072
+# WRAM bytes move with it, and an absent, an all-0x00 and an all-0xFF image give
+# three different WRAM hashes. "Same ROM, same script, same frames" is therefore
+# NOT sufficient for a byte-identical WRAM image, and the framebuffer is invariant
+# to it, so no picture-based gate can see it. Pin it cold, or the diff is
+# measuring this instead of the clock.
+if [ -f build/saves/save.srm ]; then
+  echo "== pinning the guest SRAM cold (it otherwise moves 44 bytes of WRAM) =="
+  : > build/saves/save.srm
+fi
 
 # Mouse on: the route into a city ends in a click no script can make.
 SNESRECOMP_MOUSE=1 \

@@ -28,7 +28,7 @@ SLOT="${2:-0}"
 # build/ is wiped by an rsync --delete from the machine that builds here, and a
 # state that disappears is a wasted round trip. Anything outside build/ is fine.
 STATE="${3:-build/saves/save${SLOT}.sav}"
-DUMP=/tmp/clockprobe
+DUMP=/tmp/clockprobe   # already absolute; relative would land in build/
 # Two dumps far enough apart that a month tick shows up in one and animation
 # shows up in both. 3600 frames is a minute of play at 60 Hz.
 EARLY=200

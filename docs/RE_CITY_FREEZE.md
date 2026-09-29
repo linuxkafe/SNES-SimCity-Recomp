@@ -120,3 +120,64 @@ and it is a separate bug from the resume point.
 WRAM, WRAM *is* in the snapshot, and the clock advances in WRAM. So a loaded
 city state runs the real simulation with a wrong picture, and the picture is not
 what the clock is being measured from.
+
+---
+
+## Determinism has a fourth input, and it is not the ROM
+
+A cross-platform battery (`scripts/crossplatform-determinism.sh`, commit
+`82456e7`) ran the same binary on two machines and found the framebuffers and
+WRAM byte-identical across 23,340 simulated frames - and one real trap on the way.
+
+**The guest's battery-backed SRAM is a determinism input.** It lives in
+`<exe dir>/saves/save.srm`, it is gitignored, it is per-machine, and the game
+reads it. On a 3000-frame menu run it moves **44 of 131072 WRAM bytes**, and an
+absent image, an all-`0x00` image and an all-`0xFF` image give three different
+WRAM hashes. 41 consecutive runs on one machine and 5 on the other each collapse
+to exactly one value, so it is contextual, not random.
+
+So **"same ROM, same script, same frame count" is not sufficient** for a
+byte-identical WRAM image. The framebuffer is *invariant* to the SRAM - all
+three hash the same - which means **no picture-based gate can see this**,
+`verify-rom-render.sh` included. Any WRAM-diffing gate has to pin the SRAM cold
+or it measures the battery instead of the thing under test.
+
+### A second trap: relative output paths do not fail
+
+The host `chdir()`s to the exe directory. A relative `--script` path now exits 2
+loudly, but a relative **output** path - `SNESRECOMP_SCREENSHOT`,
+`SNESRECOMP_WRAM_DUMP` - resolves against the exe directory and **succeeds**:
+
+```
+SNESRECOMP_SCREENSHOT=relout.ppm  ->  build/relout.ppm
+```
+
+No warning, exit 0, and the file is in the wrong place. `clock-probe-live.sh`
+had exactly this bug with `DUMP=states/live`; both probes now use absolute paths.
+
+## A correction to the widescreen claim
+
+`README.md` said the emulated picture is "byte-identical either way" with
+16:9. **That was wrong, and the battery caught it.** In 16:9 the PPU frame is
+256 wide instead of 336, so the *presented framebuffer* is a different width and
+cannot hash equal. The substantive claim does hold, and it is the one that
+matters: **the guest's own 256 columns are identical** - cross-platform, the 256
+columns inside the 4:3 margins hash equal to the whole 16:9 framebuffer, and the
+margins are solid black. An earlier version of `test_display_aspect` could not
+have caught this, because it only checks the arithmetic and never hashed a
+frame.
+
+## Also worth knowing
+
+- The 4:3 window is **1008x672, which is 3:2** - the 7:6 pixel-aspect
+  correction is not applied to the window. Pre-existing, and 16:9 (1194x672) is.
+- Scripted input is **frame-indexed, not wall-clock**: `TickScript()` runs inside
+  the frame loop and `wait` is flushed into the next entry. The earlier
+  "naming screen appeared two `B` presses later on the Deck" did not reproduce in
+  any form; case C's framebuffer and WRAM are byte-identical across machines.
+  Whatever produced that observation was not guest state.
+- **The Deck has a full toolchain** - cmake 4.0.3, gcc 15.1.1, make 4.4.1. An
+  earlier note in this project asserted it did not, and that assertion was
+  wrong: the shell probe that produced it was mangled by quoting, and the broken
+  output was reported as fact. A native build on both machines is now available
+  as an independent check.

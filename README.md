@@ -250,6 +250,12 @@ stretched to 16:9, filling the window edge to edge with no bars.
 DisplayAspect=16:9
 ```
 
-The default is unchanged. The toggle key cycles 4:3 <-> 16:9. This is
-presentation only - `make test-rom` confirms the emulated picture is
-byte-identical either way.
+The default is unchanged. The toggle key cycles 4:3 <-> 16:9.
+
+Presentation only, and the precise claim is narrower than "identical": in 16:9
+the PPU frame is 256 wide instead of 336, so the **presented framebuffer is a
+different width** and will not hash equal to the 4:3 one. What is identical is
+the guest's own 256 columns - cross-platform checked on two machines, where the
+256 columns inside the margins hash equal to the whole 16:9 framebuffer, and the
+margins are solid black. An earlier version of this file said "byte-identical
+either way" and was wrong; see `docs/RE_CITY_FREEZE.md`.
