@@ -1,0 +1,25 @@
+# C. the naming screen - "Enter name of the city".
+# B plus twelve B presses to walk the name-entry cursor to the end. This is
+# as far as a script gets: finishing the city needs a mouse, and the Deck has
+# no working mouse, so the two machines cannot be compared past this point.
+wait 250
+press start 5
+wait 80
+press down 5
+wait 80
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+press b 5
+wait 400

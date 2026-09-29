@@ -1,0 +1,13 @@
+# B. menu navigation, through to MAP SELECT.
+# The host's script parser accumulates `wait` into a pending counter and
+# flushes it into the NEXT press entry, so the total scripted length is
+# 250+5+80+5+80+5 = 425 frames and the trailing `wait 400` is dropped.
+# RUN_FRAMES is 825 anyway: the map needs 400 frames after the last B to
+# finish drawing before the screenshot is taken.
+wait 250
+press start 5
+wait 80
+press down 5
+wait 80
+press b 5
+wait 400
