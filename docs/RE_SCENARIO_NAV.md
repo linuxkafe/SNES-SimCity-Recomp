@@ -391,3 +391,21 @@ So `wram-diff.py --city` judges, and the probe screenshots:
 Verified on both sides: a state saved on the naming screen loads, runs and
 screenshots as the naming screen, so the load is faithful and the probe is
 measuring what it claims to.
+
+### Saving a state without losing a round trip
+
+**F5 quicksaves to slot 0, F9 loads it.** One keypress, no browser.
+
+F11 still opens the twenty-slot browser, which is right for browsing and wrong
+for measuring: it freezes the guest and needs a slot chosen, and that is a
+place to hesitate. Hesitating there is expensive — two rounds of measurement
+were spent on states that were never written, and the failure was invisible,
+because closing the browser looks exactly like saving. The log now says
+`quicksave written to slot 0`, so a missing state is visible immediately.
+
+The state also has to live outside `build/`: an `rsync --delete` from the
+machine that builds here wipes it, and a state that disappears is a wasted
+round trip. `clock-probe.sh` takes the state path as its third argument, and
+copies it into the slot it loads, because `loadstate` loads by slot and not by
+path — checking one file while loading another is a mismatch that still prints
+a confident verdict, which is how it was wrong the first time.

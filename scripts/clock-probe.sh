@@ -9,8 +9,9 @@
 # into one ends in a mouse click no script can reproduce yet:
 #
 #   1. play to a running city by hand
-#   2. press F11, save to slot 1
-#   3. put the file at build/saves/save1.sav
+#   2. press F5 - one key, slot 0, no browser
+#   3. the state lands in build/saves/save0.sav; copy it somewhere that
+#      survives `rsync --delete` before handing it over
 #
 # Then this loads it, lets it run, and reports which WRAM bytes move slowly.
 # Nobody has mapped the date, population or treasury in WRAM; guessing
@@ -23,8 +24,10 @@ cd "$(dirname "$0")/.."
 
 EXE=build/SimCitySNESRecomp
 ROM="${1:-$PWD/SimCity (USA).sfc}"
-SLOT="${2:-1}"
-STATE="build/saves/save${SLOT}.sav"
+SLOT="${2:-0}"
+# build/ is wiped by an rsync --delete from the machine that builds here, and a
+# state that disappears is a wasted round trip. Anything outside build/ is fine.
+STATE="${3:-build/saves/save${SLOT}.sav}"
 DUMP=/tmp/clockprobe
 # Two dumps far enough apart that a month tick shows up in one and animation
 # shows up in both. 3600 frames is a minute of play at 60 Hz.
@@ -47,15 +50,31 @@ state by hand:
   1. SNESRECOMP_MOUSE=1 $EXE "$ROM"
   2. play to a running city (START -> START NEW CITY -> B x12 ->
      move the mouse -> right-click a letter -> click ENT)
-  3. press F11, save to slot $SLOT
+  3. press F5 (one key, slot 0, no browser)
 
-That writes build/saves/save${SLOT}.sav. Re-run this script.
+That writes build/saves/save${SLOT}.sav, and the log will say
+"quicksave written to slot 0" - check for that line, because closing the
+old F11 browser without choosing a slot looks exactly like saving. Re-run
+this script. Pass a path as the third argument to read the state from
+somewhere that survives an rsync --delete of build/.
 EOF
   exit 1
 fi
 
 rm -rf "$DUMP"
 mkdir -p "$DUMP"
+
+# loadstate loads by SLOT, not by path. So if the state came from somewhere
+# else, copy it into the slot this run will load. Checking one file and loading
+# another is the exact silent mismatch this script already got wrong once, and
+# it looks like a result: a verdict, a table, a screenshot, all of a state
+# nobody asked about.
+SLOT_FILE="build/saves/save${SLOT}.sav"
+if [ "$STATE" != "$SLOT_FILE" ]; then
+  echo "== copying $STATE into $SLOT_FILE (loadstate loads by slot) =="
+  mkdir -p build/saves
+  cp "$STATE" "$SLOT_FILE"
+fi
 
 printf 'wait 30\nloadstate %s\nwait %s\n' "$SLOT" "$((TAIL - EARLY))" \
   > "$DUMP/probe.script"
