@@ -69,3 +69,54 @@ returns clean, so if the month does not move, the handler is running and
 deciding not to — gated on a counter, a speed setting, or a paused flag the
 port does not carry. That is a question about a specific value, and the live
 diff is what would name it.
+
+---
+
+## Two savestate bugs, one fixed
+
+Both were found by measuring rather than by reading, and both had the same
+shape: something the snapshot does not carry, which is silent until you look.
+
+### 1. Nothing carried the resume point — fixed
+
+`g_resume_pc` is a static in `src/game_rtl.c`. It is not in the `Snes`, and it is
+**not in the CPU either** — logging the restored register right after a load
+shows `pc=0000`, so `snes_saveload` does not restore the program counter at all.
+
+So a state restored into a fresh process leaves the resume point at 0, the frame
+loop reads `booting = (g_resume_pc == 0)` as true, and the guest is answered
+with the reset vector. Measured: resuming at `$008000` — the reset vector — with
+`S=01FF` and `DP=0000`, boot-time register values, drawn over WRAM that still
+held the city.
+
+The fix puts it in the game's own chunk, which is what `state_save_extra` and
+`state_load_extra` exist for. The state grows by exactly four bytes, and the
+cross-check is the good part: a state saved on the naming screen now reports
+`state loaded: resume PC restored as $009311`, and `$009311` is the address this
+project already carries in `recomp/bank00.cfg` as
+`force_lle 0x009311  # VBlank wait loop main polling address`. The resume point is
+the game's vblank wait, which is where it should be.
+
+A state written before this fix has no chunk and cannot be resumed; it falls
+back to the reset vector. Those files are not recoverable, which is why the
+city state has to be taken again.
+
+### 2. The snapshot does not carry the render state — open
+
+With the resume point fixed, a loaded state still draws the wrong picture.
+Capturing the frame one frame before a save and the frame after the load, both
+from the naming screen:
+
+| | CRC |
+|---|---|
+| before the save | `a3bc4b3bf5` (the naming screen) |
+| after the load | `90a7a5ffbd` (not it) |
+
+So VRAM, OAM, CGRAM or the PPU registers are not in the blob, or the load resets
+the PPU. This is why a loaded state looked like corruption in the first place,
+and it is a separate bug from the resume point.
+
+**It is also the good news for measuring the clock.** The simulation lives in
+WRAM, WRAM *is* in the snapshot, and the clock advances in WRAM. So a loaded
+city state runs the real simulation with a wrong picture, and the picture is not
+what the clock is being measured from.

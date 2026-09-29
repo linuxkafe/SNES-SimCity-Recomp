@@ -36,6 +36,7 @@
 #include <string.h>
 
 #include "common_cpu_infra.h"
+#include "host_report.h"
 #include "common_rtl.h"
 #include "cpu_state.h"
 #include "snes/dma.h"
@@ -65,15 +66,44 @@ static uint32_t read_vector(uint32_t addr)
      * the same way the CPU sees it. */
     uint32_t lo = snes_read(g_snes, addr);
     uint32_t hi = snes_read(g_snes, addr + 1u);
-    return (hi << 8) | lo;
+    return ((hi & 0xFFu) << 8) | (lo & 0xFFu);
 }
-
 static uint32_t reset_vector(void) { return read_vector(0x00FFFCu); }
 static uint32_t nmi_vector(void)   { return read_vector(0x00FFEAu); }
 static uint32_t irq_vector(void)   { return read_vector(0x00FFEEu); }
 
-/* T050 diagnostic (SNESRECOMP_FRAME_SLOG=1): per-frame boundary log of the
- * guest stack pointer, program bank and resume PC. Valid ONLY at frame
+/* The resume point is host state, and NOTHING carries it.
+ *
+ * g_resume_pc is a static in this file. It is not in the Snes, not in the CPU -
+ * snes_saveload restores the CPU with pc=0000, verified by logging the
+ * restored register right after a load - and not in any blob. So a state
+ * restored into a fresh process leaves it at 0, the frame loop reads
+ * `booting = (g_resume_pc == 0)` as true, and the guest is answered with the
+ * reset vector instead of with where it was.
+ *
+ * The symptom was a state taken from a running city that came back as a booting
+ * machine: resuming at $008000 - the reset vector - with S=01FF and DP=0000,
+ * boot-time register values, drawn over WRAM that still held the city. One byte
+ * of WRAM then moved in 3600 frames and the picture was an early-boot screen.
+ * Two rounds of measurement were spent on that, all of it about a boot.
+ *
+ * So the resume point goes in the game's own chunk, which is what
+ * state_save_extra and state_load_extra exist for. */
+static void SimCityStateSaveExtra(SaveLoadInfo *sli) {
+    uint32 resume = g_resume_pc;
+    sli->func(sli, &resume, sizeof resume);
+}
+
+static void SimCityStateLoadExtra(SaveLoadInfo *sli, uint32 version) {
+    (void)version;
+    uint32 resume = 0;
+    sli->func(sli, &resume, sizeof resume);
+    if (resume == 0) return;
+    g_resume_pc = resume;
+    host_report_breadcrumb("state loaded: resume PC restored as $%06X", resume);
+}
+
+/* Whether to log the resume point each frame. It is only meaningful at frame
  * boundaries — the bridge syncs the interpreter into g_cpu there, whereas
  * inside an interrupt run g_cpu describes the AOT tier, not the interpreter
  * (the mistake that produced T050's first, refuted hypothesis). The question
@@ -295,6 +325,8 @@ const RtlGameInfo kGameInfo = {
     .run_frame = &GameRunOneFrame,
     .draw_ppu_frame = &GameDrawPpuFrame,
     .save_name_prefix = "save",
+    .state_save_extra = &SimCityStateSaveExtra,
+    .state_load_extra = &SimCityStateLoadExtra,
 };
 
 void GameSessionReset(void)

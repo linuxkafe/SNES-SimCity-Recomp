@@ -38,4 +38,5 @@ void GameSessionReset(void);
 /* Game info structure for the framework. */
 extern const RtlGameInfo kGameInfo;
 
+
 #endif /* GAME_RTL_H */
