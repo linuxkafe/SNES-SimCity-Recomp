@@ -1,10 +1,34 @@
-.PHONY: build test test-rom clean doctor
+.PHONY: build debug test test-rom perf clean doctor
 
 BUILD_DIR := build
 
+# Release by default. This used to hardcode -DCMAKE_BUILD_TYPE=Debug, so everyone
+# who followed the README got a -g build with no optimisation: measured 42.4 fps
+# against Release's 55.8 on the same machine, same ROM, same 600 frames, and
+# 60.1 fps for the same Release binary on the Steam Deck. The two builds were
+# proven byte-identical on the guest first (128 KB WRAM image and every presented
+# crc32, across attract/menu/naming at 3000 frames), so the default is the fast
+# one rather than the safe-looking one. Override with BUILD_TYPE=Debug.
+BUILD_TYPE ?= Release
+
+# A clean build dir does not configure without this on any machine lacking
+# libxtst-dev: SDL3's build stops with "Couldn't find dependency package for
+# XTEST". The checked-in build/ only worked because the flag was already cached
+# in it, which is how `make clean && make build` came to be broken from scratch.
+# XTEST is SDL's synthetic-input path and nothing in this project uses it, so
+# turning it off states a real precondition instead of hiding a missing package.
+SDL_X11_XTEST ?= OFF
+
 build:
 	@mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && cmake .. -DCMAKE_BUILD_TYPE=Debug && cmake --build . -j$$(nproc)
+	cmake -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DSDL_X11_XTEST=$(SDL_X11_XTEST)
+	cmake --build $(BUILD_DIR) -j$$(nproc)
+
+# The unoptimised build. Kept because -O0 and -O3 disagreeing is exactly the
+# signal you want when hunting undefined behaviour, not something to discover
+# by accident in a shipping binary.
+debug:
+	@$(MAKE) --no-print-directory build BUILD_TYPE=Debug
 
 test: build
 	cd $(BUILD_DIR) && ctest --output-on-failure
@@ -15,6 +39,12 @@ test: build
 # functions, the screen went black, and ctest stayed green.
 test-rom: build
 	scripts/verify-rom-render.sh
+
+# Performance gate. Not a ctest, for the same reason test-rom is not: it needs
+# the ROM, and its threshold is a property of the machine it runs on. Override
+# with PERF_MIN_FPS when the host is slower or faster than the reference.
+perf: build
+	scripts/perf-gate.sh
 
 clean:
 	rm -rf $(BUILD_DIR)

@@ -1,12 +1,34 @@
 # SNES-SimCity-Recomp
 
-Native recompilation of SimCity (SNES) for PC using [snesrecomp](https://github.com/RetroPortingToolKit/snesrecomp).
+Partial static recompilation of SimCity (SNES) for PC using [snesrecomp](https://github.com/RetroPortingToolKit/snesrecomp).
 
-An unofficial, non-commercial project that statically recompiles the Super
-Nintendo game **SimCity** (Nintendo, 1991) into native C++17 for PC. All
-graphics, palettes, map data and audio are read at runtime from a copy of the
-original ROM that **you** supply; the ROM and any ripped assets are never
-included. Built on the **snesrecomp** framework.
+An unofficial, non-commercial project that recompiles the Super Nintendo game
+**SimCity** (Nintendo, 1991) into C++17 for PC. All graphics, palettes, map data
+and audio are read at runtime from a copy of the original ROM that **you**
+supply; the ROM and any ripped assets are never included. Built on the
+**snesrecomp** framework.
+
+### How much of it is actually native
+
+The honest answer, because "native recompilation" on its own oversells this:
+
+- **204 of the game's 303 routines** are recompiled ahead of time into C++17.
+- The remaining **99 run in the bundled 65816 interpreter**. They hold only 605
+  of 9,813 static instructions (6.2%), but they are spin/wait loops that execute
+  about **1,427 opcodes per frame**, and a sampled CPU profile puts them at
+  **~7% of total process CPU — roughly 89% of the time actually spent executing
+  guest code**.
+- So by function count this is two-thirds native; by time spent running the
+  game, the interpreter is the larger half. **Neither figure is a measurement of
+  gameplay**: every workload measured so far is attract mode and menus, because
+  no script yet reaches a running city.
+
+Measured with a `CLOCK_PROCESS_CPUTIME_ID` sampler validated against `addr2line`
+on the Debug build (agreement within 0.15 percentage points), with the profiled
+run's WRAM hash identical to the unprofiled one to show the sampler did not
+perturb the guest. Note the caveat the snesrecomp fork itself documents: AOT
+code never advances the PPU beam while the interpreter advances it every
+opcode, so a *time* share is not automatically a *correctness* claim.
 
 ## About the Game
 
@@ -31,6 +53,39 @@ were added. This port reproduces that SNES release.
 ✅ **Watchdog fixed**: VBlank wait loop at $00927C forced to interpreter  
 ✅ **NMI handler stabilized**: Forced to interpreter at $0080B2  
 ✅ **Deterministic replay**: Bit-identical state traces verified  
+✅ **Holds 60 fps**: 60.06 fps peak on an i5-8500T, 60.1 fps on a Steam Deck  
+
+⚠️ **The city does not simulate.** Entry into the game works; once a city loads
+the date stays `1900 JAN` and the population stays 0. This is the one thing
+between this build and a playable game, and it is tracked in
+`docs/RE_CITY_FREEZE.md`. Every picture-based check in this repo passes while it
+is broken — a frozen city moves about four times per 1000 frames.
+
+### Performance
+
+`make perf` measures it and fails on a regression. Numbers, same ROM, 600
+frames:
+
+| Machine | Build | fps | `guest` ms/frame | `upload-present` ms/frame |
+|---|---|---|---|---|
+| Steam Deck (Zen 2) | Release | 60.1 | **2.45** | 8.13 |
+| i5-8500T | Release | 59.5 | 4.97 | 7.84 |
+| i5-8500T | Debug (`-O0`) | 42.4 | 9.52 | 5.90 |
+
+Two things worth reading off that table. The emulated 65816 is **not** the
+bottleneck — on the Deck it uses about 15% of the 16.67 ms frame budget, while
+the host's SDL present path uses more than the guest. And the build type is not
+cosmetic: `-O0` cost 24% of the frame rate on the same machine and the same
+ROM, which is why `make build` ships Release.
+
+The per-stage split comes from `SNESRECOMP_HOST_PROFILE=1`, which writes
+`video profile: stage=...` lines into `last_run_report.json`. `guest` is the
+emulated CPU; `upload-present` is the host's present path. They are different
+costs with different owners.
+
+Note that a healthy build is vsync-capped at 60 fps and so has **no headroom
+visible in the fps figure at all** — faster hardware would not move it. `guest`
+ms/frame is the number that shows headroom.
 
 ## Building
 
@@ -60,10 +115,23 @@ your shell's working directory.
 ```bash
 git clone --recurse-submodules https://github.com/linuxkafe/SNES-SimCity-Recomp
 cd SNES-SimCity-Recomp
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-cmake --build . --parallel
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
+
+`make build` does the same thing and is the supported path. Two notes that
+matter if you configure by hand:
+
+- **`libxtst-dev` is not required.** A clean build directory otherwise stops at
+  `Couldn't find dependency package for XTEST`, because SDL3 enables XTEST
+  (its synthetic-input extension) by default and nothing here uses it. Pass
+  `-DSDL_X11_XTEST=OFF`; `make build` already does.
+- **`make build` is Release and `make debug` is `-O0`.** The two were proven
+  byte-identical on the guest before the default changed — same 128 KB WRAM
+  image and same presented-crc32 column across attract, menu and naming at
+  3000 frames, with the cartridge SRAM pinned cold on both sides. The
+  equivalence is proven for those paths, not for all time and all input, so
+  keep `test_deterministic_replay` in the loop if you switch back and forth.
 
 Note: the `snesrecomp` submodule is pinned to a small fork
 (`linuxkafe/snesrecomp`) with the SimCity host runtime additions

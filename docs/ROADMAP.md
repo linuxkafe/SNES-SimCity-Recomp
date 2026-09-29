@@ -54,6 +54,20 @@ belongs to this repository or to the snesrecomp host.
 | 4 | Config bar auto-hide (F1) | Requested; the bar covers 21 of 224 rows |
 | 5 | snesrecomp: "writes a hardware register → `lle_only`" | T057's root cause, defence in depth. Class size measured at 1 function, already pinned |
 
+## Discovered, not yet ticketed
+
+Found while measuring T061. Recorded here rather than fixed, because each is
+either a different owner or a change that should not ride along on a
+performance ticket.
+
+| Item | Why it is not fixed here |
+|---|---|
+| **`<exe> <rom> --script X` silently ignores `--script`** | A real bug, in the snesrecomp fork (`host_main.c:2717`, `2759`): flags are consumed from the front, so `--script` must precede the ROM. It fails *silently* — exit 0, no warning, and the run is indistinguishable from one without a script. Worth noting that this invalidated a first round of scripted evidence in T061, caught only because the output was byte-identical to the unscripted run. |
+| **`upload-present` costs more than the whole guest** | 8.13 ms/frame on the Deck against a 2.45 ms guest. That is the host's SDL present path, not the recompiler, and optimising it is a different piece of work with a different owner. It is also the obvious next lever on performance, once the clock bug is fixed. |
+| **`interp816_opcode_hist_dump()` has no caller** | The per-opcode nanosecond histogram is already being collected at `interp816.c:288` and thrown away. Wiring it up would separate raw interpreter dispatch cost from the bridge's PPU-beam catch-up cost, which the current measurement cannot do. Cheap, and it belongs with a performance investigation rather than inside one. |
+| **99 `lle_only` functions are ~89% of guest-execution time** | The single largest lever on emulation cost, and the reason "native" needed qualifying. The reasons are 97 `structural_poison` / 41 `empty_decode` / 8 `unproven_callee_exit` — an analysis limitation in the recompiler, not hardware. Raising the AOT fraction is a recompiler project, not a game project. |
+| **No script reaches a running city** | Every performance figure in this repo is attract mode and menus, because city creation needs a mouse the scripted path cannot provide. So the 89% interpreted share and the 2.45 ms guest figure are both *unverified for gameplay* and should not be quoted as if they were. |
+
 ## Non-Goals (Explicitly Out of Scope)
 
 - ROM hacks and fan translations.
