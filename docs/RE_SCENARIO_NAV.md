@@ -341,3 +341,30 @@ What this does not yet do is reach the city: the pointer coordinates of `ENT`
 are only known from a hand, because a headless run has no pointer to read them
 off. Once they are, the whole route becomes a `--script` and the clock can be
 gated instead of measured by hand.
+
+### Measuring the clock, which is a different bug
+
+The city starts and the date stays at 1900 JAN. Those are two bugs: the entry
+one is closed, the clock one is open, and the clock can only be measured with a
+city already running — which needs the mouse.
+
+`scripts/clock-probe.sh` closes that loop. Save a state from inside a live city
+(press **F11**, slot 1) and it loads the state, runs 3600 frames, takes two
+WRAM dumps and reports which bytes move slowly:
+
+```
+scripts/clock-probe.sh
+```
+
+Nobody has mapped the date, population or treasury in WRAM, and guessing
+addresses by hand in 128 KB is hopeless. But a running city with a dead clock
+has a signature: the slow state is what changes every few dozen frames rather
+than every frame. `scripts/wram-diff.py` does the grouping and decodes each
+candidate as a byte, a u16 and a u32, because adjacent counters merge into one
+run and a 4-byte and a 2-byte field side by side arrive as a 6-byte run that a
+per-width decode would never explain.
+
+It is plumbing, not a conclusion: the run above used a state from the title
+screen, so it was reading the attract animation. What it proves is that the
+measurement is one command away from a real state, and that the clock can
+become a gate in `make test-rom` instead of a thing a person has to watch.
