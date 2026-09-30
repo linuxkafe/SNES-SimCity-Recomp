@@ -1035,3 +1035,162 @@ states. Sync on gameplay state."* E: *"Don't trust `g_last_recomp_func` — it's
 single global that lags behind actual execution under tail-call patterns."*
 Nós citámos essa tag como se fosse o local da escrita. **O peer documentou esse
 erro exacto antes de nós o cometermos.**
+
+---
+
+## 2026-09-30 — QUEBREDO: a descompilação reassembla byte-idêntica, e nomeia a data
+
+`Yoshifanatic1/SimCity-SNES-Disassembly` com o framework em **V1.0.1** e
+asar 1.91 reassembla para **exactamente os nossos bytes**:
+`23715fc7ef700b3999384d5be20f4db5`, 524.288 bytes, checksum `$39B3`
+restaurado. Sem mismatch de header ou região — o nosso ROM é LoROM 512 KB
+headerless, que é precisamente o que o mapa do framework declara.
+
+Isto torna-o uma **authority** no mesmo sentido que o SMWDisX é para o
+SuperMarioWorldRecomp. E o copyright fica limpo: o repositório da
+descompilação não contém assets, e só labels e endereços passariam para cá.
+
+### Os campos que três semanas de diff não encontraram
+
+De `SIMC/RAM_Map_SIMC.asm`:
+
+| campo | endereço |
+|---|---|
+| **`CurrentYear`** (16-bit LE) | **`$7E:0B53`** |
+| **`CurrentMonth`** (16-bit LE) | **`$7E:0B55`** |
+| `CurrentPopulation` (24-bit) | `$7E:0BA5` |
+| `CurrentFunds` (24-bit) | `$7E:0B9D` |
+| `DifficultyLevel` | `$7E:0B57` |
+| `CityCategory` / `CurrentCityScore` | `$7E:0DEB` / `$7E:0DED` |
+| `TaxRate` | `$7E:0DC5` |
+| **`$0B51`** | **contador de fase de 4 ticks** |
+
+Medido no nosso build, `d_city.script`, SRAM fria:
+
+```
+addr        f3300  f3380  f3400  f4000  f4199
+$0B53 year  076C   076C   076C   076C   076C     <- 0x076C = 1900
+$0B55 month 0001   0001   0001   0001   0001     <- 1 = Janeiro
+$0B51 tick  0000   0000   0000   0000   0000     <- NUNCA avanca
+$02BF pause 0000   0080   0080   0080   0080     <- bit 0 limpo = NAO pausado
+$0BA5 pop   000000 ...
+$0B9D funds 004E20 ...
+```
+
+**`$0B53`/`$0B55` é literalmente a string do HUD.** E um log de escritas em
+`$0B53-$0B56` mostra **exatamente uma escrita em 4.500 frames**, em **f3258**,
+por `interp@$009311` em **bank `$03`**, com o valor `6C 07 01 00` = 1900 /
+Janeiro. O setup do cenário escreveu a data. Nada escreve desde então.
+
+**O tick que a avança é `CODE_038000`/`CODE_038016` em bank 03**: `INC.w $0B51`,
+acumula impostos em `$0DC7`, e a cada 4 ticks `INC.w CurrentMonth` com o wrap
+Dezembro→Janeiro e `INC.w CurrentYear`. **Estações**: `CODE_00961C` deriva
+`$7E:0B4D` do mês. **Pausa**: `LDA.w $02BF / AND #$0001` — bit 0 limpo = não
+pausado.
+
+### O `cop_at_*` é o mecanismo real, não um erro de decode
+
+`!NativeModeCOPVector = CODE_008211`. O handler faz `ASL / TAX /
+JSR.w (DATA_008223,x)` — **tabela de 11 entradas em `$01:8223`**, índice `A>>1`:
+
+| A | destino |
+|---|---|
+| 0 | `$00930D` **vblank wait** |
+| 8 | `$0090DD` **descompressor LC_LZ5** |
+| 1, 10 | `$0086A4`, `$0086C8` (OAM) |
+
+**Não "consertes" os `cop_at_*`.** E a frame boundary do guest é dela:
+`CODE_008061` chama `LDA.w #$0000 / COP` **duas** vezes e depois
+`JSL CODE_018907`, que faz um terceiro. Ou seja, **o guest estaciona três ou
+mais vezes por iteração do main loop** — o host entrega um NMI por frame.
+
+`GAME_MASTER_CYCLES_PER_FRAME` + o slice loop é uma **palpite** a substituir
+por `interp_bridge_run_scheduler(0x009311, 0x009311, 0x00B9)`. O nosso cfg já
+tem `force_lle 0x009311` com o comentário certo — **falta o token, `$7E:00B9`.**
+
+### Duas refutações minhas
+
+1. **A tabela de `$00C5` tem 12 entradas, não 16**, e `$C5` guarda um índice
+   *par*. O site é `LDA.b $C5 / REP #$10 / ASL / TAX / JSR.w (DATA_0188EF,x)`.
+2. **O cliff de PPU em f3387 não reproduz.** Com log de escrita em
+   `$2100-$213F` durante 4.050 frames: o pico é f3271–f3315 (4.000–4.800
+   escritas/frame — é a *carga* da cidade), e a partir de **f3339 são 28–30
+   escritas/frame até f4049**, nunca zero. **O trabalho PPU do NMI não parou.**
+   O número que eu citei media outra coisa.
+3. `$03/CF32 → $7E0B5B` (nomes dos cenários) está **refutado** — não existe
+   essa tabela. E o decompressor LC_LZ5 está em `$0090DD`, não `$0090A6`.
+
+### O peer do mesmo jogo
+
+`Junior-Jones/SimCity-SNES-Static-Recomp` — **mesmo ROM** (SHA-256 igual ao
+nosso). Windows-only, sem screenshots no repo, por isso **não se pode
+confirmar que chegue a uma cidade a correr**; é uma afirmação, não uma
+medição.
+
+Mas duas coisas são leitura de código e valem muito:
+
+- **Não implementa HDMA.** `sc_machine.c:309` guarda `hdma_enabled_mask` e as
+  tabelas, e **nunca os relê**. Chegam a uma cidade a correr sem HDMA. O que
+  **confirma por via independente que HDMA não é o nosso bloqueio** — e o
+  teste Q5 abaixo mediu o mesmo.
+- **O frame model é real**: `sc_v11_scheduler.c`, 262 linhas × 341 hclock,
+  NMI no scanline 225 hclock 2, captura de PPU por scanline, "one guest frame
+  per host deadline". É o prior art a adoptar.
+
+### HDMA: negativo limpo
+
+Implementado exactamente como `dma.h` e `FRAME_MODEL_HOSTS.md` especificam
+(`dma_initHdma` + `dma_primeHdmaFirstLine` no init, `dma_doHdma` antes de cada
+linha). **Medido, antes vs depois:**
+
+| | antes | depois |
+|---|---|---|
+| escritas PPU do guest f0–f4049 | 243.450 | **243.450** |
+| média na cidade f3400–f4049 | 28.8/frame | **28.8/frame** |
+| framebuffer f4049 | `ad95abe7…` | **idêntico** |
+| framebuffer f1199 no attract (HDMA **ligado**, `$7E:00B5 = $08`) | `54370fd6…` | **idêntico** |
+
+Porque é um no-op: na cidade `$7E:00B5 = 0` e `CODE_008C28` faz commit de
+`$420C = 0`, portanto nenhum canal está activo. **Revertido, `git diff`
+vazio.**
+
+### snesref corre o nosso ROM — e concorda connosco
+
+Medido: `c++ -std=c++11 -O2 -o snesref frontend.cpp $(pkg-config --cflags
+--libs sdl2) -ldl`, core snes9x libretro construído em `/tmp`. **9.820 frames
+headless**, `SNESREF_WRAM_FILL=0`, `SNESREF_SRAM_IN` fria, trace JSONL de
+low-WRAM com 93.384 registos.
+
+**No hardware real `$00C5` é escrito uma vez e nunca muda** em 9.820 frames de
+boot. E **o nosso recomp concorda com isso em todos os estados comparáveis**.
+Portanto o pinning de `$00C5` **não é um artefacto do recomp** nos estados que
+conseguimos alcançar — o que enfraquece muito a hipótese "dispatch quebrado".
+
+O `snesref` **não consegue chegar a uma cidade**: a rota só com pad encrava no
+ecrã de nome. `SNESREF_SCRIPT` não pode reproduzir a conversão
+soft-mouse→d-pad do nosso host. O caminho é `SNESREF_INPUT_FILE` alimentado
+pelo stream de d-pad *efectivo*.
+
+### Onde fica, e a próxima unidade de trabalho
+
+**O tick de bank 03 nunca corre.** `$0B51` é zero em todos osamples. A
+descompilação mostra que o main loop **arma a corrotina** em `$01:825F`
+(escreve `$1F7C-$1F7F = $038000`, e o NMI muda para uma segunda pilha via
+`TSC/TCS` em `$01:817C`/`$01:8193`). **A instrução que transfere o controlo
+para lá não foi encontrada** — nada na descompilação lê `$1F7C`, portanto tem
+de ser um `RTS`/`JSL` por endereço computado.
+
+**Recomendação: ingerir a descompilação como authority, no motor actual, antes
+do merge.** Um `tools/ingest_simcitydis.py` modelledado em
+`tools/ingest_smwdisx.py`, emitindo `name` (~3.000 labels), `symbol` (todas as
+constantes de `RAM_Map_SIMC.asm`) e `data_region`. Depois `regen.sh`, os três
+gates verdes, e os seis probes de WRAM acima como conjunto de aceitação.
+
+**Não fazer o merge dos 147 antes disso.** Quando se fizer, pôr
+`exit_mx_set` nos critérios — o upstream nomeia o SimCity na própria doc do
+directivo, e é a correcção do nosso defeito de banco 02.
+
+**Uma ressalva, no espírito das duas refutações**: a identificação de
+`$0B53`/`$0B55` é *authority + round-trip do valor* (1900 / Janeiro, escrito
+uma vez em f3258), **não um screenshot**. O poke não pode provar nada porque
+o guest deixou de redesenhar o HUD neste build.
