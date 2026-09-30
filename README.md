@@ -82,8 +82,27 @@ declarations and instead exclude the spinlock from AOT and drive it from the
 host via `interp_bridge_run_scheduler`. Full analysis, the measured evidence
 and the fix are in `docs/RE_CITY_FREEZE.md`.
 
-Note that `make test-rom` passes while all of this is true: it only proves the
-picture moved *somewhere*, and it moves plenty before frame 3382.
+### Gates
+
+| command | what it proves | today |
+|---|---|---|
+| `make test` | the core replays deterministically (30 frames) | PASS |
+| `make test-rom` | the picture moves (frames 200–800) | PASS |
+| `make perf` | the frame rate holds (600 frames) | PASS |
+| `make clock` | **the city actually simulates** (6000 frames) | **FAIL** |
+
+`make clock` is the one that matters and the one that is red. The other three
+pass while the game is a still image, and they pass for the same reason each:
+they all measure before the city exists. The first three inspect frames 30–800
+and are still on the attract screen and the menus — they pass on the strength
+of motion that stopped 2,700 frames before their own window ended.
+
+`make clock` drives `scripts/d_city.script` into a live city and then reads the
+HUD date off the screen, because that is the claim under test and no WRAM
+address holding the month is known. Run `make clock-self-test` after changing
+anything in it: there is no build here where the clock advances, so the only
+way to know the detector still sees a live screen is to make it prove that on
+a window that is alive.
 
 ### Performance
 

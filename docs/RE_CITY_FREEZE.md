@@ -596,3 +596,83 @@ O gate que faltava é um que **rode `d_city.script` e verifique que a data
 avança depois de f3382**. É um gate de uma linha de lógica, e é a razão de o
 roteiro `scripts/d_city.script` existir como ficheiro versionado em vez de
 nota num documento.
+
+---
+
+## The gate (`make clock`)
+
+`scripts/clock-gate.sh`, wired as `make clock`. It runs
+`scripts/d_city.script` for 6,000 frames and reads the HUD date off the screen
+— the same thing the owner does — and fails if the date did not advance after
+the city is live.
+
+Current result, and it is the honest one:
+
+```
+run 1/1 ... 1 distinct date images after f3600 (last change f3379 of 6000)
+CLOCK: FAIL - the date did not advance in a live city.
+```
+
+The date crop is x 55–125, y 2–21 of the 336x224 framebuffer: the `1900 JAN`
+glyphs and nothing else. It deliberately excludes the tool palette, the RCI bar
+and the treasury. A whole-frame comparison would be worthless here — the OAM
+writes that animate the cursor do not change the pixels, and the ones that do
+would be exactly the false positives this gate must not have.
+
+### Why it is not a ctest
+
+Same reason as `test-rom` (it needs the ROM, which is never committed) plus a
+second one: it needs the game to be *reached*, which takes 3,600 frames of
+scripted input. A ctest has to be fast enough to run on every build, and this
+one takes about 100 seconds to reach the thing it is testing.
+
+### The calibration problem, and how it is handled
+
+**There is no build in this repository where the clock advances.** So a gate
+written against it has never seen a PASS, and a gate that has never passed is
+indistinguishable from a gate that cannot pass. `scripts/clock-gate.sh
+--self-test` (`make clock-self-test`) exists for exactly that: it points the
+same detector at a window of the same run that is demonstrably alive — the
+menus animate, frames 0–1200 — and fails if the detector reports no motion
+there.
+
+```
+frames captured               : 1200
+distinct date images, all     : 16
+last frame the date changed   : 1164
+SELF-TEST: PASS - the detector sees motion where motion exists.
+```
+
+A PASS from the real check only means something because the detector has been
+shown to fire on a screen that is alive.
+
+### Both outcomes were reached, deliberately
+
+Falsification is the only evidence that a gate works:
+
+| check | result |
+|---|---|
+| real check on the current build | **FAIL**, `rc=1`, "last change f3379 of 6000" |
+| window moved to the pre-city animation | **PASS**, `rc=0`, 16 distinct |
+| missing script / ROM / binary | **FAIL**, `rc=1` each |
+| `--frames` below the city frame | **FAIL**, `rc=1` |
+| no screenshots captured | **FAIL**, `rc=1` — "would pass on an empty directory" |
+
+The last row matters more than it looks. Three separate bugs in this gate's own
+first draft all had the same shape — a path that did not exist, so the host
+logged `cannot open ...` per present and exited 0, and the gate read that as
+"the game produced nothing". A gate that cannot distinguish *no output because
+the game is dead* from *no output because I passed the wrong directory* is a
+gate that will eventually pass for the wrong reason.
+
+### What the other gates say, for contrast
+
+```
+make test       100% tests passed, 0 tests failed out of 2
+make test-rom   PASS: the emulated picture moves.
+make perf       PERF: PASS
+make clock      CLOCK: FAIL
+```
+
+Three green and one red, on a build whose city is a still image. That is the
+whole argument for this gate existing.

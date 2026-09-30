@@ -1,4 +1,4 @@
-.PHONY: build debug test test-rom perf clean doctor
+.PHONY: build debug test test-rom perf clock clock-self-test clean doctor
 
 BUILD_DIR := build
 
@@ -45,6 +45,21 @@ test-rom: build
 # with PERF_MIN_FPS when the host is slower or faster than the reference.
 perf: build
 	scripts/perf-gate.sh
+
+# The gate that can see the game being dead. Not a ctest for the same two
+# reasons as the others: it needs the ROM, and it needs the game to actually be
+# reached - which takes 3,600 frames of scripted input. Every existing gate
+# inspects frames 30-800 and so passes while the city sits frozen.
+#
+# Run --self-test after changing anything in the script: there is no build in
+# this repository where the clock advances, so the only way to know the
+# detector still sees a live screen is to make it prove that on a window that
+# is alive.
+clock: build
+	scripts/clock-gate.sh
+
+clock-self-test: build
+	scripts/clock-gate.sh --self-test --frames 1200
 
 clean:
 	rm -rf $(BUILD_DIR)
