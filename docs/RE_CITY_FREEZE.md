@@ -357,3 +357,154 @@ supposed to set the flag, plus the AOT/LLE boundary question — the fork
 documents that *AOT code never advances the PPU beam* while the interpreter
 advances it per opcode, and a VBlank wait is exactly the kind of code where
 that asymmetry produces a hang rather than a wrong picture.
+
+---
+
+## 2026-09-30 (root cause) — the AOT wait loop clears the token in the same frame the NMI sets it
+
+**Found by comparing against the three games that work on this framework**, then
+confirmed here by direct measurement. This is the end of the line for this bug.
+
+### What the peers do differently
+
+Three other games run on snesrecomp and are believed playable end-to-end:
+Super Mario World, Zelda ALttP, Mega Man X. Read across all three repos'
+`recomp/*.cfg`:
+
+```
+force_lle : 0 occurrences
+lle_only  : 0 occurrences
+```
+
+**Not one working game uses `force_lle`.** SimCity uses eight of them. The
+peers all handle the same construct — a per-vblank token byte, cleared by the
+main loop and bumped by the NMI — by *excluding the spinlock from AOT and
+driving it from the host*:
+
+- **SMW** `recomp/bank00.cfg:18-27`, read verbatim:
+  > `# HLE-replacement: the asm main loop at $806B-$8078 is 'LDA $10 ; BEQ
+  > $806B ; CLI ; INC $13 ; JSR ProcessGameMode ; STZ $10 ; BRA $806B' — a
+  > busy-wait spinlock against an NMI flag. [...] Without this directive, the
+  > JMP at the tail of I_RESET auto-promotes a bank_00_806B function whose
+  > recompiled body re-enters the spinlock from inside the C frame and hangs
+  > the watchdog at frame 0.`
+  > `exclude_range 806B 8079`
+
+  and in `src/smw_rtl.c`:
+  ```c
+  waiting_for_vblank = 0xFF;
+  interp_bridge_run_scheduler(&g_cpu, 0x00806B, 0x00806B, 0x0010);
+  ```
+
+- **Zelda** `src/zelda_rtl.c:353` — same shape, `interp_bridge_run_scheduler(&g_cpu, 0x008034, 0x008034, 0x0012)`.
+
+- **MMX** `recomp/bank00.cfg:50,108-114` — `hle_func` on the scheduler and the
+  vblank-yield, token `$0B9D`.
+
+`interp_bridge_run_scheduler` (`interp_bridge.h:68-73`) runs the *real ROM*
+spinlock under the interpreter and yields when it reaches `yield_pc` with the
+token byte cleared. The host sets the token each frame.
+
+`snesrecomp/docs/GAME_PROJECT_SETUP.md:91-96` says in as much:
+> "A real ROM's reset vector never returns — it enters a main loop that waits on
+> vblank — so the host chooses the yield point. The template uses the general
+> LLE-first shape [...] which is the right starting point but is not tuned to
+> any particular game."
+
+`src/game_rtl.c:239-251` is that untuned template, verbatim. All three working
+games moved off it.
+
+### The SimCity construct, decoded from the ROM
+
+```
+$930D: E2 20        SEP #$20
+$930F: 64 B9        STZ $00B9      ; clear the token
+$9311: E6 C7        INC $00C7
+$9313: A5 B9        LDA $00B9      ; <- the hottest PC in the whole run
+$9315: F0 FA        BEQ $9311
+$9317: 60           RTS
+```
+
+and the only setter, inside the NMI handler's early-exit branch:
+
+```
+$80B2: 78           SEI
+$80B6: AF B1 00 00  LDA $00B100     ; ROM byte $A9, N clear -> short path
+$80BA: 30 04        BMI $80C0
+$80BC: E6 B9        INC $00B9       ; <- the only writer of the token
+$80BE: 68           PLA
+$80BF: 40           RTI
+```
+
+A scan of the ROM for absolute writers of DP `$B9` returns **zero** hits. Those
+two instructions are the whole protocol.
+
+### The measurement that closes it
+
+`SNESRECOMP_WLOG_ADDR=00B9:00B9`, every write to the token, tagged with the
+function that made it:
+
+```
+3383 00:00B9=01  interp@$0080B2          <- NMI sets it
+3383 00:00B9=00  bank_00_930D_M0X0       <- AOT loop clears it
+3384 00:00B9=01  interp@$0080B2
+3384 00:00B9=00  bank_00_930D_M0X0
+... 817 frames, exactly 817 of each ...
+```
+
+**817 increments and 817 clears, perfectly paired, forever.** The NMI sets the
+token and the compiled loop clears it in the same frame, so `$9313` never
+observes it non-zero and `BEQ $9311` never falls through. The loop is not
+waiting for an event that does not happen — the event happens and is destroyed
+before it can be seen.
+
+And the AOT loop should not exist: `recomp/bank00.cfg:32` declares
+`force_lle 0x009311`, but `src/gen/program_manifest.json` has
+
+```
+00930D:M0X0   aot_eligible   instr=6   reasons=[]
+```
+
+`reasons=[]` means the analyser has no opinion, and it compiled the spinlock to
+native C. `force_lle` at `$9311` pins one PC inside a function that begins at
+`$930D`; the function as a whole is still emitted. That is why it did not
+prevent this, and it is the same gap T057 found in `bank_00_8D65_M1`.
+
+### So: three bugs, not one
+
+1. `force_lle 0x009311` does not stop `$930D` being compiled AOT — the
+   declaration is off-label. `snesrecomp/docs/MULTI_TIER.md:181-195` is the
+   only documentation of `force_lle` and scopes it to *architectural* ABI
+   boundaries, not timing. A `LDA/BNE` spin is not an ABI boundary.
+2. The host runs the untuned generic template instead of a scheduler-shaped
+   frame step, so nothing drives the token.
+3. The token's only writer is an `INC` inside an NMI early-exit branch, which
+   makes it fragile in a way the peers' tokens are not.
+
+### The fix, in the peers' shape
+
+```c
+g_ram[0x00B9] = 0xFF;                                    /* host vblank token */
+interp_bridge_run_scheduler(&g_cpu, 0x009311, 0x009311, 0x00B9);
+```
+plus `exclude_range 0x930D 0x9318` in `recomp/bank00.cfg` so AOT can never
+re-enter the spin from inside a C frame — SMW's documented failure mode — and
+dropping the five redundant `force_lle` lines around the loop.
+
+**One known wrinkle, so it is not a surprise later:**
+`interp_bridge.c:1713-1720` hard-codes the canonical wait-loop byte pattern as
+`LDA <abs> ; BNE -5` (`AD .. .. D0 FB`). SimCity's loop is `LDA dp ; BEQ -3`
+(`A5 B9 F0 FA`) and **will not match**. The primary yield is not pattern-gated
+and should still fire, but the M/X and DB width repair and the stale-flag
+step-cap containment will not run. Widening that matcher is a one-line
+framework change if the containment turns out to be needed.
+
+### Corrections to earlier claims in this file
+
+- The AOT/PPU-beam asymmetry (`common_rtl.c:1358-1367`) is real and documented,
+  but it is **not** what causes this. `$4212` is synthesised from
+  `vPos >= 225` (`snes.c:594-606`) and reads go through a tier-independent
+  path. The beam is not frozen. That hypothesis is dead.
+- `force_lle` is described in `docs/MULTI_TIER.md` as being for ABI boundaries.
+  Using it for a timing boundary, as this project does in five places, does not
+  mean what the comment on line 32 claims.

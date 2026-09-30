@@ -55,21 +55,35 @@ were added. This port reproduces that SNES release.
 ✅ **Deterministic replay**: Bit-identical state traces verified  
 ✅ **Holds 60 fps**: 60.06 fps peak on an i5-8500T, 60.1 fps on a Steam Deck  
 
-⚠️ **The game hangs once the city loads.** `scripts/d_city.script` drives it from
-boot into a live city, headlessly and deterministically — so this is no longer a
-game-flow problem. But the last picture change in a 12,000-frame run is **frame
-3382**; for the remaining 8,600 frames the screen does not change by one bit,
-the controller does nothing, and the date stays `1900 JAN`. CPU register state
-sampled 800 frames apart is byte-identical except for the frame counter, and
-the only interpreter PC that runs afterwards is `$0092E3` — the **VBlank wait
-loop**. The guest is spinning, not simulating.
+⚠️ **The game hangs once the city loads.** Root cause found and confirmed.
+`scripts/d_city.script` drives it from boot into a live city, headlessly and
+deterministically, so this is no longer a game-flow problem.
 
-Ruled out by measurement: game flow, headless mode (a real display and real
-audio on the Steam Deck produce byte-identical output), cross-machine
-divergence, frame pacing, and a pause gate (forcing the gate open makes its
-consumer run every frame and still yields no month). Tracked in
-`docs/RE_CITY_FREEZE.md`. Every picture-based check in this repo passes while it
-is broken — `make test-rom` only proves the picture moved *somewhere*.
+The guest parks in its VBlank wait loop and the compiled version of that loop
+destroys the event it is waiting for. The loop at `$930D` clears a token byte
+`$00B9`, spins on it, and the only writer is an `INC` in the NMI handler's
+early-exit branch. Writing a logger on that one byte shows the two in lockstep,
+817 times each with no exceptions:
+
+```
+3383 00:00B9=01  interp@$0080B2      <- NMI sets the token
+3383 00:00B9=00  bank_00_930D_M0X0   <- AOT loop clears it, same frame
+```
+
+so `LDA $00B9 / BEQ` never sees it set and never falls through. The loop is not
+waiting for something that fails to happen — it happens, and is cleared before
+it can be observed. `force_lle 0x009311` in `recomp/bank00.cfg:32` was supposed
+to prevent this and does not: it pins one PC inside a function that begins at
+`$930D`, and the manifest compiles the whole function (`aot_eligible`,
+`reasons=[]`).
+
+The three games that are playable on this framework use **zero** `force_lle`
+declarations and instead exclude the spinlock from AOT and drive it from the
+host via `interp_bridge_run_scheduler`. Full analysis, the measured evidence
+and the fix are in `docs/RE_CITY_FREEZE.md`.
+
+Note that `make test-rom` passes while all of this is true: it only proves the
+picture moved *somewhere*, and it moves plenty before frame 3382.
 
 ### Performance
 
