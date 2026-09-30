@@ -508,3 +508,91 @@ framework change if the containment turns out to be needed.
 - `force_lle` is described in `docs/MULTI_TIER.md` as being for ABI boundaries.
   Using it for a timing boundary, as this project does in five places, does not
   mean what the comment on line 32 claims.
+
+---
+
+## 2026-09-30 (confirmado pelo dono) — 30.000 frames, uma única imagem
+
+O dono relata, jogando: *"a imagem mexe-se porque tem animação, não significa
+que o tempo passe, as estações não avançam mudando a coloração de todo o mapa,
+não aparece FEV nem MAR"*.
+
+**Isto está correcto, e é o teste mais forte que o projecto tem.** Também
+explica a aparente tensão com "a imagem é bit-idêntica": são camadas
+diferentes, e o registo de escritas na PPU separa-as exactamente.
+
+### Animação é OAM; estações são CGRAM
+
+Escritas na PPU depois do frame 3382 (8.000 frames, `SNESRECOMP_WLOG_ADDR=2100:213F`):
+
+```
+$2100 = $030F   4599x     <- endereço OAM
+$2102 = $00     4599x     <- endereço OAM
+$210F..$2112 = 00  9198x cada   <- writes de OAM, SEMPRE o mesmo valor
+```
+
+O guest continua a enviar OAM 4.599 vezes — o cursor/hand a piscar. É
+animação, e é exactamente o que o dono viu. Mas os valores são sempre os
+mesmos, por isso a imagem não muda.
+
+E a paleta, que é o que muda com as estações:
+
+| janela | escritas CGRAM (`$2120`/`$2121`) |
+|---|---|
+| f1000–1999 | 1.673 |
+| f2000–2999 | 2.001 |
+| f3000–3999 | 544 |
+| **f4000–4999** | **83** |
+| f5000–5999 | 83 |
+| f6000–6999 | 84 |
+| f7000–7999 | 83 |
+
+~2.000 por 1.000 frames antes, **83** depois — as estações pararam. As 383
+escritas que restam depois de f3382 são todas `$2121 = $00`.
+
+### 30.000 frames é mais uma prova
+
+Screenshot a cada frame, 30.000 frames (500 s de tempo emulado; um mês de
+SimCity são ~2 s, portanto são >8 meses de jogo):
+
+```
+distinct images in 30,000 frames: 164
+3922329d6279  first@ 003381  count 26619
+```
+
+As 164 imagens distintas são todas do attract e dos menus, antes de f3381. A
+partir daí há **uma** imagem, repetida **26.619 vezes**. Nenhum FEV, nenhum
+MAR, nenhuma estação.
+
+### O que isto fecha
+
+A causa-raiz acima — o loop AOT `$930D` a limpar o token `$00B9` no mesmo frame
+em que o NMI o põe — explica tudo isto por um único mecanismo, e a previsão
+que faz é correcta: **o jogo nuncaexecuta uma iteração de simulação**, porque
+nunca sai do spinlock. Logo:
+
+- o mês nunca avança (não há código que o faça correr);
+- as estações nunca mudam (a paleta é escrita pela simulação);
+- a animação continua (OAM vem do sprite/cursor, não da simulação);
+- o input não faz nada (o loop principal está preso).
+
+A animação é a **única** coisa que sobrevive a um guest pendurado, e é
+precisamente por isso que este bug enganou o projecto durante semanas: havia
+movimento no ecrã, e movimento foi lido como "o jogo está vivo".
+
+### Consequência para os gates
+
+`make test-rom` mede `crc32` distintos numa janela de 600 frames depois do
+boot. Com esta rota ela passa com folga, porque passa nos menus. **Nenhum gate
+deste repositório consegue ver este bug**, e nenhum把它们 faz:
+
+- `test_deterministic_replay` (30 frames) — nem chega à cidade;
+- `verify-rom-render.sh` (f200–800) — ainda está nos menus;
+- `perf-gate.sh` (600 frames) — idem;
+- o clock probe — exige entrar na cidade à mão, que era o que o tornava
+  inaplicável.
+
+O gate que faltava é um que **rode `d_city.script` e verifique que a data
+avança depois de f3382**. É um gate de uma linha de lógica, e é a razão de o
+roteiro `scripts/d_city.script` existir como ficheiro versionado em vez de
+nota num documento.
