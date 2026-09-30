@@ -855,3 +855,110 @@ partido é um segundo semáforo verde, não cobertura. Quando a causa for
 encontrada e corrigida, ela passa a valer como **precondição** ("o caminho de
 render funciona, logo um relógio parado é falha de simulação e não de
 render"), que é exactamente a distinção que este documento precisa.
+
+---
+
+## 2026-09-30 — a terceira refutação: os bancos 02/03/05 correm
+
+Duas das minhas premissas anteriores estavam erradas, ambas sobre o mesmo
+erro: inferir a partir de uma ausência.
+
+### "Os bancos 02–07 nunca correm" — falso
+
+MEASURED, `SNESRECOMP_PHASE_MS=1`, 4200 frames, 4,349,843 amostras:
+
+```
+bank$00  3505153  80.6%
+bank$01   599072  13.8%
+bank$05   106189   2.4%
+bank$02    80527   1.9%
+bank$03    58902   1.4%
+```
+
+Bancos 04, 06, 07 estão genuinamente a zero — e esses são dados. Eu medi
+"escritas em `$0000-$7FFF` por tag de autor" e vi só `bank_00` e `bank_01`, e
+concluí que os outros não correm. **Não correm o suficiente para escrever ali.**
+
+### E o `bank02.cfg` está a declarar tiles como código
+
+`recomp/bank02.cfg` tem `func Res_D01_TL 0x03AC` e comentários sobre *"tile
+IDs"* e *"tile range 940-1022"*. Esses são **índices de tile VRAM**, não
+endereços de código. O dano está no manifesto: **41 de 41 nós do banco 02 têm
+`instruction_count: 0`.** Nenhum código é gerado, e nada do banco 02 está
+disponível para o linker.
+
+`bank03.cfg`–`bank07.cfg` declaram endereços redondos (`0x8000`, `0x9600`) com
+nomes inventados. Só o banco 03 tem funções analisadas com extensões reais
+(180 nós, `instruction_count` até 639) — e o banco 03 **corre**.
+
+**`$03:8B42`, a única rotina que poderia armar `$0BB9` por frame, não existe no
+manifesto.** E `recomp/bank03.cfg` tem `func SFX_Play 0x8600`, que o manifesto
+diz ser `03:8600-03:8840 ic=289` — ou seja, os nomes inventados do cfg抓到am
+código real por acidente, e o resto dasfunctionalidades do banco 03 nunca foi
+declarado.
+
+### Onde a cidade realmente vive: **SRAM**, não WRAM
+
+`$01:F8E9` (`LDA $7F0200,X / AND #$03FF`) corre **78.392** vezes; `$01:F8AF`
+(`STA $7F0200,X`) 12.403. Chamadas a partir de uma família de rotinas de tile
+(`$01:F22C`, `$F311`, `$F380`, `$F3A3`, `$F444`, `$F502`, `$F5B9`, `$F600`,
+`$F647`, `$F6AE`, `$F71D`, `$F794`) — um walker de tilemap 120×100 com
+bounds checks contra `$0078`/`$0064`.
+
+`save.srm` vai de 0 para **32.768 bytes** durante uma run. **"Bateria fria" só
+descreve o primeiro frame.**
+
+### Os gates encontrados são do caminho de DISPLAY, não de simulação
+
+`$00:85EC` (JSL'd de `$01:89C1`, 220 execuções) exige `$D7 == 1`; na cidade
+`$D7 == 0`, por isso devolve em `$85F3` todas as vezes. O seu companheiro
+`$00:84AD` correu **1 vez**.
+
+**Mas `$84AD`/`$85EC` são reconstruidores de tabelas de display** — copiam das
+tabelas da página `$0B00` (`$0B53`, `$0B55`, `$0BA5`, `$0B9D`) para
+`$7E2021-$7E2056` e `$7E38EE`, e constroem uma lista de 6 ponteiros. **Não são a
+simulação de mês/população.** E isto explica o poke do `$0B9D`: `$0B9D` é um
+*cursor de tabela* passado em X (`LDX #$0B9D / JSR $8FEF`), não um campo
+apresentado. Poke-lo mexe no ecrã porque muda onde a cópia começa.
+
+### O dispatcher da cidade corre
+
+`$01:894A`, **221 execuções** em 3600 frames. Com `$01:8B21` (220), `$01:8A92`
+(220), `$00:85EB` (220), `$01:EF9F` (220). E as rotinas de criação de cidade
+são one-shot: `$01:C6C8` e `$01:8907` correm **exactamente 1 vez** cada. A
+cidade aparece entre f3200 e f3300 (54.546 bytes mudam nesse passo).
+
+### Resultado negativo limpo: o campo do mês
+
+**Não encontrado, e não faço claims.** O que foi procurado e o que exclui:
+
+- `"1900"` e os doze nomes de mês em ASCII na WRAM (131.072 bytes): **zero
+  hits.** São tiles, confirmado.
+- Tabela de 12 entradas com stride constante no ROM: 764 hits, todos sliding
+  windows sobre rampas de valores. Excluído — ruído.
+- Varrimento estático de `$0400-$04FF` em todos os bancos: nenhum cluster com
+  forma de data. `$0406` tem exactamente **4** referências em todo o ROM.
+- `$2510-$2516` já excluído antes como fase de animação.
+
+**O que o encontraria**: o leitor da data está no motor de texto/UI do banco 03
+(que corre, 1.4%), e esse evento precisa de um conjunto de PCs de execução
+completo — `SNESRECOMP_PHASE_MS` só imprime os 16 PCs mais quentes, que não
+basta para enumerar.
+
+### Turbo/pause: não corre, e não responderia
+
+`Turbo = Tab`, `Pause = Shift+p` — ambos via eventos de teclado SDL
+(`host_main.c:1810-1818`), que um run `SDL_VIDEODRIVER=dummy` não recebe. O
+parser de script não tem verbo de turbo nem de pause.
+
+E mesmo com o Tab entregue **não responderia à pergunta**: `g_turbo` só põe
+`disableRender` em 15 de 16 frames e limpa o pacing realtime. O emulador corre
+exactamente um frame de guest por iteração de host em qualquer modo. Turbo muda
+a taxa de apresentação, não o tempo simulado.
+
+### Estado
+
+`make clock` **FAIL**. O jogo não é jogável. O que está estabelecido é
+substancial — o guest está saudável, o renderer está vivo e segue o estado, as
+estruturas da cidade estão inicializadas, o dispatcher corre — e o que falta é
+uma coisa: **a rotina que escreve o tempo**.
