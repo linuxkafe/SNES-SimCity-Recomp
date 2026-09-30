@@ -760,3 +760,98 @@ wrong or irrelevant:
 The failure was mine and it is worth naming precisely: **I inferred a
 mechanism from a write-trace and treated the tag as the store site.** Every
 number I quoted was real; the conclusion drawn from them was not.
+
+---
+
+## 2026-09-30 — o renderer está VIVO. A simulação é que não corre.
+
+O dono jogou e disse: *"existe animação, no ecrã, o tempo é que não passa, a
+população não cresce, as estações não aparecem"*. **Está certo, e refuta a
+metade seguinte do meu diagnóstico anterior.**
+
+### A reconciliação
+
+| medição | distinct crc32 | o que é |
+|---|---|---|
+| run passiva (o que o gate amostra) | **1** em 2400 presents | o gate nunca dá input |
+| run com input | **26** que a passiva nunca produziu | o renderer responde |
+| `pokefor $0B9D` | muda no **present seguinte** | não é bitmap em cache |
+
+O gate (`scripts/clock-gate.sh`) amostra **passivamente**, por isso nunca veria
+animação de renderer. "Bit-idêntico" e "animado" são simultaneamente verdadeiros
+e a aparente contradição era do instrumento, não do jogo. A mesma limitação
+explica o `1 distinct crc32` que eu reportei três vezes.
+
+### O que o main loop faz — medido
+
+Trace de um frame completo, 1144 stores WRAM no body, 4 tags de autor:
+
+```
+bank_01_C772_M0X0       7657   AOT   setup HDMA/OAM
+bank_01_B274_M0X0       1280   AOT   loop raster
+PPU_Bitpack_8EA9_M0X0    ~12   AOT
+interp@$0080B2         2089         o NMI
+interp@$009313/11/15   17406         o spin + a parte interpretada do body
+```
+
+O body é **100% setup de raster/HDMA**: 32 iterações de `$01B274`, cada uma com
+dois `JSR $C772`, indexando a tabela `$7F0200,X` (a SRAM da bateria). Só bancos
+00 e 01 correm; **bancos 02–07 não correm nada**.
+
+De 110 endereços do body, **85 escrevem valores byte-idênticos em 10 frames**.
+Os 25 que variam são posição de raster, índice e pilha. **O controlo de fluxo
+nunca varia** — logo não há nada a montante "a escolher não trabalhar", porque
+não há outro trabalho lá dentro.
+
+### Os diagramas
+
+O loop do guest e o loop do host estão em `/tmp/opencode/loop/*.mmd` e foram
+derivados da medição acima, com cada nó rotulado pelo seu endereço e marcado
+como medido ou inferido. Resumo estrutural:
+
+```
+HOST: NMI PRIMEIRO (game_rtl.c:223-229)
+  -> NMI $0080B2..$81A3, o caminho LONGO (o curto nunca corre)
+     -> $819A STA $00B9   (único writer do token que corre, 1/frame)
+  -> guest sai do spin em $9317 RTS
+  -> MAIN LOOP BODY: 32x raster/HDMA, 1144 stores
+  -> $930F STZ $00B9 (rearma)
+  -> SPIN $9311/$9313/$9315 até ao deadline do host
+```
+
+### Três correções a afirmações anteriores
+
+1. **`$00B1` nunca foi uma flag.** É um byte temporário de endereço DMA dentro
+   de `$01C772` (`LDA $B3 / AND #$7F / STA $B1`, depois `STA $4202`, depois
+   restaura). Escrito 62–208×/frame. O jogo **inicializa-o a `$81` no boot**
+   (`$008044 LDA #$81 / STA $B3 / STA $B1`) — bit 7 set é o estado projectado.
+2. **O caminho longo põe o token ele próprio**, em `$819A`, 236 bytes depois de
+   onde este documento supunha. 840 stores, exactamente 1 por frame.
+3. **`$0406` não é "+1 por frame desde o frame 0".** Tem **zero escritas nos
+   frames 0–3338** e 1/frame a partir de f3339. O jogo está ocioso **de
+   propósito** fora da cidade — e continua ocioso dentro dela. Esta é a segunda
+   prova independente de que o idle é deliberado.
+
+### A pergunta que fica
+
+**A rotina de mês/estação/população não é alcançável a partir do main loop
+body.** Não foi identificada por endereço, e não vou adivinhar um.
+
+O que se sabe: o guest é estruturalmente saudável (NMI entregue e retornado,
+spin entrado e saído, uma iteração do main loop por frame, contador a avançar),
+o renderer está vivo e segue o estado do guest com um frame de atraso, as
+estruturas da cidade existem e estão inicializadas (2.387 bytes que são zero no
+ecrã de nomes e no attract), e `$0B9D` injectado produz `162774` no HUD — um
+valor **calculado pelo jogo**, não o nosso byte ecoado. Portanto o jogo sabe
+ler, formatar e apresentar estado. Simplesmente nada escreve nesse estado.
+
+Onde vive a rotina, e o que a impede de correr, é a pergunta em aberto.
+
+### Sobre o gate
+
+Não foi adicionada a asserção do poke, e a decisão é do owner. Passaria no
+build actual — e um gate que passa num build onde o jogo está visivelmente
+partido é um segundo semáforo verde, não cobertura. Quando a causa for
+encontrada e corrigida, ela passa a valer como **precondição** ("o caminho de
+render funciona, logo um relógio parado é falha de simulação e não de
+render"), que é exactamente a distinção que este documento precisa.
