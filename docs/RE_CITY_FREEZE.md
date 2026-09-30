@@ -676,3 +676,87 @@ make clock      CLOCK: FAIL
 
 Three green and one red, on a build whose city is a still image. That is the
 whole argument for this gate existing.
+
+---
+
+## 2026-09-30 — CORRECTION: the vblank handshake is NOT the cause
+
+Everything above this line that blames `$930D` / `$00B9` is **wrong**, and it
+was wrong in a way that survived three rounds of measurement because every
+measurement confirmed the symptom rather than testing the claim.
+
+**What I claimed**: the AOT-compiled wait loop clears the token `$00B9` in the
+same frame the NMI sets it, so `LDA $00B9 / BEQ` never sees it set.
+
+**What is actually true**, measured by dumping every interpreted PC for one
+whole frame:
+
+```
+[   0..653 ] NMI handler $0080B2 .. RTI at $0081A3
+[ 654..657 ] $9315 BEQ / $9311 / $9313 / $9315    one loop pass
+[     658  ] $9317 RTS                            <-- LEAVES THE SPIN
+[ 659..1523] guest main-loop body                 865 steps
+[1524..1525] $930D SEP #$20 ; $930F STZ $00B9     arms the wait again
+[1526..5592] spin $9311/$9313/$9315 x1357
+```
+
+**The guest leaves the spin every frame and completes a full main-loop
+iteration.** `INC` (NMI) then `STZ` (guest) is the *correct* order: the
+interrupt releases the wait, and the guest re-arms it. It is not an
+inversion, and reordering the NMI would break a handshake that already works.
+
+Confirmed independently of that trace: `$00C7` is the `INC` inside the spin, so
+it counts passes through the wait. It reads 156 at f3400, 2 at f3500, 58 at
+f3600 — it **wraps**, repeatedly, every frame. A livelock would pin it or
+advance it without end.
+
+Two more things the earlier sections got wrong:
+
+- **`$0080BC` is never executed.** The NMI takes the *long* path: `$80B6 LDA`
+  → `$80BA BMI` **taken** (A = `$0081`, bit 7 set) → `$80C0`. The token is
+  still set each frame, by a different instruction in that path — the write log
+  tags a store with the *scope entry* `$0080B2`, not the store site, and I read
+  that tag as the store address.
+- **The spin has run since boot.** `$00C7` advances ~1400–2600×/frame from
+  frame 0, menus included. It is not something that started at the city.
+
+### What the fault actually looks like
+
+The guest is **structurally healthy at the frame boundary** — NMI delivered and
+returned, spin entered and left, one main-loop iteration completed, frame
+counter ticking. And the game is **idle**. So the fault is in *what the main
+loop does*, not in the vblank handshake, and it is a game-semantics question
+this project has been reading as a timing one.
+
+The most concrete lead: the NMI handler's short/long path is selected by **bit
+7 of `$00B1`** (`$80B6` → `$80BA`). In our runs `$00B1` is `$81` at NMI time,
+so the handler always takes the long path and the fast path never runs.
+`$00B1` is written from ~140 sites. **Whether hardware presents `$01` at the
+vblank edge, and we present `$81`, is the next thing to test** — an open
+question, not a finding.
+
+### An alternative I could not rule out
+
+`scripts/d_city.script` reaches a screen that *looks* like a city. Given the
+guest completes a full main-loop iteration per frame while the picture is
+bit-identical, "live city that is idle" and "static screen the guest loops on"
+are not yet separated. That should be settled before more work on the main
+loop — by proving the city *state* changes when it should (population,
+treasury, a zoned tile), not by looking at it.
+
+### What this cost, recorded honestly
+
+Three pieces of work were built on the wrong diagnosis and are now known to be
+wrong or irrelevant:
+
+- `exclude_range 0x930D 0x9318` in `recomp/bank00.cfg` (commit `436b25b`) —
+  harmless and defensible on its own terms (SMW has the same exclusion and
+  quotes the failure it prevents), but it was applied to fix this and does not.
+  Left in place, not because it fixed anything here.
+- A reorder of `GameRunOneFrame` — reverted, it does not converge.
+- Widening the framework's `_canonical_wait_loop` matcher — reverted, it
+  changed nothing.
+
+The failure was mine and it is worth naming precisely: **I inferred a
+mechanism from a write-trace and treated the tag as the store site.** Every
+number I quoted was real; the conclusion drawn from them was not.
