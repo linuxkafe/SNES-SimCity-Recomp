@@ -27,36 +27,45 @@ game being playable end to end, and the reason is precise and narrow.
 
 ### Broken — the one thing that matters
 
-**The city loads and zero simulation ticks run.** The view is correct, the frame
-loop runs once per frame, and the date stays `1900 JAN` with the population at
-0.
+**The game hangs as soon as the city loads.** It is not a slow simulation and
+not a frozen clock.
 
-**Hypothesis (1) is now dead, and it was the one this file believed.** The
-project held that the clock never advanced *because the city was never
-created* — that confirming `ENT` was a pointer input no script could make, so
-every headless run was really measuring the naming screen. That was wrong.
-`scripts/d_city.script` reaches a live city headlessly and deterministically,
-and with the city on screen 20,000 frames leave the date at `1900 JAN`.
+- The last picture change in a 12,000-frame run is **frame 3382**. After that
+  the screen is bit-identical for 8,600 frames.
+- **Input does nothing** — 1,700 frames of deliberate presses and clicks after
+  the city is live produce no change at all.
+- CPU state sampled 800 frames apart is byte-identical except for `A`, which is
+  the frame counter. `S=1FE4` never moves, so no subroutine is entered. The only
+  interpreter PC that executes is `$0092E3`.
 
-So what remains is **hypothesis (2): an emulation defect.** The narrowest
-evidence for it:
+That is a livelock in the **VBlank wait loop** at `$9311` — the same address
+`recomp/bank00.cfg:32` already pins with `force_lle`, and the same family as
+T050. The `$0406` counter still ticks at +1/frame because the NMI path runs;
+the main loop just never gets past the wait.
 
-- `$0406` advances **exactly +1 per frame** for 20,000 frames. The host is
-  running, the guest is consuming frames, and the game is choosing not to turn
-  them into months.
-- The city renders, the tool palette draws, the map is there. Nothing is stuck.
-- The route is deterministic: two runs, cold SRAM, byte-identical WRAM.
+**What has been eliminated**, each by measurement rather than argument: game
+flow (solved, `scripts/d_city.script`), headless mode (a real display and real
+audio on the Deck produce byte-identical WRAM *and* screenshot), cross-machine
+divergence, frame pacing, a pause/speed gate (forcing `$0408=0` arms `$040A`
+and its consumer then runs every frame without producing a month), and the
+"slow-moving bytes" as the date field (`$2510-$251F` is periodic on a ~10,000
+frame cycle — animation phase).
 
-Whoever picks this up: **do not re-litigate game flow.** It is solved. The
-question is which value gates the month tick, and nobody has found it yet. See
-`docs/RE_CITY_FREEZE.md` for the full measurement and for the slow-moving
-candidates that are explicitly *not* yet shown to be the date.
+**The next step is narrow and mechanical**: what is `$9311` waiting for, and why
+does it never arrive? That is a disassembly of the loop and of whatever sets its
+flag, plus the AOT/LLE boundary — the fork documents that AOT code never
+advances the PPU beam while the interpreter advances it per opcode, which turns
+a VBlank wait into a hang rather than into a wrong picture.
+
+Three weeks of WRAM diffing produced the idle counters at `$007C`/`$01B3`/
+`$01D5` because a livelocked guest has no slow-moving game state to find. Do not
+diff again; disassemble.
 
 ## Next
 
 | # | Item | Why |
 |---|------|-----|
-| 1 | Find the value that gates the month tick | The city is now reachable and the clock is still frozen, so the game-flow explanation is dead. This is a disassembly question, not another diff |
+| 1 | Disassemble the `$9311` VBlank wait and find what sets its flag | The game livelocks there. Not a diff question — the guest has no game state to diff |
 | 2 | Gate the clock, not the motion | `make test-rom` proves the picture moves; a frozen city moves 4×/1000 frames, so the gate would pass. The gate must ask whether the date advances |
 | 3 | T025 content assertions | Prove the screen is the *right* screen, not just a moving one |
 | 4 | Config bar auto-hide (F1) | Requested; the bar covers 21 of 224 rows |

@@ -254,3 +254,106 @@ disassembly question, not another diff.
 The most likely place remains what this file already guessed: the NMI handler
 runs, the frame counter advances, and the handler declines to convert it into a
 month. That guess has now survived one more round of elimination and no more.
+
+---
+
+## 2026-09-30 (later) — it is not a frozen clock. It is a hang.
+
+The section above frames this as "the city runs and the month tick is gated".
+That framing is wrong, and the evidence is uncomfortable: **the game hangs.**
+
+### The picture freezes too
+
+Per-present crc32 over 12,000 presents, `scripts/d_city.script`, cold SRAM:
+
+| window | distinct crc32 | changes |
+|---|---|---|
+| 0–2500 (attract, menus) | 126 | 129 |
+| 3000–6000 (city loading) | 34 | 47 |
+| **6000–12000 (city "running")** | **1** | **0** |
+
+**The last picture change in the entire run is frame 3382.** For the following
+8,618 frames — 143 seconds of emulated time — the rendered image does not
+change by one bit.
+
+This file, and T058 before it, both describe a city that "runs, animations
+play, and the date stays 1900 JAN". Nothing here animates. The `~4 changes per
+1000 frames` figure used elsewhere in this repo as the signature of a slow
+city is wrong for this build: the real figure is **zero**.
+
+### And input does nothing
+
+`scripts/d_city.script` followed by 12 rounds of `press right` / `press down` /
+`mouseclick right` — 1,700 frames of deliberate input after the city is live:
+
+```
+total presents 9000, distinct-change events 148, LAST CHANGE at frame 3534
+```
+
+Nothing. The game does not respond to the controller at all.
+
+### The registers prove it
+
+`SNESRECOMP_WLOG_ADDR=0400:0410` with `SNESRECOMP_WLOG_STATE=1` samples the
+whole CPU state at every write to the frame counter. Sampled at frames 3400,
+3500, 3600, 4000 and 4199:
+
+```
+A=0028 X=0008 Y=0000 S=1FE4 D=0000 DB=00 M=0 Xf=0 IPC=0092E3
+A=008C X=0008 Y=0000 S=1FE4 D=0000 DB=00 M=0 Xf=0 IPC=0092E3
+A=00F0 X=0008 Y=0000 S=1FE4 D=0000 DB=00 M=0 Xf=0 IPC=0092E3
+A=0280 X=0008 Y=0000 S=1FE4 D=0000 DB=00 M=0 Xf=0 IPC=0092E3
+A=0347 X=0008 Y=0000 S=1FE4 D=0000 DB=00 M=0 Xf=0 IPC=0092E3
+```
+
+**`A` is the only register that changes, and it is the counter being
+incremented.** `X`, `Y`, `S`, `D`, `DB`, the flag bytes and every stack peek
+(`p34`…`p57`) are byte-identical across 800 frames. `S=1FE4` never moves, so
+the guest is not entering or leaving a subroutine. The only interpreter PC that
+ever executes after the freeze is `$0092E3`.
+
+PPU register writes confirm it: 224,189 writes to `$2100-$213F` before frame
+3382, then **23,557 across 817 frames** — and every single one of them is
+`$210F`/`$2110`/`$2111`/`$2112` written with the *same value*, twice per frame.
+That is an idle loop poking the OAM address register, not a renderer.
+
+`$009313` is the hottest interpreter PC in the whole run (2.3% of 1.7M
+samples), and `recomp/bank00.cfg:32` already pins
+`force_lle 0x009311  # VBlank wait loop main polling address`.
+
+### What this means
+
+**The game is spinning in its VBlank wait loop.** `$9311` waits for a flag that
+something else is supposed to set, and the thing that sets it never runs. The
+`$0406` counter is incremented by the NMI path, which is why it ticks — so the
+interrupt *is* being delivered — but the main loop never gets past the wait.
+
+That is the same family as T050 ("VBlank wait loop at $00927C forced to
+interpreter") and T057 (an AOT function that runs but produces nothing). It is
+**not** a clock bug, not a pause gate, and not game flow. It is a livelock
+discovered now that the city is reachable.
+
+### What has been eliminated, with the evidence
+
+| Ruled out | How |
+|---|---|
+| Game flow / city never created | `scripts/d_city.script` reaches a live city |
+| Headless environment | Deck run on a real 1920x1080 X display with real PulseAudio: byte-identical WRAM **and** byte-identical screenshot to the headless run |
+| Cross-machine divergence | Deck and dev machine WRAM sha256 identical at f11998 |
+| Timing / frame pacing | real display and real audio change nothing; the guest is frame-indexed |
+| A slow simulation | picture is bit-identical for 8,618 frames; input does nothing |
+| A pause or speed gate | forcing `$0408=0` arms `$040A=$8080`, and the consumer at `$01:8A92` then **executes every frame** — and still no month. Opening the gate did not help. |
+| The "slow-moving bytes" as the date | `$2510-$251F` is periodic with a ~10,000-frame cycle and is byte-identical at f4000 and f14000. That is animation phase, positively excluded. |
+
+### The actual next step
+
+Not more WRAM diffing. The guest is not looping through game logic, so there is
+no slow-moving game state to find — which is why three weeks of diffing a
+"frozen simulation" kept producing the idle counters at `$007C`/`$01B3`/`$01D5`.
+
+The question is narrow and mechanical: **what is `$9311` waiting for, and why
+does it never arrive?** That is a disassembly of the loop and of whatever is
+supposed to set the flag, plus the AOT/LLE boundary question — the fork
+documents that *AOT code never advances the PPU beam* while the interpreter
+advances it per opcode, and a VBlank wait is exactly the kind of code where
+that asymmetry produces a hang rather than a wrong picture.

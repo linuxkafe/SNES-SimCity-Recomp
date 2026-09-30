@@ -55,15 +55,21 @@ were added. This port reproduces that SNES release.
 ✅ **Deterministic replay**: Bit-identical state traces verified  
 ✅ **Holds 60 fps**: 60.06 fps peak on an i5-8500T, 60.1 fps on a Steam Deck  
 
-⚠️ **The city loads but the clock never starts.** `scripts/d_city.script` drives
-the game from boot into a live city, headlessly and deterministically — so this
-is no longer a game-flow problem. With the city on screen, 20,000 frames
-(333 s of emulated time) leave the date at `1900 JAN` and the population at 0.
-A frame counter in WRAM (`$0406`) advances exactly +1 per frame throughout, so
-the host and the frame loop are fine and the game is declining to turn frames
-into months. Tracked in `docs/RE_CITY_FREEZE.md`. Every picture-based check in
-this repo passes while it is broken — a frozen city moves about four times per
-1000 frames.
+⚠️ **The game hangs once the city loads.** `scripts/d_city.script` drives it from
+boot into a live city, headlessly and deterministically — so this is no longer a
+game-flow problem. But the last picture change in a 12,000-frame run is **frame
+3382**; for the remaining 8,600 frames the screen does not change by one bit,
+the controller does nothing, and the date stays `1900 JAN`. CPU register state
+sampled 800 frames apart is byte-identical except for the frame counter, and
+the only interpreter PC that runs afterwards is `$0092E3` — the **VBlank wait
+loop**. The guest is spinning, not simulating.
+
+Ruled out by measurement: game flow, headless mode (a real display and real
+audio on the Steam Deck produce byte-identical output), cross-machine
+divergence, frame pacing, and a pause gate (forcing the gate open makes its
+consumer run every frame and still yields no month). Tracked in
+`docs/RE_CITY_FREEZE.md`. Every picture-based check in this repo passes while it
+is broken — `make test-rom` only proves the picture moved *somewhere*.
 
 ### Performance
 
