@@ -55,11 +55,15 @@ were added. This port reproduces that SNES release.
 ✅ **Deterministic replay**: Bit-identical state traces verified  
 ✅ **Holds 60 fps**: 60.06 fps peak on an i5-8500T, 60.1 fps on a Steam Deck  
 
-⚠️ **The city does not simulate.** Entry into the game works; once a city loads
-the date stays `1900 JAN` and the population stays 0. This is the one thing
-between this build and a playable game, and it is tracked in
-`docs/RE_CITY_FREEZE.md`. Every picture-based check in this repo passes while it
-is broken — a frozen city moves about four times per 1000 frames.
+⚠️ **The city loads but the clock never starts.** `scripts/d_city.script` drives
+the game from boot into a live city, headlessly and deterministically — so this
+is no longer a game-flow problem. With the city on screen, 20,000 frames
+(333 s of emulated time) leave the date at `1900 JAN` and the population at 0.
+A frame counter in WRAM (`$0406`) advances exactly +1 per frame throughout, so
+the host and the frame loop are fine and the game is declining to turn frames
+into months. Tracked in `docs/RE_CITY_FREEZE.md`. Every picture-based check in
+this repo passes while it is broken — a frozen city moves about four times per
+1000 frames.
 
 ### Performance
 

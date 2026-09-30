@@ -181,3 +181,76 @@ frame.
   wrong: the shell probe that produced it was mangled by quoting, and the broken
   output was reported as fact. A native build on both machines is now available
   as an independent check.
+
+---
+
+## 2026-09-30 — the city is reachable, and the clock is still frozen
+
+**The explanation above was wrong, and it is worth being precise about which
+half is wrong.** This document concluded that "the clock did not advance because
+the city was never created, and the city was never created because the last two
+inputs are pointer inputs that no script can make."
+
+The second half is false. `scripts/d_city.script` reaches a running city,
+headlessly, and it is deterministic — two runs, same SRAM, byte-identical WRAM
+at frame 7998 (`b2038ffa4a34560b5931c2dbec20f2cf7c04a6b5079298d1961f2d7b484a3c30`).
+The route is in the script's own header; the short version is that `mouseclick
+right` does reach the guest, `press left` wraps the key list to its end, and
+four `press down` walks the hand onto `ENT`.
+
+So the first half now stands alone, and it is the part that matters: **the city
+is created, it is on screen, and the clock does not advance.** That makes this
+a genuinely different bug from the one this file spent three weeks describing.
+
+### The measurement
+
+20,000 frames — 333 seconds of emulated time — with the city live from ~frame
+3600:
+
+| window | WRAM bytes changed |
+|---|---|
+| f4000 → f6000 | 32 |
+| f6000 → f8000 | 28 |
+| f8000 → f10000 | 23 |
+| f10000 → f12000 | 32 |
+| f12000 → f14000 | 27 |
+| f14000 → f16000 | 32 |
+| f16000 → f18000 | 32 |
+| f18000 → f19998 | 21 |
+
+And the date, read off the screen rather than inferred: **`1900 JAN` at frame
+4000 and `1900 JAN` at frame 19998.** The population counter in the HUD reads 0
+throughout.
+
+One of the 36 bytes that do move is diagnostic:
+
+```
+$0406-$0407   u16 639 -> 16637   delta +15998 over 15998 frames
+```
+
+That is **exactly +1 per frame** — a frame counter, doing its job. So the host
+is advancing frames, the guest is consuming them, and the game is choosing not
+to turn them into months. Whatever gates the month tick is not the frame count.
+
+### What this rules out
+
+- **Not a savestate artifact.** This is a live run with no state load anywhere.
+- **Not "the city was never created".** It is created; the picture shows it.
+- **Not a stopped host.** `$0406` ticks once per frame, every frame, for 20,000
+  frames.
+- **Not a build or AOT regression.** The city renders, the tool palette is
+  drawn, the map is there.
+
+### What it does not yet tell us
+
+Nobody has located the value that gates the month. The four bytes at
+`$2510`-`$2516` move slowly (+15, +13, +11, +11 over 16k frames) and are
+candidates, but "moves slowly" is the same signature as the idle counters in
+`$007C`/`$01B3`/`$01D5` that this file already listed as noise. They have not
+been shown to be the date, and this file has a history of reading a slow byte as
+a signal. The next step is to find the actual month field — which is a
+disassembly question, not another diff.
+
+The most likely place remains what this file already guessed: the NMI handler
+runs, the frame counter advances, and the handler declines to convert it into a
+month. That guess has now survived one more round of elimination and no more.
