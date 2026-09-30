@@ -55,32 +55,35 @@ were added. This port reproduces that SNES release.
 ✅ **Deterministic replay**: Bit-identical state traces verified  
 ✅ **Holds 60 fps**: 60.06 fps peak on an i5-8500T, 60.1 fps on a Steam Deck  
 
-⚠️ **The game hangs once the city loads.** Root cause found and confirmed.
-`scripts/d_city.script` drives it from boot into a live city, headlessly and
-deterministically, so this is no longer a game-flow problem.
+![SimCity title screen](docs/screenshots/title.png)
 
-The guest parks in its VBlank wait loop and the compiled version of that loop
-destroys the event it is waiting for. The loop at `$930D` clears a token byte
-`$00B9`, spins on it, and the only writer is an `INC` in the NMI handler's
-early-exit branch. Writing a logger on that one byte shows the two in lockstep,
-817 times each with no exceptions:
+⚠️ **The city loads and renders, but it does not simulate.** The date stays
+`1900 JAN` forever — no month ever appears across 30,000 frames, the seasons
+never recolour the map, the population stays 0 — while the controller does
+nothing. `scripts/d_city.script` drives the game from boot into a live city
+headlessly and deterministically, so this is not a game-flow problem, and the
+renderer is proven live: poking a WRAM byte moves the presented picture on the
+very next frame.
 
-```
-3383 00:00B9=01  interp@$0080B2      <- NMI sets the token
-3383 00:00B9=00  bank_00_930D_M0X0   <- AOT loop clears it, same frame
-```
+![A city at 1900 JAN, frozen](docs/screenshots/city-frozen.png)
 
-so `LDA $00B9 / BEQ` never sees it set and never falls through. The loop is not
-waiting for something that fails to happen — it happens, and is cleared before
-it can be observed. `force_lle 0x009311` in `recomp/bank00.cfg:32` was supposed
-to prevent this and does not: it pins one PC inside a function that begins at
-`$930D`, and the manifest compiles the whole function (`aot_eligible`,
-`reasons=[]`).
+**Root cause, current best evidence.** The simulation tick lives in bank 03 at
+`CODE_038000`. It is never reached. The disassembly that reassembles
+byte-identical to this ROM names the state it maintains — `CurrentYear` at
+`$7E:0B53`, `CurrentMonth` at `$7E:0B55`, and `$7E:0B51` as a four-tick phase
+counter — and measured, those read `1900`, `1` (January) and `0` at every
+sample, with `$7E:0B53` written exactly once in 4,500 frames when the scenario
+loaded. The main loop arms the bank-03 coroutine at `$01:825F` and the NMI
+switches to its stack; **the instruction that transfers control into it has not
+been located.** That is the open question, and it is control flow, not
+compilation — the tick is now compiled to native C and still does not run.
 
-The three games that are playable on this framework use **zero** `force_lle`
-declarations and instead exclude the spinlock from AOT and drive it from the
-host via `interp_bridge_run_scheduler`. Full analysis, the measured evidence
-and the fix are in `docs/RE_CITY_FREEZE.md`.
+Two earlier root causes were published here and both were wrong. The vblank
+wait loop is not a livelock (the guest leaves it every frame), and the frame
+counter `$0406` is not "+1 per frame". `docs/RE_CITY_FREEZE.md` records both
+retractions with the evidence that overturned them, because this project has
+now published a wrong diagnosis twice and the corrections are worth more than
+the claims were.
 
 ### Gates
 
