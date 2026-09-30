@@ -962,3 +962,76 @@ a taxa de apresentação, não o tempo simulado.
 substancial — o guest está saudável, o renderer está vivo e segue o estado, as
 estruturas da cidade estão inicializadas, o dispatcher corre — e o que falta é
 uma coisa: **a rotina que escreve o tempo**.
+
+---
+
+## 2026-09-30 — as duas fontes que mudam a investigação
+
+### Existe uma descompilação pública do NOSSO ROM
+
+**`Yoshifanatic1/SimCity-SNES-Disassembly`**, USA, MD5
+`23715fc7ef700b3999384d5be20f4db5` — **idêntico ao nosso ROM**, verificado por
+`md5sum`. É exactamente o input que `SuperMarioWorldRecomp` usa
+(`SMWDisX`) para gerar `data_region` / `name` / `symbol` automaticamente.
+
+O nosso `recomp/*.cfg` tem **zero** `data_region`, **zero** `symbol`, **zero**
+`name`. O SMW tem 747 / 6.817 / 82. Esta é a peça que falta, e existe.
+
+### E existe OUTRO port de recompilação do MESMO jogo
+
+**`Junior-Jones/SimCity-SNES-Static-Recomp`** — "Static recompilation of SimCity
+(SNES) for Windows 10 and 11. ROM not included." Não é peer de framework; é
+outra tentativa do mesmo jogo. A forma mais barata de saber se alguém já
+chegou onde nós não chegámos.
+
+### O que a descompilação já responde, sem uma única medição nova
+
+Notas de research público sobre SimCity (gist `freem/e0e88ed`, mais o
+descompressor de `bbbradsmith`):
+
+- **A cidade vive em `$7E8000`, e a SRAM `$7F0200` é o buffer comprimido.** Isto
+  **confirma a medição** de que `$01:F8E9` (`LDA $7F0200,X`) corre 78.392
+  vezes. A decompressão de `$7F0200` → `$7E8000` está em **`$03D1C4`**.
+- **SimCity usa o COP-Interrupt com A como índice de uma jump table.** Isto
+  importa muito: o manifesto lista `cop_at_*` como motivo de `lle_only`, e eu
+  tratei isso como erro de decode. **É código real do jogo.** `ANALYZER_GAPS_INVENTORY.md`
+  classifica `cop_at` como problema — para a maioria dos jogos é-noite, mas aqui
+  é o mecanismo principal de dispatch.
+- **O mapa do cenário é comprimido**, com o código de descompressão em
+  `$03D1C4`, e `#$FFFF` é o fim de dados.
+- **$7E00B5 contém as flags de HDMA**, e o OAM buffer está em `$7E2000`
+  (via `$00/8D65` — a função que o T057 travou com `force_lle`).
+- Os nomes dos cenários estão em `$03/CF32`, lidos para `$7E0B5B`.
+- O formato de compressão é o **LC_LZ5 da Nintendo**, e o decompressor do jogo
+  está em **`$0090A6`**.
+
+### Consequências directas para o que eu fiz de errado
+
+1. **`cop_at_01894F` no dispatcher não é necessariamente um erro de decode.** Se
+   SimCity despacha por COP, então `cop_at` é a forma *correcta* de o descrever,
+   e a directiva `indirect_dispatch` que o agente de pesquisa recommended pode
+   estar a resolver o problema errado.
+2. **`recomp/bank03.cfg` declara `func LC_LZ5_Decompress 0x8000`** — que eu e o
+   agente registámos como "nome inventado num endereço redondo". **O nome está
+   certo**: o decompressor LC_LZ5 existe, em `$0090A6` no bank 00. Não é
+   invenção, é conhecimento real mal colocado. Isto é um bom exemplo de quanto
+   custou working sem authority.
+
+### O que falta, em ordem
+
+| # | Gap | Porquê |
+|---|---|---|
+| 1 | Ingerir a descompilação como **authority** | Desbloqueia `data_region`/`name`/`symbol` automáticos e o `audit_disassembly.py` do upstream |
+| 2 | Merger os **147 commits** do upstream | O fork está 147 atrás e 38 à frente; o commit dos peers (`8867499`) está no `main` |
+| 3 | `dma_initHdma` / `dma_doHdma` / `dma_primeHdmaFirstLine` | `docs/LLE_SCHEDULER.md` e `dma.h` exigem-no; nós usamos `dma_startDma(…, true)` para init de frame, que o framework proíbe. Explica as 6.619 escritas PPU em f3385-87 e depois nada |
+| 4 | `snesref` como oráculo | 701 linhas atrás; falta `SNESREF_SCRIPT` (com `until`), `SNESREF_SRAM_IN`, `SNESREF_CORE_OPTIONS`. Resposta directa: *o hardware real alguma vez tira `$7E:00C5` do índice 0?* |
+| 5 | Gate sobre estado semântico, não sobre o HUD | Nenhum peer faz gate sobre uma string. Zelda tem `debug_harness.py` com símbolos de jogo. O nosso `clock-gate.sh` lê o HUD |
+| 6 | Declarar o dispatch correcto | **Depende de (1)** — e pode ser COP, não `JSR (abs,X)` |
+
+**Nota de método, de `SuperMarioWorldRecomp/docs/GOLDEN_TESTING.md`**, que
+proíbe explicitamente o que fizemos: *"Don't sync by frame number… A test that
+asserts 'at frame 200, player Y = 0x0150' will fail on both sides' valid
+states. Sync on gameplay state."* E: *"Don't trust `g_last_recomp_func` — it's a
+single global that lags behind actual execution under tail-call patterns."*
+Nós citámos essa tag como se fosse o local da escrita. **O peer documentou esse
+erro exacto antes de nós o cometermos.**
