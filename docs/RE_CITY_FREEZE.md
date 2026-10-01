@@ -1658,3 +1658,169 @@ usamos — mas no nosso build o `$0193` continua a 0.
 **Essa é a próxima pergunta, e é mais específica do que era:** no nosso build,
 `mouseclick right` põe `$0193`? Já medi que o token `$00B9` e o cursor mexem,
 mas nunca medi `$0193` depois de um clique. **É uma medição de um minuto.**
+
+---
+
+## 2026-10-01 — o port não está "congelado": nunca arranca. E a fechadura é `$12`
+
+Esta é a entrada mais longa e a mais útil. Baseia-se num savestate tirado
+**de dentro de uma cidade a correr** (`saves/save1.sav`, 330248 bytes), que
+finalmente nos dá o estado certo para medir — sem isto, tudo o que veio antes
+media o ecrã de título.
+
+### O que está medido
+
+**1. A cidade está a correr e nada simula.** O screenshot do estado carregado
+é uma cidade cheia — prédios, stellas, painel com população e tesouro. Entre o
+frame 200 e o frame 3800 (3600 frames, 60 s) mudam **29 dos 131072 bytes de
+WRAM**, e todos eles são churn de ponteiros na tabela de ponteiros de `$1Fxx`.
+Nenhum contador. Nenhuma data.
+
+**2. O convidado vive na espera de VBlank do próprio jogo.** Na descompilação:
+
+```
+CODE_00930D:
+	STZ.b $B9
+CODE_009311:
+	INC.b $C7
+	LDA.b $B9
+	BEQ.b CODE_009311     ; gira até o NMI mexer $B9
+	RTS
+```
+
+`$B9` é posto pelo handler de NMI `CODE_0080B2` (`INC.b $B9`). Medido: `$C7`
+(o contador do spin) muda violentemente entre frames e `$B9` está a 0 na
+maioria das amostras. O guest passa a vida neste laço.
+
+**3. O CPU está no handler do COP.** O PC registado no savestate é
+`$00:821C` em **24 de 24** frames consecutivos, com `SP=$3809` e `DP=$005E`
+inalterados. `$821C` é o `ASL` dentro de `CODE_008211`, a rotina para onde o
+opcode `COP` salta.
+
+*Caveat que tenho de escrever:* o savestate é tirado na fronteira de frame, portanto
+isto diz onde o guest está quando o cortamos — não prova que nunca sai de lá.
+
+**4. `$12` nunca é posto, e portanto o corpo de vblank nunca corre.** O loop
+principal é:
+
+```
+CODE_00804D:
+	LDA.b $12
+	BNE.b CODE_00805C          ; -> JSR CODE_008061
+	STZ.b $B7
+	JSR.w CODE_008D65
+	JSL.l CODE_03D283          ; o scheduler round-robin
+	BRA.b CODE_00804D
+```
+
+`$12` é escrito em **um único sítio** em todo o ROM: a cauda de `CODE_03D283`,
+depois de o seu laço `BPL CODE_03D287` sair. E `$12` está a 0 em **13 de 13**
+amostras de fronteira de frame. Logo `CODE_008061` — que é o que regista a task
+de simulação — nunca corre.
+
+**5. Prova causal do ponto 4.** `pokefor 0012 01 400` — forçar `$12=1` durante
+400 frames. Imediatamente `$1F7D/$1F7E/$1F7F` passam a `00 80 03`.
+`CODE_00825F`, alcançado só a partir de `CODE_008061`, escreve exactamente
+esses bytes: guarda `CODE_038000` em `$1F7D..$1F7F`. Em jogo normal esses bytes
+são `00 00 00 00` em **todas** as amostras. **`CODE_008061` demonstra não correr
+em jogo normal, e forçar `$12=1` fá-lo correr.**
+
+**6. E mesmo assim a task de simulação não acontece.** Com o hook instalado
+(`$1F7D..F = 038000`) à força, `$0B51`/`$0B53`/`$0B55`/`$0BA5`/`$0B9D` continuam
+todos a zero 400 frames depois. Instalar o hook não basta.
+
+### O elo seguinte — e é uma contradição que vale registar
+
+`$1F7A..$1F7F` é **escrita-só em todo o ROM**: a descompilação tem 5
+referências, todas escritas, todas dentro de `CODE_00825F`. Procurei no ROM
+(bytes, não mnemónicos) todos os leitores plausíveis — `LDA/LDX/LDY/INC/DEC/
+ASL/LSR/ROR/BIT` absoluto, `JMP abs`, `JML abs`, `JMP (abs)`, `JSR (abs)`,
+`JSL (abs)`, `JMP (abs,X)`, `JMP (ind),Y` — contra `$1F7A`, `$1F7C`, `$1F7D`,
+`$1F7E`. **Um único acerto nos 512 KB: `JSL ($1F7A)` no offset ROM `0x76DE9`.**
+E `CODE_038000` não tem `JSR` nem `JSL` de lado nenhum.
+
+Verifiquei a aritmética de offset porque já me enganou uma vez: este ROM é
+**HiROM**, `offset = addr & 0x7FFF` para a bank 00 — a cauda de `CODE_008211`
+cai em `0x218` e `CODE_00930D` em `0x130D`, ambos exactos. E os bytes em
+`$00:825F` são `E2 20 C2 10 A9 03 8D 7F 1F ...`, que é `SEP #$20 / REP #$10 /
+LDA #$03 / STA $1F7F` — a escrita é mesmo lá, o opcode é `8D` (abs) e não `8F`
+(long), o que só muda a mnemónica.
+
+Portanto ou o leitor é calculado em runtime (aritmética de ponteiros que a
+descompilação desenha como tabela), ou a信念 de que este campo é write-only
+está errada por algum lado que ainda não vi.
+
+### A pergunta precisa que fica
+
+O laço do scheduler é:
+
+```
+CODE_03D287:
+	LDA.b $14
+	REP.b #$10
+	ASL
+	TAX
+	JSR.w (DATA_03D255,x)
+	REP.b #$20
+	LDA.w #$0000
+	COP.b #$00
+	LDA.b $14
+	BPL.b CODE_03D287        ; sai só quando $14 tem o bit 7
+```
+
+Sai quando `$14` tem o bit 7 posto. Verifiquei os 14 `STA.b $14` da região do
+scheduler: os valores carregados são `$07, $50, $07, $06, $02` e o resto vem de
+tabelas. **Nenhum carrega um valor com o bit 7.** Ou o bit 7 de `$14` é posto
+por algo que a descompilação desenha como dado de tabela, ou há uma saída que
+não encontrei.
+
+**Encontrar o que torna `$14` negativo é a porta.** `$14` fecha `$12`, `$12`
+fecha `CODE_008061`, e `CODE_008061` é a única coisa que instala o hook de
+`CODE_038000`.while`CODE_008061` é a única coisa que instala o hook de
+`CODE_038000`.
+
+### Retractações: três coisas que eu escrevi e estão erradas
+
+**`$0B51` não é evidência de nada.** É um contador **mod-4 livre**
+(`INC $0B51` … `AND #$0003` … `INC month`). Está a 0 um frame em quatro *por
+desenho*. Eu tratei "fica a 0" como sinal de bug; não é. O sinal real é
+`$0B53`/`$0B55`, que nunca mudam.
+
+**`$02BF` não é um flag de pausa.** É escrito **uma vez em todo o ROM** —
+`$0080`, no fim de `CODE_008061`. O nosso RAM map chama-lhe `Pause`; o nome
+está errado.
+
+**`$0B53 = 0 / $0B55 = 0` é "1900 Janeiro", não "por definir".** Confirmado
+pelo peer: sem cidade, o peer também fica em `000/000` para sempre. E o
+`1900 JAN` que vemos no ecrã é a codificação `0/0` — o que concorda com o
+ecrã e não o contraria.
+
+**E uma afirmação anterior que não se sustenta:** "a espera de vblank em
+`$009311` é saudável, não é livelock". Isso **não está demonstrado**. `$C7` e
+`$B9` dizem que o guest passa a vida naquele laço, e nenhuma medição que eu
+tenho separa "à espera normal" de "nunca satisfeita".
+
+### O peer, conduzido com a nossa rota
+
+O peer compila para Linux (`-lstdc++` no link; o core é C++) e há um harness
+que o conduz com `scripts/d_city.script` pela mesma API
+`simcity_recomp_advance_headless(inst, input_mask, frames, result)` que nós:
+
+```
+nominal_fps=60.098814 avg_master_clocks_per_frame=357366
+RESULT failed=0 frames=5000 insns=58981392 sram_dirty=1
+```
+
+Chega ao ecrã de nome com a rota exacta — `11111_`, mão sobre o SPACE. E
+`$0193` (o índice do town-route) fica `0 -> 0`. O cursor do ecrã de nome é
+controlado pelo rato, não pelo d-pad, e o peer não implementa rato
+(`grep -ril mouse` no código dele é vazio). **É o mesmo obstáculo dos dois
+lados, não uma diferença entre nós e o peer.**
+
+### O que NÃO é prova
+
+- `save.srm` é a SRAM de pilha, não o savestate da cidade. Carregá-la no peer
+  dá o ecrã de título (`sram_dirty=0`), portanto esse teste foi
+  inconclusivo — não prova nada sobre o core.
+- O PC `$821C` ser constante é artefacto de *quando* tiramos o savestate, não
+  uma prova de travamento. Está escrito acima para não ser mal citado.
