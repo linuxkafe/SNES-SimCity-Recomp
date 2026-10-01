@@ -57,7 +57,7 @@ were added. This port reproduces that SNES release.
 
 ![SimCity title screen](docs/screenshots/title.png)
 
-⚠️ **The city loads and renders, but it does not simulate.** The date stays
+⚠️ **The city loads and renders, but it does not simulate.** Not deliverable. The date stays
 `1900 JAN` forever — no month ever appears across 30,000 frames, the seasons
 never recolour the map, the population stays 0 — while the controller does
 nothing. `scripts/d_city.script` drives the game from boot into a live city
@@ -67,18 +67,46 @@ very next frame.
 
 ![A city at 1900 JAN, frozen](docs/screenshots/city-frozen.png)
 
-**Root cause, current best evidence.** The simulation tick lives in bank 03 at
-`CODE_038000`. It is never reached. The disassembly that reassembles
-byte-identical to this ROM names the state it maintains — `CurrentYear` at
-`$7E:0B53`, `CurrentMonth` at `$7E:0B55`, and `$7E:0B51` as a four-tick phase
-counter — and measured, those read `1900`, `1` (January) and `0` at every
-sample, with `$7E:0B53` written exactly once in 4,500 frames when the scenario
-loaded. The main loop arms the bank-03 coroutine at `$01:825F` and the NMI
-switches to its stack; **the instruction that transfers control into it has not
-been located.** That is the open question, and it is control flow, not
-compilation — the tick is now compiled to native C and still does not run.
+**Where it is stuck, measured.** This is not a compilation problem — the bank-03
+tick is compiled to native C and still does not run. The chain, each link with its
+own measurement, is in `docs/RE_CITY_FREEZE.md`:
 
-Two earlier root causes were published here and both were wrong. The vblank
+```
+$009311  the guest waits on $B9, set by the NMI handler   $B9 = 0, $C7 spinning
+$03D287  the round-robin scheduler loop                    $14 does not advance
+$03D2F6  AND #$9000 gates INC $14            ROM 0x01D2F6  <-- THE GATE
+$03D2A3  sets $12 = 1                                       $12 = 0 in 13/13 samples
+$008061  the per-vblank body                               proven by pokefor
+$00825F  writes CODE_038000 into $1F7D..$1F7F               00 00 00 00 in play
+$038000  the task that increments the month                does not run
+$0B53/$0B55  the date                                       never leaves 0
+```
+
+The causal link is proven, not argued: `pokefor 0012 01 400` forces `$12` to 1 and
+`$1F7D..$1F7F` immediately becomes `00 80 03`, which is exactly what `CODE_00825F`
+writes. In normal play those bytes are `00 00 00 00` in every sample, so
+`CODE_008061` demonstrably does not run. The open question is one link further
+down: what makes `$14` negative, which lets the scheduler loop exit.
+
+**The reference that works.** `Junior-Jones/SimCity-SNES-Static-Recomp` recompiles
+the same ROM and its clock runs — 1900 JAN to 1900 OCT across 12,000 frames. We
+drive it ourselves: `study/peer-linux/` builds its portable core on Linux and adds
+a windowed SDL2 frontend, because its own launcher is Windows-only and the core
+has no mouse. A city is reachable from the keyboard alone. At a running city the
+peer sets `$0B12 = 01`, a token this build has never been seen to set — the
+sharpest measured difference between a clock that runs and ours.
+
+Two corrections to what this file previously claimed, both because the
+measurements were wrong rather than the reasoning:
+
+- `$0B53` is the **absolute** year, not an offset from 1900: a live city reads
+  `1900` (`0x076C`). `$0B55` is the month index, 0-based. So `$0B53 = 0` means
+  **there is no city** — which is what our build reads at every sample. The date
+  here is not stuck, it has never been written.
+- `$0B51` is a free-running counter modulo 4 and reads 0 one frame in four by
+  design. Treating "it stays 0" as a bug signal was simply wrong.
+
+`$02BF` is also not a pause flag — it is written once in the whole ROM. The vblank
 wait loop is not a livelock (the guest leaves it every frame), and the frame
 counter `$0406` is not "+1 per frame". `docs/RE_CITY_FREEZE.md` records both
 retractions with the evidence that overturned them, because this project has
@@ -93,6 +121,11 @@ the claims were.
 | `make test-rom` | the picture moves (frames 200–800) | PASS |
 | `make perf` | the frame rate holds (600 frames) | PASS |
 | `make clock` | **the city actually simulates** (6000 frames) | **FAIL** |
+
+Verified on a Steam Deck as well as this host: `test-rom` PASS (254 distinct
+crc32), `perf` PASS at 60.05 fps against a 50 fps threshold, `clock` FAIL with
+`1 distinct date images after f3600`. The determinism gate is now relocatable —
+it used to hardcode one developer's checkout path and could only pass there.
 
 `make clock` is the one that matters and the one that is red. The other three
 pass while the game is a still image, and they pass for the same reason each:
@@ -305,6 +338,23 @@ sponsored by, or endorsed by Nintendo, Electronic Arts, or Maxis.**
   (snesrev's zelda3/smw ports, LakeSnes, ares-derived coprocessor cores);
   the required license notices ship with every distributed build in
   [`THIRD_PARTY_ATTRIBUTION.md`](THIRD_PARTY_ATTRIBUTION.md).
+
+## Peer study
+
+`study/peer-linux/` builds the reference recomp on Linux and gives it a window.
+
+```bash
+study/peer-linux/build-peer-linux.sh                    # build, then play
+study/peer-linux/build-peer-linux.sh --headless         # measure instead
+study/peer-linux/build-peer-linux.sh -- --date --wram 300   # pass options through
+```
+
+The peer ships a Windows-only launcher; on Linux its CMake omits the frontend and
+builds just the core, so a frontend is required. `jjwin.c` is ours and talks to
+the peer's public C API. Its repository declares no licence, so this is private
+study: do not publish or redistribute it. A keyboard reaches a city on its own —
+the naming screen's cursor walks on the d-pad and **B** confirms from a character
+key. See `study/peer-linux/README.md`.
 
 ## Development
 
