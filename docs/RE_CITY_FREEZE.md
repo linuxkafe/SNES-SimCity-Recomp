@@ -1194,3 +1194,92 @@ directivo, e é a correcção do nosso defeito de banco 02.
 `$0B53`/`$0B55` é *authority + round-trip do valor* (1900 / Janeiro, escrito
 uma vez em f3258), **não um screenshot**. O poke não pode provar nada porque
 o guest deixou de redesenhar o HUD neste build.
+
+---
+
+## 2026-09-30 — o `$1F7C` nunca é lido. E um bug de medição meu que invalida probes antigas.
+
+### `$1F7C` é write-only, e a hipótese do "transferimento computado" está refutada
+
+`CODE_00825F` (medido: corre **1 vez**, em f3277, o frame em que a cidade é
+criada) não é um salto — é um **guardar contexto de stack**:
+
+```
+LDA #$03 / STA $1F7F     \
+LDA #$80 / STA $1E       |  $1F7C..$1F7F = $038000, um PC de 24 bits
+LDA #$00 / STA $1D / STA $1C /
+LDX #$1EFF / STX $1FA    ; stack PRINCIPAL
+LDX #$001F72 / STX.b $AB ; segunda stack
+LDX #$0000 / STX.b $AD   ; flag de fase
+```
+
+**7 hits no ficheiro de descompilação inteiro para `1F7C`-`1F7F`**: os quatro
+stores acima, mais três colisões de label `CODE_01F7E7`. **Nada lê.**
+
+E o ping-pong de stacks do NMI (`$817C`/`$8193`) lê e escreve apenas
+`$A9`/`$AB`/`$AD` — `TSC`→`$A9`, `TCS`←`$AB` em `$8198`; `TSC`→`$AB`,
+`TCS`←`$A9` em `$818B`. **`$1F7C` não está nesse caminho.**
+
+Log decisivo em `$A9`/`$AB`/`$AD` (3.292 eventos): `$1F72` aparece em `$AB`
+**exactamente uma vez em toda a run** — a f3277, o próprio arming
+(`IPC=008280`). De f3280 em diante `$AB` vale `$1FE6`, o stack principal *vivo*,
+e o ping-pong alterna `$A9=$1FE6` ⇄ `$AB=$1FE6` — **o mesmo valor dos dois
+lados. A stack da corrotina nunca é entrada.**
+
+E `CODE_00804D` (o main loop) corre **2 vezes em 5.000 frames**. O guest
+deixou o main loop permanentemente e vive no caminho NMI/vblank. A hipótese
+"o transferimento tem de ser um RTS/JSL por endereço computado" está
+**refutada**: não existe leitura computada.
+
+### "3 esperas por iteração, 1 NMI por frame" — também refutado
+
+`SNESRECOMP_WLOG_ADDR=00B9:00B9`, cidade viva, 5.000 frames:
+
+- escritas de token pelo NMI: **4.992**
+- inícios de espera (`STZ $B9` em `$930F`): **4.110**
+- → **0.998 NMI/frame, 0.822 esperas/frame**
+
+Na janela f3600–3700 é **exatamente 1 NMI e 1 espera por frame, todos os
+frames**. O guest não está esfomeado nem em deadlock no spin. As 1.640
+execuções/frame no spin são o **sintoma**, não a causa.
+
+### Um bug meu que invalida probes anteriores
+
+`interp816.c:325` usa `strtoul(e, NULL, 0)` — base 0, portanto um `0` à frente
+significa **octal**. `SNESRECOMP_COUNT_PC=00930D` faz parse de `00` como octal
+e pára no `9`, devolvendo **0**. Os primeiros 9 probes de um agente deram
+sempre 0, incluindo a vblank wait que o WLOG prova correr 4.110 vezes.
+
+**Qualquer resultado de `COUNT_PC` registado neste projecto sem prefixo `0x` é
+nulo.** O ticket T058 usava `0x009311`, portanto está correcto; os números que
+agentes trouxeram em relatórios separados não têm auditoria de prefixo.
+
+Nota relacionada: o contador vive em `interp816_runOpcode`, portanto **só vê
+opcodes interpretados**. `$03:8000` está dentro de `func Menu_Main 0x8000`
+(AOT) — um zero ali não significa nada.
+
+### Resultados no Steam Deck
+
+Binário `279e253e0df544f00259fd026e99fc40`, **idêntico** ao local.
+
+| gate | Deck |
+|---|---|
+| `test-rom` | **PASS** — 254 crc32 distintos |
+| `perf` | **PASS** — pior de 5: **60.05 fps** |
+| `clock` | **FAIL** — "1 distinct date images after f3600" |
+| `ctest` | **não corre no Deck** — `test_deterministic_replay.c:39` tem o caminho do ROM fixado; passa no dev box (2/2) |
+
+### O que fica em aberto, e é menos do que pensávamos
+
+- **Porque é que `$1F7C` é escrito se nada o lê.** Hipótese do agente: é um
+  idioma de corrotina/task-switch em que o leitor é o **RTI do hardware** a
+  rebentar a segunda stack. **Não há medição de um `RTI` a regressar por
+  `$1F72`** — e `$1F72` nunca é carregado em `S` (`TCS` em `$8198` corre 4.663
+  vezes, sempre com `$AB`, que vale `$1FE6`).
+- **`$C3` alterna `00`/`FF` 1.621/1.620 vezes** e `$C3 != 0` salta para
+  `CODE_0081A4` *antes* de qualquer escrita de stack. Pode estar a bloquear o
+  switch em ~metade dos NMIs. **Não foi correlacionado** com o ping-pong
+  por-NMI.
+- `$0B51` foi escrito **uma vez**, em f3258, por `IPC=03C77E` — código de bank
+  03 corre e toca nos campos do tick na criação da cidade, depois pára. Não
+  foi perseguido se `03C77E` está no caminho do próprio tick.
