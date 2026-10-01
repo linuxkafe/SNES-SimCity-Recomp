@@ -108,13 +108,48 @@ after the city loads. `$0DC7`, two instructions later, is dead too, which is
 independent corroboration of the same block. This build changes 53 WRAM
 addresses across 30,000 frames of a live city; the peer changes 102,158.
 
-**The open question, and it is one.** `CODE_00825F` writes `CODE_038000` into
-`$1F7D..$1F7F` and is the only thing that installs the task — and `$1F7A..$1F7F`
-is **write-only across the entire ROM**. Searched both ways: direct-address
-readers give one hit in 512 KB (`JSL ($1F7A)` at `0x76DE9`), and immediates
-loading the address as a pointer give none. Either the disassembly is incomplete
-or this is not a hook. The peer runs the same ROM and its clock works, so the
-mechanism exists.
+**The open question, and the answer.** For twelve commits this was framed as an
+unbounded static question — how does control reach `$03:8026`, given no direct
+edge, no long pointer and no RAM jump table? It is bounded after all, and the
+bound is our own recompiler.
+
+The reference implementation compiles **685 COP sites** as full hardware
+interrupt frames. We do not decode COP at all.
+`recompiler/snes65816.py:483` returns False for `BRK` and `COP` with the comment
+*"BRK or COP in game code is almost certainly data."*
+`recompiler/v2/program_analysis.py:298` then marks every function containing one
+as `structural_poison` and — the fatal part — **suppresses that function's
+outgoing demands**, so the whole COP-dispatched subtree is invisible to
+reachability analysis.
+
+The consequence is measurable. Our `src/gen/dispatch_v2.c` has **no entry for
+`$03:8026` at all**; the reference has a compiled context for exactly that
+address. And this is not a corner case: the game's entire cross-bank call
+mechanism runs through COP, at `$00:8211` dispatching on `JSR ($8223,X)`. Three
+entries of that eleven-word dispatch table (`$008E43`, `$008E75`, `$008F82`) are
+among our eleven cop-poisoned manifest nodes.
+
+The CPU itself is correct. `interp816.c:1036` and the reference's frame
+construction agree byte for byte — same push order, same `$00:FFE4` vector,
+signature consumed rather than pushed, I set and D cleared. **The bug is in the
+static analysis that decides the CPU never sees COP.**
+
+Two further gaps found in the same review, both stated from source:
+
+- `interp_bridge_lle_took_quiescent()` (`interp_bridge.c:633`) is **never
+  called**. The guest's vblank wait is a read-only spin at `$00:9313`, the
+  quiescence detector fires, and the frame driver — which checks
+  `interp_bridge_lle_took_wai()` and nothing else — drops the signal and
+  re-enters the guest up to 64 times.
+- Our NMI is delivered as a host excursion that pushes a frame at a *host* static
+  and then rewrites `S`, `D`, `PB`, `DB` and the resume PC by fiat
+  (`game_rtl.c:190-202`). The AOT `RTI` discards the restored PC and PB
+  (`bank00_v2.c:371`). The reference takes the interrupt in-band and lets the
+  handler's `RTI` restore and continue.
+
+The reference has one more thing we lack: a **certified route**. Every unknown
+context is a hard stop carrying the failing `M=`, `X=`, `E=`. Ours converts every
+static-analysis failure into a silent runtime continuation.
 
 Two corrections to what this file previously claimed, both because the
 measurements were wrong rather than the reasoning:
