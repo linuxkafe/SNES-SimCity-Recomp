@@ -584,7 +584,7 @@ movimento no ecrã, e movimento foi lido como "o jogo está vivo".
 
 `make test-rom` mede `crc32` distintos numa janela de 600 frames depois do
 boot. Com esta rota ela passa com folga, porque passa nos menus. **Nenhum gate
-deste repositório consegue ver este bug**, e nenhum把它们 faz:
+deste repositório consegue ver este bug**, e nenhum deles faz:
 
 - `test_deterministic_replay` (30 frames) — nem chega à cidade;
 - `verify-rom-render.sh` (f200–800) — ainda está nos menus;
@@ -893,7 +893,7 @@ nomes inventados. Só o banco 03 tem funções analisadas com extensões reais
 
 **`$03:8B42`, a única rotina que poderia armar `$0BB9` por frame, não existe no
 manifesto.** E `recomp/bank03.cfg` tem `func SFX_Play 0x8600`, que o manifesto
-diz ser `03:8600-03:8840 ic=289` — ou seja, os nomes inventados do cfg抓到am
+diz ser `03:8600-03:8840 ic=289` — ou seja, os nomes inventados do cfg sao duvidosos
 código real por acidente, e o resto dasfunctionalidades do banco 03 nunca foi
 declarado.
 
@@ -1591,7 +1591,7 @@ existe. **Se o token fosse reposto só depois do `LDA`, o `run_loop` com
 
 ---
 
-## 2026-09-30 — o peer compila para Linux, e駙 passa à mesma parede sem rato
+## 2026-09-30 — o peer compila para Linux, e passa à mesma parede sem rato
 
 ### Sim, compila para Linux — e agora há um harness
 
@@ -1632,7 +1632,7 @@ também não o resolve porque `grep -ril mouse` no código dele é vazio.
 E aqui está o ponto que importa: **o `$0B51` (tick de 4) fica a 0 no peer
 também**, exactamente como no nosso. Porque está parado no ecrã de nome, como
 nós. **O clock do peer só avançou porque o Proton o conduziu com `F8` e
-`xdotool` até lá** — ou seja, com um rato真, dentro do frontend Win32 que tem
+`xdotool` até lá** — ou seja, com um rato a sério, dentro do frontend Win32 que tem
 o interface para o receber. **O core Linux, sozinho, não chega lá.**
 
 Isto é a resposta à pergunta que eu não tinha resolvido: **o peer funciona,
@@ -1649,7 +1649,7 @@ peer precisamos de um clique de rato para criar a cidade. nós temos o
 
 **Isto reabre uma pergunta que eu tinha marcado como fechada.** Escrevi
 anteriormente que `$038000` "não é alcançado por um salto estático" e que o
-town-route index nunca é posto. **No peer, com um rato真, `$0193` é posto e o
+town-route index nunca é posto. **No peer, com um rato a sério, `$0193` é posto e o
 relógio avança.** Portanto o índice é posting — por input, que é o que a
 medição acima de `$0193=0` confirma. O que nos falta é precisamente o
 **clique de rato que põe o índice**, e nós já o temos (`mouseclick`) e o
@@ -1747,7 +1747,7 @@ LDA #$03 / STA $1F7F` — a escrita é mesmo lá, o opcode é `8D` (abs) e não 
 (long), o que só muda a mnemónica.
 
 Portanto ou o leitor é calculado em runtime (aritmética de ponteiros que a
-descompilação desenha como tabela), ou a信念 de que este campo é write-only
+descompilação desenha como tabela), ou a crença de que este campo é write-only
 está errada por algum lado que ainda não vi.
 
 ### A pergunta precisa que fica
@@ -1776,7 +1776,6 @@ não encontrei.
 
 **Encontrar o que torna `$14` negativo é a porta.** `$14` fecha `$12`, `$12`
 fecha `CODE_008061`, e `CODE_008061` é a única coisa que instala o hook de
-`CODE_038000`.while`CODE_008061` é a única coisa que instala o hook de
 `CODE_038000`.
 
 ### Retractações: três coisas que eu escrevi e estão erradas
