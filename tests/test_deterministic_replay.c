@@ -29,7 +29,7 @@ int main(void)
     /* Run 1 */
     printf("Running deterministic replay test (run 1/2)...\n");
     snprintf(cmd, sizeof(cmd),
-        "cd /home/seyon/dev/Games/PC/simcity && "
+        "cd \"" PROJECT_SOURCE_DIR "\" && "
         "SNESRECOMP_STATE_TRACE=%s "
         "SNESRECOMP_RUN_FRAMES=%d "
         "SDL_VIDEODRIVER=dummy "
@@ -49,7 +49,7 @@ int main(void)
     /* Run 2 */
     printf("Running deterministic replay test (run 2/2)...\n");
     snprintf(cmd, sizeof(cmd),
-        "cd /home/seyon/dev/Games/PC/simcity && "
+        "cd \"" PROJECT_SOURCE_DIR "\" && "
         "SNESRECOMP_STATE_TRACE=%s "
         "SNESRECOMP_RUN_FRAMES=%d "
         "SDL_VIDEODRIVER=dummy "

@@ -154,25 +154,25 @@ static char g_exe_dir[4096];
  * build an absolute path, and print that absolute path so nobody has to guess
  * where the file went. */
 static const char *resolve_sram_path(const char *opt) {
-    if (opt && opt[0] == '/') return opt;           /* already absolute */
-    if (opt) {
-        snprintf(g_sram_buf, sizeof g_sram_buf, "%s", opt);
-        return g_sram_buf;                            /* caller asked for it */
-    }
+    /* Resolve the executable directory FIRST and unconditionally. An earlier
+     * version returned early when --sram was given, so g_exe_dir was left empty
+     * and every --wram dump was written to "/jjwram.fN.bin" - the filesystem
+     * root - and failed silently, reporting zero dumps and no error. A silent
+     * failure in a diagnostic is worse than no diagnostic. */
     char exe[4096];
     ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
     if (n > 0) {
         exe[n] = 0;
         char *slash = strrchr(exe, '/');
-        if (slash) {
-            *slash = 0;
-            snprintf(g_exe_dir, sizeof g_exe_dir, "%s", exe);
-            snprintf(g_sram_buf, sizeof g_sram_buf, "%s/jj.srm", exe);
-            return g_sram_buf;
-        }
+        if (slash) { *slash = 0; snprintf(g_exe_dir, sizeof g_exe_dir, "%s", exe); }
     }
-    snprintf(g_exe_dir, sizeof g_exe_dir, ".");
-    snprintf(g_sram_buf, sizeof g_sram_buf, "jj.srm");
+    if (!g_exe_dir[0]) snprintf(g_exe_dir, sizeof g_exe_dir, ".");
+
+    if (opt) {
+        snprintf(g_sram_buf, sizeof g_sram_buf, "%s", opt);
+        return g_sram_buf;
+    }
+    snprintf(g_sram_buf, sizeof g_sram_buf, "%s/jj.srm", g_exe_dir);
     return g_sram_buf;
 }
 static SimCityRecomp *g_inst;
@@ -523,12 +523,19 @@ int main(int argc, char **argv) {
             snprintf(path, sizeof path, "%s/jjwram.f%llu.bin",
                      g_exe_dir, (unsigned long long)frames);
             FILE *f = fopen(path, "wb");
-            if (f) {
+            if (!f) {
+                fprintf(stderr, "WRAM DUMP FAILED: cannot write %s - "
+                                "dumps are not being recorded\n", path);
+            } else {
                 uint8_t *w = (uint8_t *)malloc(131072u);
-                if (w && simcity_recomp_read_wram(inst, 0u, w, 131072u))
-                    fwrite(w, 1, 131072u, f);
-                else fprintf(stderr, "wram read failed at frame %llu\n",
-                             (unsigned long long)frames);
+                if (w && simcity_recomp_read_wram(inst, 0u, w, 131072u)) {
+                    if (fwrite(w, 1, 131072u, f) != 131072u)
+                        fprintf(stderr, "WRAM DUMP SHORT: %s\n", path);
+                } else {
+                    fprintf(stderr, "WRAM READ FAILED at frame %llu - "
+                                    "dumps are not being recorded\n",
+                            (unsigned long long)frames);
+                }
                 free(w);
                 fclose(f);
             }

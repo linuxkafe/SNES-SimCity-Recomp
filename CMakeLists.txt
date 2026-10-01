@@ -114,6 +114,14 @@ enable_testing()
 add_executable(test_deterministic_replay
     tests/test_deterministic_replay.c
 )
+# The test shells out to the emulator and used to hardcode one developer's
+# absolute checkout path, so it could only pass on that machine. Found by
+# running it on the Steam Deck, where it failed with
+# "cd: /home/seyon/dev/Games/PC/simcity: No such file or directory" while the
+# determinism it was checking held perfectly. Pass the source dir in rather
+# than hardcoding it, so the gate means the same thing everywhere.
+target_compile_definitions(test_deterministic_replay PRIVATE
+    PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 add_test(NAME test_deterministic_replay COMMAND test_deterministic_replay)
 
 # Display-aspect gate: the 16:9 presentation is arithmetic on a header, and
