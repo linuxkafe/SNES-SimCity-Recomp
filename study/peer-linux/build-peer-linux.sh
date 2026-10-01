@@ -41,7 +41,15 @@ ROOT="${ROOT:-/tmp/opencode/peers}"
 # Point SRC at an existing clone to skip the download.
 SRC="${SRC:-$ROOT/src}"
 BUILD="$ROOT/build"
-RUN="$ROOT/run"
+# Our own harness lives next to this script, in the repository. Do NOT look for
+# it under $ROOT: an earlier version did, and the only reason it ever worked is
+# that I had staged the file by hand before running it. Anyone else got
+# "jjhead.c not found" after a perfectly successful core build.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Source comes from the checkout. Build artefacts go to $ROOT, because writing a
+# 10 MB binary and a save next to the script dirties the working tree.
+SRC_HARNESS="${SRC_HARNESS:-$HERE/jjhead.c}"
+RUN="${RUN:-$ROOT/run}"
 OUT="${OUT:-$ROOT/out}"
 FRAMES="${FRAMES:-5000}"
 # Absolute path. The peer chdirs to its own executable directory, so a relative
@@ -74,12 +82,21 @@ ls -la "$LIB"
 
 # ------------------------------------------------------------- 3. frontend
 # jjhead.c is ours, not theirs: a headless driver over the public API.
-if [ ! -f "$RUN/jjhead.c" ]; then
-  echo "jjhead.c not found in $RUN - it is our harness, not the peer's" >&2
+if [ ! -f "$SRC_HARNESS" ]; then
+  cat >&2 <<EOF
+jjhead.c not found at $SRC_HARNESS
+
+That file is OUR harness, not the peer's - it is committed in the repository
+next to this script. Run the script from the checkout, or point SRC_HARNESS at
+it:
+
+  SRC_HARNESS=/path/to/jjhead.c $0
+EOF
   exit 1
 fi
-say "building the headless driver"
-gcc -O2 -o "$RUN/jjhead" "$RUN/jjhead.c" \
+mkdir -p "$RUN"
+say "building the headless driver from $SRC_HARNESS"
+gcc -O2 -o "$RUN/jjhead" "$SRC_HARNESS" \
   -I"$BUILD" -I"$SRC/static-recomp/include" \
   "$LIB" -lstdc++ -lm -lpthread
 
