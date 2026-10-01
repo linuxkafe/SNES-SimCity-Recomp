@@ -1981,3 +1981,46 @@ scheduler que só avança com um edge de joypad é uma coisa estranha para um
 jogo, e é o primeiro ponto desta lista que cheira a **bug nosso** e não a
 característica do ROM. `$C9` a zero pode ser o jogo a fazer a coisa certa com
 informação que nós não lhe damos.
+
+---
+
+## 2026-10-01 (c) — o cross-load corre, e ainda não prova nada (mas a tubagem está provada)
+
+O frontend windowed ficou com autosave, portanto já existe um `jj.srm` gerado
+por nós — de uma sessão que chega ao **ecrã de nome**, não a uma cidade, porque
+o botão de confirmar continua por identificar. Meti-o no cross-load na mesma,
+para provar a mecânica antes de ter o artefacto certo.
+
+```
+loaded the peer's save: 5b4053a64602e0cb8b86d196112ad610
+field          frame 600    frame 4600   moved
+  $0B51 tick    $0000       $0000      no
+  $0B53 year    $0000       $0000      no
+  $0B55 month   $0000       $0000      no
+  $0BA5 pop     $0000       $0000      no
+  $0B9D funds   $0000       $0000      no
+  $0014 sched   $0001       $0001      no
+  $0012 gate    $0000       $0000      no
+  $00C9 joypad  $0000       $0000      no
+
+WRAM bytes moved in 4000 frames: 159 of 131072
+```
+
+E o screenshot é o que decide: **a nossa build mostra o ecrã de título**, com o
+save do peer a apontar para o ecrã de nome. O estado do ecrã de nome não está no
+save de pilha — é UI de fluxo, e o SRAM só persiste a cidade depois de criada.
+
+Portanto: **inconclusivo, e é assim que deve ser lido.** Não é o veredicto
+"o relógio fica congelado", porque não há cidade nenhuma para simular.
+
+O que fica provado:
+
+- a nossa build **aceita** o SRAM de 32 KiB do peer sem queixa, e arranca. A
+  formato não é rejeitado.
+- o scheduler fica preso em `$0014 = $0001`, com `$0012 = 0` e `$00C9 = 0` —
+  exactamente o estado documentado para a nossa cidade viva congelada. Coerente,
+  ainda que não prova nada.
+- 159 bytes em 4000 frames, a mesma ordem de grandeza dos 29 em 3600 da cidade
+  viva. Também coerente, também não é prova.
+
+Continua a faltar o botão que confirma o nome. Quem já chegou a cidade把它.
