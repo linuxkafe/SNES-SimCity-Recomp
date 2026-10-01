@@ -100,6 +100,35 @@ gcc -O2 -o "$RUN/jjhead" "$SRC_HARNESS" \
   -I"$BUILD" -I"$SRC/static-recomp/include" \
   "$LIB" -lstdc++ -lm -lpthread
 
+# ------------------------------------------------------------ 3b. the game
+# jjwin.c is a windowed SDL2 frontend: window, keyboard, speaker. This is the
+# one to use if you want to PLAY the peer rather than measure it. Optional,
+# because it is the only piece here that needs a system library the core itself
+# does not.
+if pkg-config --exists sdl2 2>/dev/null; then
+  say "building the windowed frontend (SDL2 $(pkg-config --modversion sdl2))"
+  gcc -O2 -o "$RUN/jjwin" "$HERE/jjwin.c" \
+    -I"$BUILD" -I"$SRC/static-recomp/include" \
+    "$LIB" -lstdc++ -lm -lpthread $(pkg-config --cflags --libs sdl2)
+  echo "  windowed: $RUN/jjwin"
+  cat <<'EOF'
+
+  Run it with an ABSOLUTE ROM path. The core chdirs to its own directory:
+
+    <exe> "/path/to/SimCity (USA).sfc"
+
+  keys: arrows or WASD = d-pad, Z=A X=B C=X V=Y, Q=L E=R,
+        Enter=Start, Shift=Select, Esc=quit
+
+  A keyboard is enough to reach a city. The naming screen's cursor walks on the
+  d-pad - I had written that it needed a mouse, and that was wrong.
+EOF
+else
+  say "SDL2 not found - skipping the windowed frontend"
+  echo "  install libsdl2-dev to get a playable window; the headless driver above"
+  echo "  is unaffected and needs nothing beyond a C compiler."
+fi
+
 # ------------------------------------------------------------------ 4. run
 [ -f "$ROM" ] || { echo "ROM not found: $ROM" >&2; exit 1; }
 mkdir -p "$OUT"

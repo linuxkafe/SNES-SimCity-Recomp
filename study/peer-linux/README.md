@@ -10,6 +10,7 @@ recipe for turning that library into something you can actually watch.
 |---|---|
 | `build-peer-linux.sh` | ours |
 | `jjhead.c` | ours — a headless driver over the peer's public C API |
+| `jjwin.c` | ours — a **windowed SDL2 frontend**: play it, don't just measure it |
 | `bgra2png.py` | ours — converts the peer's BGRA frame dumps to PNG |
 
 **None of the peer's source is committed here.** The script clones it at run
@@ -66,29 +67,51 @@ one.
 missing path is reported as `srm_in bad` and the run does not proceed the way
 you expect. A cold SRAM is just 32 KiB of zeroes.
 
-## The ceiling, and it is not a broken build
+## Playing it
 
-Without a mouse the game stops on the city-naming screen, showing `11111_` with
-the hand resting on SPACE. Measured, not assumed:
+`jjwin.c` is a windowed SDL2 frontend — window, keyboard, speaker. The core
+hands out a finished BGRA framebuffer and takes a 12-bit button mask, so a
+frontend is all that was ever missing.
 
+```bash
+/tmp/opencode/peers/run/jjwin "$PWD/SimCity (USA).sfc"
 ```
-$0193 (town-route index):  0 -> 0
-$00C5 (dispatch index):    0 -> 0
-```
 
-The naming screen's cursor is controlled by the mouse, not the d-pad. The d-pad
-moves the tool cursor on the map, but not here. Substituting `press a` for each
-`mouseclick` does not move the hand. The peer contains no mouse code at all —
-`grep -ril mouse` over its source returns nothing.
+| key | SNES |
+|---|---|
+| arrows / WASD | d-pad |
+| `Z` `X` `C` `V` | A B X Y |
+| `Q` `E` | L R |
+| `Enter` / `Shift` | Start / Select |
+| `Esc` | quit |
 
-**This is the same obstacle our own port has**, which is why it is worth having
-measured it on both sides. Ours has a scriptable mouse and a stalled clock; the
-peer has a working clock and no mouse. Getting past this on the peer means
-running the Windows frontend under Wine/Proton with `xdotool` driving a real
-pointer.
+The ROM path must be **absolute**, for the same reason as the headless driver.
 
-If you ran with no input and `$0B55` stayed `0` forever, that is **correct**
-behaviour, not a failure. See the date encoding below.
+### Correction: the naming screen does NOT need a mouse
+
+An earlier version of this file said the city-naming screen was mouse-gated and
+that a keyboard could not pass it. **That was wrong**, and it was wrong in a way
+worth recording.
+
+I substituted `press a` for each `mouseclick`, the hand did not move, and I
+concluded the cursor was mouse-driven. I had tested exactly one direction.
+Ten `press right` on the naming screen walk the hand off `SPACE` onto the
+`P`/backspace key — captured and rendered, not reasoned about.
+
+The peer's own launcher corroborates it: `grep -ri mouse frontend/` over their
+entire frontend returns **nothing**. It is keyboard and XInput only. There was
+never a mouse in this path.
+
+This matters beyond the peer. Our own `scripts/d_city.script` reaches a live
+city using `mouseclick`, and it does not need to. If the naming screen is
+d-pad-navigable, the route we built around a mouse is solving a problem that may
+not exist — and we should find out whether our mouse support is load-bearing or
+just habitual.
+
+## The honest ceiling
+
+What is still true: with **no input at all**, the peer sits on the title screen
+and `$0B55` stays `0` forever. That is correct behaviour, not a failure.
 
 ## Reading the output
 
