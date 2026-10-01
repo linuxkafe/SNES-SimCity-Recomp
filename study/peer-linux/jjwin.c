@@ -492,9 +492,14 @@ int main(int argc, char **argv) {
             if (simcity_recomp_read_wram(inst, 0x0B53u, d, 3u)) {
                 unsigned year = (unsigned)(d[0] | (d[1] << 8));
                 unsigned mon  = d[2];
+                /* 1-based, and measured against a rendered HUD rather than
+                 * assumed: our own city shows "1900 JAN" on screen while
+                 * $0B55 = $01. So $01 is JAN, not FEB. I had this table
+                 * zero-based and printed "1900 FEB" for the value that the
+                 * screen calls January. */
                 static const char *const MN[12] = {
-                    "JAN","FEB","MAR","APR","MAY","JUN",
-                    "JUL","AUG","SEP","OCT","NOV","DEC" };
+                    "???","JAN","FEB","MAR","APR","MAY",
+                    "JUN","JUL","AUG","SEP","OCT","NOV" };
                 /* $0B53 is the ABSOLUTE year, not an offset from 1900: a live
                  * city reads 1900 (0x076C), not 0. So year 0 does not mean
                  * "January 1900" - it means there is no city yet, which is what
@@ -506,7 +511,7 @@ int main(int argc, char **argv) {
                             year, mon);
                 else
                     fprintf(stderr, "[date] %u %s  (raw $0B53=%04X $0B55=%02X)\n",
-                            year, mon < 12 ? MN[mon] : "???", year, mon);
+                            year, (mon >= 1 && mon <= 12) ? MN[mon] : "???", year, mon);
             }
         }
 

@@ -1,0 +1,121 @@
+# Reaching a live city with the KEYBOARD ALONE - no mouseclick anywhere.
+#
+# WHY THIS EXISTS
+# ---------------
+# scripts/d_city.script reaches a live city but ends in four `mouseclick right`
+# presses. I claimed for a long time that the city-naming screen could not be
+# passed without a mouse. That was wrong: I tested one direction, watched the
+# cursor not move, and generalised. A human player reached a running city on the
+# keyboard, and a brute force against the reference recomp found the route:
+#
+#   - the naming screen's cursor walks on the d-pad
+#   - A is CANCEL, not confirm. A on END returns to MAP SELECT. I read "A did
+#     nothing" as "no button works" when it had already navigated away.
+#   - B confirms, but only from a CHARACTER key. B on END types a '.'.
+#   - to reach END: down once, right eight times, down once, right once
+#     (down + 8xright lands on '-', one short)
+#   - from END, left nine times lands on Z
+#   - B confirms, then "Select game level" appears; B again picks Easy; B again
+#     starts the city
+#
+# The point of this script is not that it works. It is that it removes the mouse
+# as a variable. If the city is reachable with the pad alone, then our mouse
+# support is not what is holding the clock, and the search for the clock's cause
+# can stop treating it as a suspect.
+#
+# The leading section below is scripts/d_city.script verbatim up to its first
+# mouseclick, which is the part already known to reach the naming screen.
+wait 250
+press start 5
+wait 120
+press down 5
+wait 120
+press b 5
+wait 120
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+wait 300
+press left 5
+wait 150
+press down 5
+wait 90
+wait 40
+press down 5
+wait 25
+press right 5
+wait 16
+press right 5
+wait 16
+press right 5
+wait 16
+press right 5
+wait 16
+press right 5
+wait 16
+press right 5
+wait 16
+press right 5
+wait 16
+press right 5
+wait 16
+press down 5
+wait 25
+press right 5
+wait 30
+press left 5
+wait 16
+press left 5
+wait 16
+press left 5
+wait 16
+press left 5
+wait 16
+press left 5
+wait 16
+press left 5
+wait 16
+press left 5
+wait 16
+press left 5
+wait 16
+press left 5
+wait 16
+wait 30
+press b 5
+wait 60
+press b 5
+wait 60
+press b 5
+wait 90
+press b 5
+wait 200
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600
+wait 600

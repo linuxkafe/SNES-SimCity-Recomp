@@ -2122,3 +2122,54 @@ executável, mas a scp bringing only `jj.srm`. **São esses ficheiros que quero*
 o conjunto de endereços que mexe entre JAN e FEV é a resposta ao que um relógio
 do SimCity a funcionar toca, e é a única forma de fechar a cadeia contra uma
 referência que sabemos funcionar.
+
+---
+
+## 2026-10-01 (f) — o rato nunca foi a causa
+
+`scripts/d_city_kbd.script` chega a uma cidade viva **sem um único
+`mouseclick`**, só com o d-pad e `B`:
+
+```
+$009311  wait on $B9                                    medido
+$03D287  scheduler loop                                 $14 nao avanca
+$03D2F6  AND #$9000 gates INC $14   ROM 0x01D2F6        <== A PORTA
+$03D2A3  $12 = 1                                        $12 = 0 em 13/13
+$008061  per-vblank body                                provado por pokefor
+$00825F  CODE_038000 -> $1F7D..$1F7F                    00 00 00 00
+$038000  a task do mes                                  nao corre
+$0B53/$0B55  a data                                     nunca sai de 0
+```
+
+```
+frame    $0B53   $0B55  $0BA5(pop)  $0B9D(funds)  $0B12
+  3000        0    00      0000        000000        00
+  5000     1900    01      0000        004E20        00
+  7000     1900    01      0000        004E20        00
+  9000     1900    01      0000        004E20        00
+ 11000     1900    01      0000        004E20        00
+ 13000     1900    01      0000        004E20        00
+```
+
+E o screenshot é uma cidade completa: HUD, `$20000`, toolbar RCI, "BullDoze Area
+$1", terreno e árvores. **A cidade é criada e renderizada, e o relógio está
+congelado exactamente igual.** `$0B9D = $004E20` são os $20000 iniciais, o que
+confirma que é uma cidade verdadeira e não um ecrã de过渡.
+
+**Isto fecha uma variável, e é a que eu mais promotei.** O `mouseclick` no
+`d_city.script` não era load-bearing. Durante semanas treatei o rato como
+suspeito principal e a理由 era "precisamos dele para passar o ecrã de nome". A
+verdade é que o ecrã de nome navega-se com o d-pad e confirma-se com `B` — como
+o agente provou no peer, e agora reproduzido aqui.
+
+O espaço de busca fica menor e mais honesto: **já não é "a nossa execução do
+scheduler do jogo" nem "o nosso rato". É só a primeira.**
+
+### E uma correcção de codificacao
+
+O nosso HUD diz `1900 JAN` com `$0B55 = $01`. Logo **`$0B55` é 1-based e `$01` é
+JAN**, não FEV. A tabela de meses que escrevi no `--date` do `jjwin.c` era
+0-based, e imprimia "1900 FEB" para o valor que o ecrã chama Janeiro. Corrigida.
+
+Isto mede-se contra um HUD renderizado, que é a forma certa — ao contrário da
+tabela anterior, que foi inferida de um nome que eu próprio escrevi.
