@@ -1622,12 +1622,22 @@ $0193 (town-route index):  0 -> 0
 $00C5 (dispatch index):    0 -> 0
 ```
 
-**O cursor do ecrã de nome é controlado pelo rato, não pelo d-pad.** O d-pad
-move o cursor de escolha de ferramenta no mapa, mas na tela de nome é o rato.
-Isto é **exactamente o mesmo limite que a nossa documentação registou** — e o
-motivo pelo qual `d_city.script` precisou do `mouseclick`. Não é uma
-diferença entre nós e o peer; **é o mesmo obstáculo dos dois lados**, e o peer
-também não o resolve porque `grep -ril mouse` no código dele é vazio.
+~~**O cursor do ecrã de nome é controlado pelo rato, não pelo d-pad.**~~
+
+**Isto está errado, e é a retractação mais cara desta investigação.** Testei
+**uma** direcção — substituí cada `mouseclick` por `press a`, a mão não se
+mexeu, e generalizei. **Dez `press right` no ecrã de nome levam a mão do `SPACE`
+para o `P`/backspace.** Renderizado e medido, não argumentado.
+
+O launcher do próprio peer confirma: `grep -ri mouse frontend/` sobre o frontend
+inteiro dele é **vazio** — só teclado e XInput. Nunca houve rato neste caminho.
+
+**E isto atinge-nos a nós, que é a parte que importa.** O nosso
+`d_city.script` chega a uma cidade viva usando `mouseclick`. Se o ecrã de nome
+navega-se com o d-pad, a rota que construímos à volta de um rato pode estar a
+resolver um problema que não existe — e o nosso suporte de rato pode ser
+load-bearing ou pode ser só hábito. Não sei qual. É uma pergunta aberta, e é
+muito menor do que parecia.
 
 E aqui está o ponto que importa: **o `$0B51` (tick de 4) fica a 0 no peer
 também**, exactamente como no nosso. Porque está parado no ecrã de nome, como
@@ -1811,10 +1821,11 @@ RESULT failed=0 frames=5000 insns=58981392 sram_dirty=1
 ```
 
 Chega ao ecrã de nome com a rota exacta — `11111_`, mão sobre o SPACE. E
-`$0193` (o índice do town-route) fica `0 -> 0`. O cursor do ecrã de nome é
-controlado pelo rato, não pelo d-pad, e o peer não implementa rato
-(`grep -ril mouse` no código dele é vazio). **É o mesmo obstáculo dos dois
-lados, não uma diferença entre nós e o peer.**
+`$0193` (o índice do town-route) fica `0 -> 0`.
+
+O que escrevi aqui em cima — que o cursor é do rato e não do d-pad — está
+**retractado**. Ver a secção de 2026-09-30 acima. Dez `press right` movem a
+mão, e o frontend do peer não tem uma linha de código de rato.
 
 ### O que NÃO é prova
 
