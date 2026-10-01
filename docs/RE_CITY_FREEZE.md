@@ -1457,3 +1457,78 @@ apresentação: **60,0 fps**, `guest` 3,599 ms/frame (21,6% do orçamento) contr
 `upload-present` **7,761 ms/frame (46,6%)**. **O caminho de apresentação do
 host custa 2,16× o guest.** Isso é um achado sobre o renderer, não sobre o
 recompilador.
+
+---
+
+## 2026-09-30 — O mecanismo de `$038000` e o fork privado (estudo, sem publicar)
+
+### Decisões do dono
+
+**Fork privado para estudo** do peer sem licença, e **adotar o frame model dos
+pares**. O peer (`Junior-Jones/SimCity-SNES-Static-Recomp`) **não tem licença
+declarada** — `license: null` na API, zero ficheiros LICENSE — logo é todos-os-
+direitos-reservados por omissão, e fundir o nosso PolyForm Noncommercial nele
+não é legítimo. Clonado em `/tmp/opencode/peerstudy`, **privado, nunca
+publicado, nunca redistributed**.
+
+### O peer funciona sem `$038000` — e tem o corpo dele noutro sítio
+
+Corrido sob **Proton 9.0 (Beta)** no Deck (`$HOME/.steam/root/steamapps/common/
+Proton 9.0 (Beta)/proton`, `DISPLAY=:0`, `STEAM_COMPAT_APP_ID=480`), binário
+Windows pré-construído `Launcher.exe`:
+
+```
+frame  9872  1900 JAN
+frame 11780  1900 FEB
+frame 16361  1900 JUN
+frame 30356  1901 APR
+```
+
+**`1900 JAN → 1901 APR` em 20.484 frames. O relógio avança.** É o resultado que
+nos falta, e prova que a implementação é possível sem executar o tick de bank
+03 — o que invalida a premissa de que `$038000` tem de correr.
+
+Duas armadilhas que custariam uma hora: o processo **morre quando a sessão ssh
+fecha** (não é crash), e o `x11grab` devolve **preto** porque o Xwayland do
+gamescope é rootless (o peer expõe `F8` para screenshots, que contorna).
+
+E no peer, `$0380B2` faz `LDA.w $0B51` — a leitura do contador de 4 ticks —
+com o dispatch derivado de `switch(address>>10)`, um **fall-through por índice**
+que não é uma tabela de ponteiros. `$038000` tem uma única referência em toda a
+árvore (`sc_v34_group_000E0.c:7`, o próprio caso de entrada), e nenhum caller.
+
+### O mecanismo, encontrado na nossa descompilação
+
+Varredura completa por qualquer `JSL`/`JML`/`JMP`/`BRA` para `CODE_038*`:
+**zero**. O bank 03 **não é alcançado por um salto estático.** A cadeia é:
+
+1. `$038000` — setup (`SEP #$20 / REP #$10 / PLB $03 / JSR $0390A7 / …`), e
+   **cai por fall-through em `$038016`**, que é o tick.
+2. O tick em `$038016` faz `INC.w $0B51` e, a cada 4 (`AND #$0003 / BNE
+   CODE_0380B0`), `INC.w CurrentMonth` com o wrap Dezembro→Janeiro. **É
+   exactamente o tick que medimos nunca correr.**
+3. `$0380B0` é o merge point local (os testes por `$0193` reconvergem aí).
+4. **Quem chega ao bloco é o town-route dispatcher, indexado por `$0193`.** E
+   `$0193` é escrito em três sítios: após um `JSL $0098A0` (o dispatcher de
+   input), e em dois handlers que escrevem `#$0002` e um valor do **teclado**.
+
+**Isto é a resposta ao B1.** `$038000` é alcançado pela máquina de estados do
+town route, cujo índice é posto pelo input e por handlers internos — **não por
+uma tabela de dispatch que uma análise estática possa seguir.** A cadeia de
+dispatch por índice do peer codifica isto; o nosso `recomp/*.cfg` não declara
+nada disto, e o `$0193` nunca chega ao valor que selects o tick.
+
+Isto também explica por que o `$038000` não aparece no manifesto como
+chamado: **é uma entrada por fall-through a partir de um bloco cuja
+seleção é dinâmica.** O `038000:M1X1` está analisado (134 instruções) e
+compilado, mas nada o alcança porque o índice nunca aponta para lá.
+
+### O que adoptamos: o frame model dos pares
+
+Passamos a `GAME_MASTER_CYCLES_PER_FRAME` + 64 slices + 1 NMI/frame para o
+padrão `interp_bridge_run_scheduler`, que é o que SMW, Zelda e MMX usam e o que
+o peer valida. A nossa constante `357368` já está a 2 clocks da do peer
+(`357366`); **o que muda é onde o NMI é(assertido)** e que a fronteira de frame
+é o spin do próprio guest, não um deadline adivinhado. Isto é a mensagem que
+a pesquisa de peers e o Proton nos trouxeram, e é a mudança de maior impacto
+possível do lado do nosso frame loop.
