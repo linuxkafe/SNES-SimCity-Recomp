@@ -231,6 +231,8 @@ int main(int argc, char **argv) {
      * the save path and cheerfully wrote a file with that name. Positionals
      * after flags, matched by name, is the only ordering that cannot do that. */
     const char *script_path = NULL;
+    unsigned wram_every = 0;
+    int wram_at = 0;
     const char *rom_path = NULL;
     const char *sram_opt = NULL;
     for (int i = 1; i < argc; i++) {
@@ -238,12 +240,18 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "--script") && i + 1 < argc) { script_path = argv[++i]; continue; }
         if (!strcmp(argv[i], "--sram")   && i + 1 < argc) { sram_opt  = argv[++i]; continue; }
         if (!strcmp(argv[i], "--save")   && i + 1 < argc) { ++i; continue; }
+        if (!strcmp(argv[i], "--date"))  { wram_at = 1; continue; }
+        if (!strcmp(argv[i], "--wram")   && i + 1 < argc) {
+            wram_every = (unsigned)atoi(argv[++i]); continue;
+        }
         if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
             printf("usage: %s --rom <path> [--sram <path>] [--script <path>]\n"
                    "  --rom     absolute path to the SimCity ROM (required)\n"
                    "  --sram    32 KiB SRAM; defaults to jj.srm beside the binary\n"
                    "  --script  input schedule: press/btn/frames and wait/frames\n"
-                   "  --save N  autosave every N frames (default 600)\n",
+                   "  --save N  autosave every N frames (default 600)\n"
+                   "  --date    print the in-game date each autosave\n"
+                   "  --wram N  dump 128 KiB WRAM to jjwram.fN.bin every N frames\n",
                    argv[0]);
             return 0;
         }
@@ -322,6 +330,9 @@ int main(int argc, char **argv) {
     /* Autosave cadence. Periodic rather than exit-only, because an exit-only
      * save is lost to a closed terminal, a kill, or a crash - and the one thing
      * we need from this frontend is a save that survives whatever happens next. */
+    if (wram_every)
+        fprintf(stderr, "WRAM trace every %u frames -> jjwram.f*.bin\n", wram_every);
+
     unsigned autosave = 600u;
     {
         const char *e = getenv("JJSAVE");
@@ -426,6 +437,46 @@ int main(int argc, char **argv) {
         }
 
         if ((frames % autosave) == 0) save_sram_if_dirty(1);
+
+        /* The date, read straight out of WRAM. $0B53 is the year and $0B55 the
+         * month, both little-endian, and 0/0 is the encoding for 1900 January -
+         * not "unset". $0B51 is a free-running counter modulo 4 and reads 0 one
+         * frame in four by design, so it is printed but must never be read as
+         * evidence of a frozen clock.
+         *
+         * Do NOT confuse $0B4D with a year. It is a word, not a byte, and
+         * printing its low byte alone turns a date into nonsense. */
+        if (wram_at) {
+            uint8_t d[4] = {0};
+            if (simcity_recomp_read_wram(inst, 0x0B53u, d, 3u)) {
+                unsigned year = (unsigned)(d[0] | (d[1] << 8));
+                unsigned mon  = d[2];
+                static const char *const MN[12] = {
+                    "JAN","FEB","MAR","APR","MAY","JUN",
+                    "JUL","AUG","SEP","OCT","NOV","DEC" };
+                fprintf(stderr, "[date] %u %s  (raw $0B53=%04X $0B55=%02X)\n",
+                        year, mon < 12 ? MN[mon] : "???", year, mon);
+            }
+        }
+
+        /* Optional WRAM trace, for when you need to see WHAT moved rather than
+         * whether something moved. This is how a working clock is compared with
+         * a frozen one. */
+        if (wram_every && (frames % wram_every) == 0) {
+            char path[512];
+            snprintf(path, sizeof path, "jjwram.f%llu.bin",
+                     (unsigned long long)frames);
+            FILE *f = fopen(path, "wb");
+            if (f) {
+                uint8_t *w = (uint8_t *)malloc(131072u);
+                if (w && simcity_recomp_read_wram(inst, 0u, w, 131072u))
+                    fwrite(w, 1, 131072u, f);
+                else fprintf(stderr, "wram read failed at frame %llu\n",
+                             (unsigned long long)frames);
+                free(w);
+                fclose(f);
+            }
+        }
 
         if ((frames % 600) == 0) {
             fprintf(stderr, "frame %llu  clock %llu  insns %llu\n",
