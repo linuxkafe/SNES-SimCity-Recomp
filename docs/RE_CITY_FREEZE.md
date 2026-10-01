@@ -1532,3 +1532,59 @@ o peer valida. A nossa constante `357368` já está a 2 clocks da do peer
 é o spin do próprio guest, não um deadline adivinhado. Isto é a mensagem que
 a pesquisa de peers e o Proton nos trouxeram, e é a mudança de maior impacto
 possível do lado do nosso frame loop.
+
+---
+
+## 2026-09-30 — frame model dos peers: tentativa, **REVERTIDA**, e porquê
+
+O dono aprovou adoptar o padrão dos pares. Implementei-o em `GameRunOneFrame`:
+o guest passa a correr com `interp_bridge_run_loop(g_resume_pc, 0x009311, 0x00B9,
+flag_value=1)` até estacionar no seu próprio token de vblank, e o NMI é
+entregue **depois** do estacionamento, com o guest retomado para simular. O
+deadline deixou de ser o que decide a fronteira de frame.
+
+**Os gates partiram.** `make test-rom` → **FAIL** (a imagem deixou de se mexer)
+e `make perf` → **FAIL**.
+
+A/B, com o mesmo `src/gen` e o mesmo ROM:
+
+| | `test-rom` | `perf` |
+|---|---|---|
+| baseline (sem a mudança) | **PASS**, 254 crc32 distintos | **PASS**, pior 54.88 fps |
+| com `run_loop` + NMI depois | **FAIL** | **FAIL** |
+
+**Revertido, e nada commitado.** Um gate que falha existe exactamente para
+isto: a mudança *parecia* correcta, seguia o padrão documentado de três jogos,
+e mesmo assim partiu a renderização. Sem os gates teria sido publicada como
+progresso.
+
+### Porque é que "parecia correcta" e não era
+
+1. **A forma do nosso loop não é a forma que `run_loop` pressupõe.**
+   `run_scheduler` é `run_loop(..., flag_value = 0)` — MMX e Super Metroid
+   libertam a flag **depois** de um slot walk. A nossa é(assertida) *enquanto
+   se espera* e o NMI põe-na a 1. Com o `STZ $00B9` no topo do bloco, trocar a
+   ordem NMI/guest limpa o token outra vez antes de o `BEQ` cair. Os pares
+   não encontrados porque são **transparentes**: o host põe o token e o bloco
+   não o repõe. O nosso repõe.
+2. **`$009311` como `yield_pc`.** `$9311` é o `INC $00C7`, a cabeça do spin; o
+   `LDA $00B9` está em `$9313`. Apontar o yield ao `INC` cede no sítio errado
+   do ciclo.
+3. **Mover o NMI depois do estacionamento inverte o handshake.** Esta é
+   precisamente a inversão que um diagnóstico anterior mediu (817 `INC` e 817
+   `STZ` emparelhados) e que eu próprio reverti nessa altura.
+
+Isto é uma **lição negativa registada, não uma hipótese**: a adopção do padrão
+dos pares não é mecânica, e este jogo não tem a forma que esse padrão assume.
+
+### O que fica
+
+O diagnóstico e o `exclude_range` ficam. A mudança de frame model **não**, até
+alguém entender porque é que o `$930D` repõe o token que o host acabou de pôr —
+que é, em última análise, a mesma pergunta do handshake, agora com a resposta
+de que o problema não era o NMI chegar cedo mas **o guest repôr o token**.
+
+E o peer, que **não tem o nosso handshake**, funciona. A diferença entre nós e
+ele no MainLoop não é o frame model — é que o `STZ $00B9` no topo de `$930D`
+existe. **Se o token fosse reposto só depois do `LDA`, o `run_loop` com
+`flag_value` teria a forma que assume.**
