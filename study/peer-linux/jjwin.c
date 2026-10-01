@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "simcity_static_recomp.h"
 
@@ -134,7 +135,42 @@ static uint16_t script_mask(unsigned frame) {
 
 /* The SRAM path, resolved once, and a helper that writes it only when the core
  * says the save actually changed. */
+static char g_sram_buf[4200];
 static const char *g_sram_path;
+
+/* The default save location must be ABSOLUTE, anchored to this executable.
+ *
+ * The comment here used to say "the core chdirs to its own directory, so a
+ * relative sram path would land somewhere surprising" - and then the default was
+ * the bare relative string "jj.srm". So the save landed wherever the process
+ * happened to be, which is not the directory we printed, which is not where the
+ * player looked, and which cost a round trip to discover. The comment was right
+ * and the code contradicted it in the next line.
+ *
+ * A relative path is only safe if nothing ever changes the working directory,
+ * and the core is exactly the thing that might. So: resolve /proc/self/exe and
+ * build an absolute path, and print that absolute path so nobody has to guess
+ * where the file went. */
+static const char *resolve_sram_path(const char *opt) {
+    if (opt && opt[0] == '/') return opt;           /* already absolute */
+    if (opt) {
+        snprintf(g_sram_buf, sizeof g_sram_buf, "%s", opt);
+        return g_sram_buf;                            /* caller asked for it */
+    }
+    char exe[4096];
+    ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
+    if (n > 0) {
+        exe[n] = 0;
+        char *slash = strrchr(exe, '/');
+        if (slash) {
+            *slash = 0;
+            snprintf(g_sram_buf, sizeof g_sram_buf, "%s/jj.srm", exe);
+            return g_sram_buf;
+        }
+    }
+    snprintf(g_sram_buf, sizeof g_sram_buf, "jj.srm");
+    return g_sram_buf;
+}
 static SimCityRecomp *g_inst;
 static size_t g_sram_size;
 static int g_sram_written;
@@ -285,7 +321,7 @@ int main(int argc, char **argv) {
 
     /* The core chdirs to its own directory, so a relative sram path would land
      * somewhere surprising. A cold SRAM is 32 KiB of zeroes. */
-    const char *sram_path = sram_opt ? sram_opt : "jj.srm";
+    const char *sram_path = resolve_sram_path(sram_opt);
     size_t sram_capacity = simcity_recomp_sram_size();
     size_t sram_size = 0;
     uint8_t *sram = read_file(sram_path, &sram_size);
