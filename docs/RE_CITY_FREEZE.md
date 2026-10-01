@@ -2075,3 +2075,50 @@ conduzir-se por script, e o peer é determinístico.** Quem já chega à cidade 
 o teclado gera um traço de WRAM, e nele vemos exactamente que bytes mudam entre
 JAN e FEV. Isso é a verdade de terreno que fecha a cadeia — e é a única coisa
 que este teste devia ter sido desde o início.
+
+---
+
+## 2026-10-01 (e) — o peer tem relógio, e eu tinha a data mal
+
+O peer, com a rota de teclado, chega a cidade e a data anda. Capturado do
+frontend com `--date`:
+
+```
+[date] 1900 FEB  (raw $0B53=076C $0B55=01)
+[date] 1900 MAR  (raw $0B53=076C $0B55=02)
+```
+
+Isto **corrige o que eu escrevi duas entradas atrás.** Disse que `$0B53=0 /
+$0B55=0` era a codificação de "1900 Janeiro" e que por isso o nosso `0/0` não era
+"por definir". É o contrário:
+
+- `$0B53` é o **ano absoluto**, não um offset a partir de 1900. Numa cidade viva
+  lê 1900 = `0x076C`, não 0.
+- `$0B55` é o **índice do mês, base 0**: 0=JAN, 1=FEB, 2=MAR.
+- Logo `$0B53 = 0` significa **não há cidade**, e é o que o ecrã de título mostra.
+
+Portanto, no nosso port o `1900 JAN` que vemos no ecrã **não** é `$0B53=0`. É
+`$0B53=1900, $0B55=0`. E o nosso WRAM mostra `$0B53 = $0000` em todas as
+amostras — ou seja, **o nosso estado não tem sequer o ano inicializado.** Isso é
+uma leitura diferente da que fiz, e mais forte: não é "a data está presa", é "a
+data nunca foi escrita".
+
+Isto está agora no código: `--date` imprime `no city yet` em vez de `0 JAN`, que
+parecia uma data e não é.
+
+### O SRAM está definitivamente fora
+
+O `jj.srm` voltou **byte-idêntico** — mesmo md5 `5b4053a6...` — de uma sessão que
+vai de JAN a MAR, e o mesmo md5 de uma sessão parada no ecrã de nome. Duas
+estados de jogo completamente diferentes, o mesmo ficheiro. Com a medição
+anterior (32746 bytes de `0xFF` mais `SIM`), está provado: **o SRAM de 32 KiB
+não transporta a cidade.** Não há cross-load a fazer, em nenhuma direção, e
+depois disto não vale a pena voltar a essa ideia.
+
+### O que falta
+
+Os dumps de WRAM. Correr com `--wram 300` escreve `jjwram.f*.bin` ao lado do
+executável, mas a scp bringing only `jj.srm`. **São esses ficheiros que quero** —
+o conjunto de endereços que mexe entre JAN e FEV é a resposta ao que um relógio
+do SimCity a funcionar toca, e é a única forma de fechar a cadeia contra uma
+referência que sabemos funcionar.

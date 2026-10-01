@@ -495,8 +495,18 @@ int main(int argc, char **argv) {
                 static const char *const MN[12] = {
                     "JAN","FEB","MAR","APR","MAY","JUN",
                     "JUL","AUG","SEP","OCT","NOV","DEC" };
-                fprintf(stderr, "[date] %u %s  (raw $0B53=%04X $0B55=%02X)\n",
-                        year, mon < 12 ? MN[mon] : "???", year, mon);
+                /* $0B53 is the ABSOLUTE year, not an offset from 1900: a live
+                 * city reads 1900 (0x076C), not 0. So year 0 does not mean
+                 * "January 1900" - it means there is no city yet, which is what
+                 * the title screen shows. I had this backwards and it was
+                 * printed as "0 JAN", a reading that looks like a date and is
+                 * not one. */
+                if (year == 0)
+                    fprintf(stderr, "[date] no city yet  (raw $0B53=%04X $0B55=%02X)\n",
+                            year, mon);
+                else
+                    fprintf(stderr, "[date] %u %s  (raw $0B53=%04X $0B55=%02X)\n",
+                            year, mon < 12 ? MN[mon] : "???", year, mon);
             }
         }
 
