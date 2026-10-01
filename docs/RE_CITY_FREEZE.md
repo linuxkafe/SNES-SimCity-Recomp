@@ -1283,3 +1283,68 @@ Binário `279e253e0df544f00259fd026e99fc40`, **idêntico** ao local.
 - `$0B51` foi escrito **uma vez**, em f3258, por `IPC=03C77E` — código de bank
   03 corre e toca nos campos do tick na criação da cidade, depois pára. Não
   foi perseguido se `03C77E` está no caminho do próprio tick.
+
+---
+
+## 2026-09-30 — o main loop não corre na cidade, e um valor armado não bate certo
+
+Duas medições adicionais, com `0x` no `COUNT_PC` (a armadilha do octal está
+documentada acima).
+
+### O main loop não é executado depois da cidade
+
+`SNESRECOMP_COUNT_PC` em 4.200 frames de cidade viva:
+
+```
+COUNT_PC=0x009311 -> 881646 execuções    (o spin de vblank)
+COUNT_PC=0x008061 -> 0                   (corpo do main loop)
+COUNT_PC=0x00804D -> 0
+COUNT_PC=0x00825F -> 0
+```
+
+Isto **não** é o artefacto AOT-vs-intérprete que o agente accionou como
+cautela: `$008061` está no manifesto como `lle_only`
+(`ic=6, reasons=['cop_at_00806C','structural_poison', …]`), portanto é
+interpretado, e mesmo assim conta zero. O guest executa
+`$009311` 881.646 vezes e **nunca entra no corpo do main loop**.
+
+A máquina de estados de bank 03 é despachada a partir de lá, e o NMI só
+executa handlers. **É por isso que `$0B51` nunca é escrito**: o tick não é
+inalcançado por uma condição interna, é inalcançável porque o código que o
+despacha não corre.
+
+Isto substitui a formulação anterior — "o main loop vive na rota NMI/vblank" —
+por uma mais precisa e verificável: **ele não corre de todo**.
+
+### Um valor armado que não bate certo
+
+O relatório anterior diz que `CODE_00825F` escreve `$1F7C-$1F7F = $038000`.
+Medido nas três janelas:
+
+```
+f3277: $1F7C..$1F7F = $000000   $1F7A = 0000
+f3400: $1F7C..$1F7F = $800000   $1F7A = 1EFF
+f4198: $1F7C..$1F7F = $800000   $1F7A = 1EFF
+```
+
+`$800000`, **não `$038000`** — o byte de banco em `$1F7E` é `$80`, não `$03`.
+E `$1F7A = $1EFF` bate certo com o stack principal declarado. Portanto ou a
+leitura do valor imediato no relatório anterior estava errada, ou algo
+reescreveu o byte de banco depois. **Não resolvi qual**, e a diferença
+`$80` vs `$03` é exactamente o tipo de detalhe que faz um bank malcodificado
+saltar para o espaço errado — por isso vale a pena, e vale mais agora que se
+sabe que nada lê este valor de qualquer forma.
+
+### O estado, sem floreados
+
+- Guest estruturalmente saudável, renderer vivo, cidade carregada, estruturas
+  inicializadas.
+- **`CODE_008061` (o main loop) não é executado na cidade.** O spin de vblank
+  consome 881.646 execuções em 4.200 frames.
+- `$0B51` (fase de 4 ticks) nunca escrito; `$0B53`/`$0B55` escritos uma vez, na
+  criação da cidade.
+- `$1F7C` é write-only. O bloco bank-03 compilado (o tick é agora C nativo) e
+  ainda assim não corre — porque o despachante não corre.
+
+**A pergunta passou de "que condição bloqueia o tick" para "o que impede o main
+loop de correr".** É uma pergunta diferente e mais pequena.
