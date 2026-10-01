@@ -2268,3 +2268,87 @@ Procurei de duas maneiras:
 Ou a descompilação está incompleta, ou o mecanismo não é um hook. O peer corre o
 mesmo ROM e o relógio funciona, logo o mecanismo existe. **Esta é a pergunta, e
 é a única que fica.**
+
+---
+
+## 2026-10-01 (h) — `CODE_038000` tem zero entradas. E a descompilação é exacta.
+
+O agente不再是 está a procurar uma coisa:沸 fez um census de cobertura e um scan
+de bytes, e o resultado é negativo e rigoroso.
+
+### A descompilação cobre o ROM inteiro, byte a byte
+
+Duas provas independentes:
+
+- **Rebuild byte-exacto.** Asar sobre uma cópia do ROM reproduz o md5
+  `23715fc7ef700b3999384d5be20f4db5` — idêntico.
+- **Census.** 4.730 labels, 96.7% dos bytes atribuídos. Os 17.462 bytes não
+  atribuídos são 16.657 de `$FF`, mais o header de 32 bytes, os vectores, quatro
+  blobs de dados pequenos e uma citação ASCII do Will Wright. **Não há código
+  escondido.** E as `warnpc` do próprio framework disparam exactamente nos
+  limites calculados.
+
+Onde vive o código, por bank: `00`:743, `01`:1019, `02`:580, `03`:1191, `05`:91.
+Banks 04 e 06-0F: **zero código**. E `DATA_0593C1` é uma tabela de saltos viva,
+`JSR (DATA_0593C1,x)` em `$05:93BD` — o bank 05 não é só paletas.
+
+### O meu "acerto único" era um bug meu
+
+Eu reportei `JSL ($1F7A)` em ROM `0x76DE9` como o único leitor de `$1F7C`. **O
+opcode `JSL (abs)` é `$FC`, portanto a sequência tem de ser `FC 7A 1F` — e há
+zero ocorrências nos 524.288 bytes.** O meu scanner casou o *operando* `7A 1F` e
+renderizou-o sem verificar o opcode. Os bytes reais em `0x76DE9` são
+`22 7A 1F DD EF`, e `$22` é `JSL long` com operando `$DD1F7A`. Está no bank `$0E`,
+que é 100% graphics comprimido lz5 — inalcançável, não é código.
+
+**O mesmo bug que eu cometi com o `$0B51`:** casar um valor e concluir sem
+verificar o que o circunda.
+
+Census completo de leitores de `$1F7A..$1F7F`, por scan de pares de bytes — e
+isto é completo para **todos** os modos de endereçamento absolutos e indexados:
+nas banks de código só há as escritas de `CODE_00825F` ($1F7F @ 0x000266,
+$1F7E @ 0x00026B, $1F7D @ 0x000270, $1F7C @ 0x000275, $1F7A @ 0x00027B). Três
+acenos n��o-escrita, todos eliminados como dados.
+
+### `CODE_038000` não é chamado. De todo o modo.
+
+`INC.w $0B51` são os bytes `EE 51 0B` e ocorrem **exactamente uma vez** em
+524.288 bytes, em ROM `0x18026` = `$03:8026`. O mesmo para a data: `INC.w $0B55`
+uma vez, `INC.w $0B53` uma vez.
+
+Todas as rotas possíveis para `$03:8000` foram verificadas: `JSL` (0), `JML` (0),
+`JSR $8000` (6, todos dados), `JMP $8000` (1, graphics), fall-in de `$02:FFFF`
+(16 bytes de `$FF`), ponteiros de 3 bytes (todos imediatos `LDA #$0080` ou
+`AND #$0080`), transferência indirecta via `$1F7C` (0), e as **32 tabelas de
+saltos** do ROM — li cada palavra de 16 bits das 20 tabelas distintas: **nenhuma
+entrada vale `$8000`**.
+
+E `CODE_038000` acaba em `JMP.w CODE_038016` e **nunca retorna**: é um laço
+autocontido.
+
+### A contradição acentua-se
+
+O peer corre **o mesmo ROM** — `SIMCITY_RECOMP_ROM_SIZE` é 524288, o nosso tem
+524288, mesmo md5. E o `$0B51` do peer chega a `$006D`. Logo o peer **executa**
+`$03:8026`. Logo existe uma rota que o meu opcode-scan não vê.
+
+**A única brecha que resta no argumento: as tabelas de saltos que o jogo copia
+para WRAM.** Todas as 32 tabelas que foram escaneadas vivem no ROM. Uma tabela de
+saltos em RAM, construida no arranque, com `JSR (dp),Y` ou `JSR (abs,X)` a
+partir de `$8000`, éidiomatica e não aparece em nenhum scan de ROM. **É aí que
+procurar a seguir.**
+
+### E uma pista concreta que não encaixa
+
+`CODE_00825F` escreve `STX.w $1F7A` com `X = $1EFF`, o que tem de deixar
+`$1F7A = EF`, `$1F7B = 1F`. **O observado é `FF 1E`.** Ou seja, `$1F7A` **não**
+tem o valor que `CODE_00825F` lhe escreve. E `$1F7D..$1F7F = 00 80 03` **é** o
+ponteiro correcto para `CODE_038000`.
+
+E `pokefor $1F7A DEADBEEF` e `pokefor $1F7C DEADBEEF` persistem até ao dump —
+**o guest nunca reescreve nenhum dos dois.** Logo `CODE_00825F` não está a correr
+periodicamente; o slot foi escrito uma vez na criação da cidade e congelou.
+
+Isto é compatível com o resto: se `CODE_00825F` corre uma vez e escreve o
+ponteiro, e nada no ROM lê esse ponteiro, então **o ponteiro não é o mecanismo**,
+e o mecanismo é a tabela de saltos em WRAM.
