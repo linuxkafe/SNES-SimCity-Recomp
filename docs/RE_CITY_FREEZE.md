@@ -2352,3 +2352,77 @@ periodicamente; o slot foi escrito uma vez na criação da cidade e congelou.
 Isto é compatível com o resto: se `CODE_00825F` corre uma vez e escreve o
 ponteiro, e nada no ROM lê esse ponteiro, então **o ponteiro não é o mecanismo**,
 e o mecanismo é a tabela de saltos em WRAM.
+
+---
+
+## 2026-10-01 (i) — a hipótese da tabela em RAM morreu, e `CODE_00825F` corre
+
+Duas coisas, uma delas a retractar o que escrevi há uma entrada.
+
+### A tabela de saltos em RAM não existe
+
+Census completo dos 128 KiB de WRAM de uma cidade viva:
+
+- 407 acenos de `$8000` como word de 16 bits, dos quais só **55 alinhados a 2
+  bytes**. O teste de forma de tabela classifica todos os alinhados com ≤6/9, e
+  os melhores são manifestamente dados de tile/paleta, não ponteiros. Os dois
+  clusters grandes (`$1637F`, `$1691F`) são tabelas de passo 2 preenchidas só com
+  `$8000` — um padrão de "slot vazio", não ponteiros.
+- **exactamente 1** acerto de `$038000` como long de 32 bits, em `$1F7D`, e é
+  isolado: `$1F7A..$1F7C = 00`, `$1F80+ = 00`. Sem forma de tabela de ponteiros.
+- No **WRAM do peer**: 406 acenos de `$8000`, **os mesmos 55 alinhados**, os
+  **mesmos 6 melhores candidatos**, e **zero** ponteiros `$038000`. O valor em
+  `$1F7D` é um artefacto do **nosso** build, não uma tabela de dispatch.
+
+E no ROM, `00 80 03 00` tem 1 acerto, dentro de uma tabela de dados de 4 bytes no
+bank 04. `16 80 03 00`: zero, no ROM e no WRAM.
+
+**Não há tabela em RAM nem ponteiro longo. A hipótese morre, com medição.**
+
+### Retractação: `CODE_00825F` **corre** no nosso build
+
+Eu escrevi, com base em dumps antigos, que "em jogo normal esses bytes são
+`00 00 00 00` em todas as amostras, logo `CODE_008061` demonstra não correr".
+
+**Na rota de teclado, `$1F7D..$1F7F = 00 80 03`** — constante nos frames 4000 e
+6000. Que é exactamente o que `CODE_00825F` escreve. **`CODE_00825F` corre, e
+`CODE_008061` também.** A afirmação de que nunca correm era verdade para a rota
+com rato e falsa para a rota de teclado, e eu não testei a segunda.
+
+Pior: **no peer essa tripla é dados vivos** (`15 80 00`, `f0 80 00`, `08 81 00`,
+`20 80 00`) e nunca é `00 80 03`. **O hook não é o mecanismo em nenhum dos dois
+lados.** No nosso está instalado e não é lido; no peer o slot é outra coisa e o
+relógio funciona na mesma.
+
+### A referência está confirmada, e dá uma fórmula
+
+No Deck, com a cidade viva desde f3800: `$0B51` sobe **+1 por ~200 frames** até
+`$006D` em f30000, e
+
+```
+mes = (($0B51 >> 2) mod 12) + 1
+```
+
+que é exactamente `AND #$0003` a gatingar o mês, confirmado por fórmula em vez de
+por leitura. E `$0406` sobe +100 por 100 frames no peer, **a mesma taxa que o
+nosso** — logo a diferença não está no temporizador.
+
+### Onde a transferência acontece: ainda não, mas o espaço encolheu
+
+A routine é `$03:8016`, não `$03:8000`, e tem uma entrada real: `JMP $03:8016`
+em `$03:815D`, um back-edge interno. O bloco `$03:8000–$03:81FF` **não tem
+entrada externa directa nenhuma**, em nenhum dos 16 banks — e `$0B51` só pode
+mover-se em `$03:8026` (um único `INC`, um único `STA` em `$03:C9E3`, um único
+`STZ` em `$03:C77E`).
+
+O que resta, e é o que eu proporia a seguir:
+
+1. **Transferência indirecta calculada** — `JMP (abs)` / `JMP (abs,X)` /
+   `JSR (abs,X)` cujo ponteiro é construído em runtime (base+índice sobre uma
+   tabela do ROM). Um scan de bytes é inútil aqui: `FC` tem 1946 acenos, `7C` tem
+   1191, `DC` tem 522. **Isto precisa de uma descompilação com símbolos, ou de
+   uma armadilha dinâmica.**
+2. **O log do peer.** `simcity_recomp_log_open(path, ...)` existe na API pública.
+   Se esse log trouxesse PC ou um trace de blocos, teríamos a transferência de
+   entrada vista de lado, sem tocar no código deles. **É o teste mais barato que
+   resta e ninguém o tentou.**
