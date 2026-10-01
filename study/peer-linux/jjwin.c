@@ -62,6 +62,106 @@ typedef struct {
 static uint16_t g_input_mask;
 static AudioRing g_audio;
 
+/* An optional input schedule, so a route is reproducible instead of being
+ * something a human has to remember. Format, one directive per line:
+ *
+ *   press <button> <frames>   hold a button for N frames
+ *   wait <frames>             hold nothing
+ *   mouseclick is not supported and never will be: the core has no mouse.
+ *
+ * Buttons: b y select start up down left right a x l r  (the names the core's
+ * own SimCityRecompInput enum uses).
+ */
+#define MAX_PRESS 512
+static struct { unsigned at; uint16_t mask; } g_press[MAX_PRESS];
+static unsigned g_n_press;
+
+static uint16_t button_mask(const char *name) {
+    static const struct { const char *n; uint16_t m; } t[] = {
+        {"b", SIMCITY_INPUT_B}, {"y", SIMCITY_INPUT_Y},
+        {"select", SIMCITY_INPUT_SELECT}, {"start", SIMCITY_INPUT_START},
+        {"up", SIMCITY_INPUT_UP}, {"down", SIMCITY_INPUT_DOWN},
+        {"left", SIMCITY_INPUT_LEFT}, {"right", SIMCITY_INPUT_RIGHT},
+        {"a", SIMCITY_INPUT_A}, {"x", SIMCITY_INPUT_X},
+        {"l", SIMCITY_INPUT_L}, {"r", SIMCITY_INPUT_R},
+    };
+    for (size_t i = 0; i < sizeof t / sizeof *t; i++)
+        if (!strcmp(name, t[i].n)) return t[i].m;
+    fprintf(stderr, "unknown button: %s\n", name);
+    exit(2);
+}
+
+static int load_script(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) { fprintf(stderr, "cannot read script %s\n", path); return 0; }
+    char line[256];
+    unsigned at = 0;
+    while (fgets(line, sizeof line, f)) {
+        char verb[32], btn[32];
+        unsigned n = 0;
+        if (line[0] == '#' || line[0] == '\n') continue;
+        if (sscanf(line, "%31s %31s %u", verb, btn, &n) == 3 &&
+            !strcmp(verb, "press")) {
+            if (g_n_press == MAX_PRESS) {
+                fprintf(stderr, "script has more than %d presses\n", MAX_PRESS);
+                return 0;
+            }
+            g_press[g_n_press].at = at;
+            g_press[g_n_press].mask = button_mask(btn);
+            g_n_press++;
+            at += n;
+        } else if (sscanf(line, "%31s %u", verb, &n) == 2 &&
+                   !strcmp(verb, "wait")) {
+            at += n;
+        } else {
+            fprintf(stderr, "unparsed script line: %s", line);
+            return 0;
+        }
+    }
+    fclose(f);
+    fprintf(stderr, "script: %u frames scheduled, %u presses\n", at, g_n_press);
+    return 1;
+}
+
+/* The script owns the mask when one is loaded; otherwise the keyboard does. */
+static uint16_t script_mask(unsigned frame) {
+    uint16_t m = 0;
+    for (unsigned i = 0; i < g_n_press; i++)
+        if (g_press[i].at <= frame && frame < g_press[i].at + 5u)
+            m = g_press[i].mask;
+    return m;
+}
+
+/* The SRAM path, resolved once, and a helper that writes it only when the core
+ * says the save actually changed. */
+static const char *g_sram_path;
+static SimCityRecomp *g_inst;
+static size_t g_sram_size;
+static int g_sram_written;
+
+/* Returns 1 if bytes hit the disk. Writing unconditionally would churn the
+ * mtime of a save the player did not touch, and - worse for us - it would
+ * manufacture a "save from a city that never started" that later looks like
+ * evidence. */
+static int save_sram_if_dirty(int announce) {
+    if (!g_inst || !g_sram_path || !simcity_recomp_sram_dirty(g_inst)) return 0;
+    uint8_t *buf = (uint8_t *)malloc(g_sram_size);
+    if (!buf) return 0;
+    int ok = 0;
+    if (simcity_recomp_sram_copy(g_inst, buf, g_sram_size)) {
+        FILE *f = fopen(g_sram_path, "wb");
+        if (f) { ok = (fwrite(buf, 1, g_sram_size, f) == g_sram_size); fclose(f); }
+    }
+    free(buf);
+    if (ok) {
+        g_sram_written = 1;
+        if (announce)
+            fprintf(stderr, "SRAM written: %s (%zu bytes)\n",
+                    g_sram_path, g_sram_size);
+    }
+    return ok;
+}
+
 static void audio_callback(void *userdata, Uint8 *stream, int len_bytes) {
     (void)userdata;
     int16_t *out = (int16_t *)stream;
@@ -126,19 +226,47 @@ static uint8_t *read_file(const char *path, size_t *size_out) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        fprintf(stderr,
-                "usage: %s <rom> [sram]\n"
-                "  rom  absolute path to the SimCity ROM\n"
-                "  sram optional path to a 32 KiB SRAM (created if absent)\n",
-                argv[0]);
+    /* Parse flags first, then positionals. An earlier version read the SRAM
+     * from argv[2] unconditionally, so `--script foo.script` took "--script" as
+     * the save path and cheerfully wrote a file with that name. Positionals
+     * after flags, matched by name, is the only ordering that cannot do that. */
+    const char *script_path = NULL;
+    const char *rom_path = NULL;
+    const char *sram_opt = NULL;
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "--rom")    && i + 1 < argc) { rom_path   = argv[++i]; continue; }
+        if (!strcmp(argv[i], "--script") && i + 1 < argc) { script_path = argv[++i]; continue; }
+        if (!strcmp(argv[i], "--sram")   && i + 1 < argc) { sram_opt  = argv[++i]; continue; }
+        if (!strcmp(argv[i], "--save")   && i + 1 < argc) { ++i; continue; }
+        if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
+            printf("usage: %s --rom <path> [--sram <path>] [--script <path>]\n"
+                   "  --rom     absolute path to the SimCity ROM (required)\n"
+                   "  --sram    32 KiB SRAM; defaults to jj.srm beside the binary\n"
+                   "  --script  input schedule: press/btn/frames and wait/frames\n"
+                   "  --save N  autosave every N frames (default 600)\n",
+                   argv[0]);
+            return 0;
+        }
+        if (argv[i][0] == '-') {
+            fprintf(stderr, "unknown option: %s (try --help)\n", argv[i]);
+            return 2;
+        }
+        if      (!rom_path) rom_path = argv[i];
+        else if (!sram_opt) sram_opt = argv[i];
+        else { fprintf(stderr, "unexpected extra argument: %s\n", argv[i]); return 2; }
+    }
+    if (!rom_path) {
+        fprintf(stderr, "no ROM given. The path must be absolute - the core\n"
+                        "chdirs to its own directory before opening anything.\n"
+                        "Try --help.\n");
         return 2;
     }
+    if (script_path && !load_script(script_path)) return 2;
 
     size_t rom_size = 0;
-    uint8_t *rom = read_file(argv[1], &rom_size);
+    uint8_t *rom = read_file(rom_path, &rom_size);
     if (!rom) {
-        fprintf(stderr, "cannot read ROM: %s\n", argv[1]);
+        fprintf(stderr, "cannot read ROM: %s\n", rom_path);
         return 1;
     }
     if (rom_size != SIMCITY_RECOMP_ROM_SIZE) {
@@ -149,7 +277,7 @@ int main(int argc, char **argv) {
 
     /* The core chdirs to its own directory, so a relative sram path would land
      * somewhere surprising. A cold SRAM is 32 KiB of zeroes. */
-    const char *sram_path = (argc > 2) ? argv[2] : "jj.srm";
+    const char *sram_path = sram_opt ? sram_opt : "jj.srm";
     size_t sram_capacity = simcity_recomp_sram_size();
     size_t sram_size = 0;
     uint8_t *sram = read_file(sram_path, &sram_size);
@@ -171,6 +299,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "core refused the ROM: %s\n", err);
         return 1;
     }
+    g_sram_path = sram_path;
+    g_inst = inst;
+    g_sram_size = sram_capacity;
     if (sram && sram_size) {
         char sram_err[256] = {0};
         if (!simcity_recomp_sram_load(inst, sram, sram_size,
@@ -186,6 +317,21 @@ int main(int argc, char **argv) {
     fprintf(stderr,
             "keys: arrows/WASD = d-pad  Z=A X=B C=X V=Y  Q=L E=R  "
             "Enter=Start Shift=Select  Esc=quit\n");
+    fprintf(stderr, "save: %s (written automatically once the game dirties it)\n",
+            sram_path);
+    /* Autosave cadence. Periodic rather than exit-only, because an exit-only
+     * save is lost to a closed terminal, a kill, or a crash - and the one thing
+     * we need from this frontend is a save that survives whatever happens next. */
+    unsigned autosave = 600u;
+    {
+        const char *e = getenv("JJSAVE");
+        for (int i = 1; i < argc; i++)
+            if (!strcmp(argv[i], "--save") && i + 1 < argc) e = argv[i + 1];
+        if (e) {
+            int v = atoi(e);
+            if (v > 0) autosave = (unsigned)v;
+        }
+    }
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
@@ -236,8 +382,10 @@ int main(int argc, char **argv) {
 
         /* advance_streamed lets us drain PCM during a long frame, which is what
          * keeps the audio from stuttering on the heavy frames. */
+        uint16_t mask = script_path ? script_mask(frames) : g_input_mask;
+
         SimCityRecompFrameResult res;
-        if (!simcity_recomp_advance_streamed(inst, g_input_mask, 1u,
+        if (!simcity_recomp_advance_streamed(inst, mask, 1u,
                                              NULL, NULL, &res)) {
             fprintf(stderr, "core failed: %s\n",
                     simcity_recomp_last_error(inst));
@@ -277,6 +425,8 @@ int main(int argc, char **argv) {
             SDL_RenderPresent(ren);
         }
 
+        if ((frames % autosave) == 0) save_sram_if_dirty(1);
+
         if ((frames % 600) == 0) {
             fprintf(stderr, "frame %llu  clock %llu  insns %llu\n",
                     (unsigned long long)frames,
@@ -286,15 +436,15 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (sram && simcity_recomp_sram_dirty(inst)) {
-        /* Only rewrite the file when the core says the save changed, so a clean
-         * exit does not churn the mtime of a save the player did not touch. */
-        if (!simcity_recomp_sram_copy(inst, sram, sram_capacity)) {
-            FILE *f = fopen(sram_path, "wb");
-            if (f) { fwrite(sram, 1, sram_capacity, f); fclose(f); }
-            fprintf(stderr, "SRAM written: %s\n", sram_path);
-        }
+    if (!save_sram_if_dirty(1)) {
+        /* Say which of the two reasons it was, because "no save" from a
+         * session that reached a city is confusing and "no save" from a
+         * session on the title screen is expected. */
+        fprintf(stderr, simcity_recomp_sram_dirty(inst)
+                ? "SRAM dirty but the write failed: %s\n" : "SRAM unchanged - nothing written\n",
+                sram_path);
     }
+    (void)sram;
 
     if (dev) SDL_CloseAudioDevice(dev);
     SDL_DestroyTexture(tex);
