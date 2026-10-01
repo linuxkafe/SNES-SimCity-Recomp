@@ -2426,3 +2426,120 @@ O que resta, e é o que eu proporia a seguir:
    Se esse log trouxesse PC ou um trace de blocos, teríamos a transferência de
    entrada vista de lado, sem tocar no código deles. **É o teste mais barato que
    resta e ninguém o tentou.**
+
+---
+
+## 2026-10-01 (j) — a causa é o nosso recompilador, e eu fechei a fonte cedo demais
+
+O agente fez o que eu não fiz: leu o código do peer e comparou **quatro
+decisões de implementação**, não o comportamento. Trouxe a resposta.
+
+### 1. COP — a causa
+
+O peer compila **685 sítios COP** como frames de interrupção completas. Nós
+**não descodificamos COP de todo**.
+
+```python
+# recompiler/snes65816.py:483-485
+if insn.mnem in ('BRK','COP'): return False
+# comentário: "BRK or COP in game code is almost certainly data."
+```
+
+```python
+# recompiler/v2/program_analysis.py:298-300
+# qualquer grafo de descodificação com BRK/COP leva structural_poison, e
+# summarize_decode_graph diz (docstring :279-283) que fica "reachable via LLE,
+# but none of its speculative outgoing demands are propagated"
+```
+
+**A parte fatal é a segunda.** A função envenenada não é só deixada de fora — as
+suas exigências de saída são suprimidas, por isso **toda a subárvore despachada
+por COP fica invisível à análise de alcançabilidade**.
+
+A consequência é mensurável: `src/gen/dispatch_v2.c` **não tem entrada para
+`0x038026`**. O peer tem contexto compilado para esse endereço exacto
+(`generated/v34-shards/sc_v34_group_000E0.c:124`).
+
+E não é caso de canto. O mecanismo de chamadas entre banks do jogo **inteiro**
+passa por COP: `$00:8211` despacha com `JSR ($8223,X)` sobre uma tabela de onze
+palavras em `$00:8223` (verificada nos bytes do ROM:
+`930D 86A4 8EA9 8E43 8E75 930D 930D 9479 90DD 8F82 86C8`). Três dessas entradas
+— `$008E43`, `$008E75`, `$008F82` — estão entre os onze nós
+`cop_at_*` do nosso manifesto.
+
+**O CPU está correcto.** `interp816.c:1036-1047` e a frame do peer concordam byte
+a byte: mesma ordem de push, mesmo vector `$00:FFE4`, assinatura consumida e não
+empilhada, I posto, D limpo, PB a zero. **O bug é na análise estática que decide
+que o CPU nunca vê COP** — portanto a correcção é no recompilador, não no
+emulador.
+
+Isto também explica, de passagem, porque é que `recomp/bank00.cfg:1227` tem uma
+directiva `indirect_dispatch 821E 11 idx:X` **correcta, verificada contra os
+bytes, e medida como inerte**: o `cop_at_*` nomeia um COP *dentro* de cada função
+envenenada, não o sítio do dispatch.
+
+### 2. O sinal de quiescência que o frame driver nunca consome
+
+```c
+/* interp_bridge.c:628-637 */
+/* The last yield was a quiescent read-only spin ... the frame driver needs to
+ * distinguish it from IRQ/deadline returns so it can deliver the vblank
+ * NMI to a blocked game the same way it does after a WAI. */
+int interp_bridge_lle_took_quiescent(void) { ... }
+```
+
+**Esta função nunca é chamada.** Dois acenos em todo o repositório: a definição e
+a declaração. O loop de slices em `src/game_rtl.c:236-277` verifica
+`interp_bridge_lle_took_wai()` (`:275`) e mais nada.
+
+A espera de VBlank do guest é um spin de leitura em `$00:9313`. O detector
+dispara, o sinal é deixado cair, e o loop re-entra no guest até 64 vezes com o
+mesmo deadline. O peer **não tem fronteira de frame no host**: o frame acaba
+quando o PPU cruza a scanline 225, e um guest bloqueado desbloqueia-se a si
+próprio porque as suas instruções continuam a avançar o feixe.
+
+### 3. NMI sem retorno arquitectural
+
+| | nosso | peer |
+|---|---|---|
+| entrega | uma vez por frame, antes do guest correr | in-band, verificada antes e depois de **cada** instrução |
+| frame | empurrada num *estático do host*, `g_resume_pc` | empurrada no PC real do guest |
+| retorno | `S/D/PB/DB` e resume PC reescritos por decreto (`:197-202`) | o `RTI` do handler restaura e continua |
+| `RTI` no AOT | descarta PC e PB restaurados (`bank00_v2.c:371-376`) | pop P, `c->pc=`, `c->pbr=`, continua |
+
+Afasta-se, mas **degradar não é congelar**, e o agente não afirma que explains.
+
+### 4. WAI — irrelevante, verificado
+
+O peer nunca executa `0xCB` na rota certificada, e o nosso `src/gen/` emite zero
+sítios WAI. Não discordam; não há nada com que discordar.
+
+### A disciplina que nos falta: rota certificada
+
+O peer tem **uma** política, aplicada uniformemente: `sc_v11_fail` marca
+`route_failed`, regista o endereço e uma string com `M=`, `X=`, `E=`, e devolve
+zero. Não há fallback. As recusas são o interessante: 685 delas são
+*"emulation-mode COP is outside the certified route"*, e existem **porque ele
+provou por construção que o guest nunca toma COP com E=1**. Os manifestos tornam
+isto auditável (`SC-V36-CLOSURE-GUARD-MANIFEST.json` afirma
+`interpreter_fallback=false`).
+
+Nós temos o vocabulário e não a execução. A nossa resposta a "não conheço este
+contexto" é `interp_tier_dispatch` (`interp_bridge.c:2847`): correr os bytes
+reais e continuar, registando a lacuna num anel para promoção posterior. **É a
+política oposta** — converte cada falha de análise numa continuação silenciosa.
+
+### O erro de método, nomeado
+
+Enquadrei o peer como um **instrumento** opaco — a API pública não exporta PC, e
+isso é medido — e concluí que não servia, sem considerar a rota de **revisão de
+código**. Doze commits de exclusões estáticas ficaram à espera de uma revisão de
+quatro decisões de implementação que levava uma hora de leitura.
+
+O padrão é o de sempre, uma vez mais: **testei uma coisa, ela não mexeu, e
+generalizei.** Mas desta vez a generalização foi "esta fonte não tem nada a
+oferecer", que é a forma mais dispendiosa do erro — porque fecha a porta em vez
+de a trancar.
+
+**A correcção é no `recompiler`, não no `src/`.** É a primeira vez que a causa é
+nossa e é nossa de uma forma que se pode ler no código.

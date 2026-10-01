@@ -1,0 +1,248 @@
+# Claims register — what the repo currently asserts, and what is known to be wrong
+
+Created 2026-10-01 at `ec4cabe`. Purpose: `docs/RE_CITY_FREEZE.md` retracts its
+own errors *in place*, which is correct practice but does not reach a reader who
+arrives at a different file. This file is the index. It lists every claim in the
+repo's tracked docs and scripts that is retracted, superseded, or unverified, and
+says where the retraction lives.
+
+Status vocabulary used throughout:
+
+| Status | Meaning |
+|---|---|
+| **MEASURED** | an artifact exists in the repo; the number is reproducible |
+| **CLAIMED** | asserted in prose; no artifact a reader can re-run |
+| **RETRACTED** | asserted somewhere and known false |
+| **SUPERSEDED** | was true, replaced by a later measurement |
+| **UNVERIFIED** | cannot be checked cheaply; explicitly not confirmed |
+
+---
+
+## 1. Corrected in place, but only in `RE_CITY_FREEZE.md`
+
+These eight are the user's own retractions. `RE_CITY_FREEZE.md` handles them well.
+None of them is corrected in the file a reader is most likely to open.
+
+| # | Retracted claim | Retraction lives in | Still asserted in |
+|---|---|---|---|
+| 1 | `$0B51` "stays 0" — retracted *then* re-asserted as a free-running mod-4 counter, both wrong | `RE_CITY_FREEZE.md` 2026-10-01 (g) | — (README:61 now correct) |
+| 2 | `$02BF` is a pause flag (written once in the whole ROM) | `RE_CITY_FREEZE.md` 2026-09-30 | README:138 — **correctly says "not a pause flag"** ✅ |
+| 3 | `$0B53=0` / `$0B55=0` means "1900 January" — `$0B53` is the absolute year, 0 means **no city** | `RE_CITY_FREEZE.md` 2026-09-30 | — |
+| 4 | "The naming screen needs a mouse" — the d-pad moves the cursor, B confirms | `RE_CITY_FREEZE.md` 2026-09-30 | README:95 ✅ · ROADMAP:86 ✅ |
+| 5 | `$0B12` is the sharpest lead — it is `$00` across all 337 peer dumps | `RE_CITY_FREEZE.md` 2026-10-01 (g) | README:132 — **correctly retracted** ✅ |
+| 6 | `CODE_008061` / `CODE_00825F` never run — false for the keyboard route, where `$1F7D..$1F7F = 00 80 03` | `RE_CITY_FREEZE.md` 2026-10-01 | **README:88 still asserts "`CODE_008061` demonstrably does not run"** ❌ · **scripts/clock-gate.sh:273** ❌ |
+| 7 | `JSL ($1F7A)` at ROM `0x76DE9` — the scanner matched the operand without checking the opcode; **zero** occurrences of `FC 7A 1F` | `RE_CITY_FREEZE.md` 2026-09-30 | — |
+| 8 | "Load average 8–10" — `/proc/loadavg`'s `8/1433` is running/total; real loadavg was 2.44 | — | T061 / kanban:30 still narrates "load average 8.9 em 8 cores" as the contamination cause ⚠️ |
+
+Items 2, 4 and 5 have reached the reader. Items 1, 3, 7 are only in
+`RE_CITY_FREEZE.md`. **Items 6 and 8 are still live somewhere a reader will hit
+them.**
+
+---
+
+## 2. Retracted causes still asserted by `make clock` itself
+
+`scripts/clock-gate.sh` is the gate. Its failure text is the most-read prose in
+the project, and it is **two generations out of date**.
+
+`scripts/clock-gate.sh:262-278` prints, under "What is established":
+
+- "the main loop at `$00804D` branches on vblank-done token `$0012`"
+- "`$0012` is written in exactly one place in the whole ROM — the tail of the
+  round-robin scheduler `CODE_03D283`"
+- "Measured 0 in 13 of 13 frame-boundary samples, so the per-vblank body
+  `CODE_008061` never runs"
+- "So the gate is `$0012`, and `$0012` waits on the scheduler loop at
+  `CODE_03D287` exiting, which needs bit 7 of `$0014`."
+
+All four lines are superseded. The current measured position is that `$0B51` is
+`0000` at every sample and `INC.w $0B51` executes **zero** times, and that the
+tick routine's block `$03:8000-$03:81FF` has no external direct edge. The gate's
+own message asserts a specific cause that has been ruled out, and it does so in
+the section labelled "established".
+
+It also frames the symptom as "The city loaded … and then **stopped** simulating"
+and predicts "controller ignored". The city never simulates; the controller is
+not what is being measured. A gate that reports a wrong cause is worse than a
+gate that reports none — it teaches the next reader the answer.
+
+**Also wrong, same file family:** `scripts/cross-load-peer-save.sh:7` still says
+"29 WRAM bytes move in 3600 frames"; the current figure is **53 WRAM addresses
+across 30,000 frames**. Its header also still asserts the `$C9 & #$9000` gating
+`INC $14` chain, which is the retracted-generation diagnosis.
+
+---
+
+## 3. Performance numbers that are wrong in four places
+
+`aes/tickets/T061`, `README.md:179`, `docs/ROADMAP.md:83` and
+`scripts/perf-gate.sh:41` all carry:
+
+> Deck `guest` **2.45 ms**/frame (~15% of the 16.67 ms budget);
+> `upload-present` **8.13 ms** — more than the whole guest;
+> therefore **the emulated 65816 is not the bottleneck**.
+
+The measured Deck figures are **guest 4.511 ms**, **upload-present 6.540 ms**,
+**deadline wait 5.916 ms**.
+
+Three consequences, in ascending order of seriousness:
+
+1. `guest` is 27% of budget, not 15%.
+2. `4.511 + 6.540 + 5.916 = 16.97 ms`, which **exceeds** the 16.67 ms budget.
+   The frame is oversubscribed on the Deck. The 60.05 fps reading is
+   vsync-masked and there is **no headroom at all** — which `perf-gate.sh`'s own
+   comment already half-admits ("vsync-capped to 60, therefore the fps shows no
+   headroom whatsoever"), but then cites `guest` ms as the number that *does*
+   show headroom. It does not, in combination.
+3. **"The 65816 is not the bottleneck" is UNPROVEN.** It rested on guest being
+   2.45 ms against a large `upload-present`. At 4.511 vs 6.540 the ratio is
+   1.45×, not 3.3×, and the total does not fit in the budget. ROADMAP:83's
+   "the obvious next lever on performance" is correspondingly weaker than stated.
+
+`make perf` **PASSing at 60.05 fps against a threshold of 50 therefore proves
+nothing about headroom**, exactly like the other two green gates prove nothing
+about the city.
+
+---
+
+## 4. `scripts/cross-load-peer-save.sh` is a trap
+
+The script is **known impossible**: the 32 KiB battery SRAM does not carry the
+city (32746 bytes of `0xFF` around `"SIM"`; identical md5 from a session at the
+naming screen and from one running JAN to MAR).
+
+The script has **no dead-end banner, no deprecation note, and no exit guard**.
+It is executable, well-written, plausible, and its header still argues the case
+for why the experiment *should* work. Nothing in it tells the next reader it
+cannot. The commit log shows the author already knew (`0c76a37 clock: the
+cross-load cannot work, and I designed it on an unchecked assumption`) — the
+knowledge went into a commit message instead of the artifact.
+
+---
+
+## 5. `study/peer-linux/jjwin.c` — the header comment contradicts the code
+
+The comment at `jjwin.c:69` says:
+
+```
+ *   press <button> <frames>   hold a button for N frames
+```
+
+The code does not do that. `script_mask()` holds for exactly five frames:
+
+```c
+if (g_press[i].at <= frame && frame < g_press[i].at + 5u)
+```
+
+and the parser advances with `at += n`, so **`n` is the gap to the next press**,
+not the hold length. A long hold is not expressible.
+
+This is worse than a usability gap: the documentation asserts the opposite of the
+behaviour, so a reader who trusts it writes `press a 200` expecting a 200-frame
+hold and gets a 5-frame tap 200 frames later. That is a different experiment,
+producing a different (wrong) result, with no error.
+
+---
+
+## 6. The peer cannot answer the open question — measured, not suspected
+
+`simcity_recomp_log_open` exists in the peer's public API. What it emits has now
+been enumerated from the source: **ten event tags, none of which carries a PC.**
+
+```
+create  log-open  log-close  cold-reset-ready  frame
+renderer-warning  route-failed  reset-failed  sram-load  destroy
+```
+
+The `frame` event carries `frame`, `cpu_instructions`, `master_clock`. The
+exported surface is 37 `simcity_recomp_*` symbols; the only PC anywhere in the
+public header is `current_smp_pc`, which belongs to the audio DSP, not the 65816.
+**There is no PC trace, no block trace, and no execution log.**
+
+The item was filed as "cheapest remaining test of the open question". It is now
+a **measured dead end**. Our own build is the only remaining instrument.
+
+---
+
+## 7. The peer repository declares no licence
+
+`/tmp/opencode/peerstudy` (`github.com/Junior-Jones/SimCity-SNES-Static-Recomp`,
+HEAD `454eb0a`) has no `LICENSE`, `LICENCE`, `COPYING` or `NOTICE` file. The
+only licence-adjacent file is `THIRD-PARTY-NOTICES.txt`. Its README says
+Snes9x-derived S-SMP semantics "remain under their original license" — which
+identifies a *third-party* obligation and says nothing about the peer's own
+terms.
+
+We hold a private clone and `study/peer-linux/` links against their public API.
+**This needs an owner decision, not a README footnote.** Tracked as T069.
+
+---
+
+## 8. Address labels in the investigation are unverified — byte-pattern claims are safe
+
+This is a finding of this review, not a retraction, and it applies to *any*
+address the project has asserted from a ROM file offset.
+
+The project's ROM→CPU address translation could not be confirmed. Two spot
+checks contradict the obvious mapping:
+
+- The bytes at **file offset `0x930D`** are
+  `22 11 a0 31 06 11 84 31 26 11 af 30 05 00 b0 31 …` — a dispatch table, not
+  the `STZ $00B9 / INC / LDA / BEQ / RTS` spinlock that
+  `recomp/bank00.cfg:44` describes at `exclude_range 0x930D 0x9318`.
+- The byte sequence `02 00 28 6B` — the claim for `CODE_008206` — occurs exactly
+  once, at **file offset `0x20C`**, not at any offset consistent with the
+  `+0x10000` relationship that *does* hold for the `$03:8026` / `$03:C77E`
+  labels.
+
+Consequences, and they are asymmetric:
+
+- **Safe.** Every claim of the form "this byte sequence occurs *exactly once* in
+  524,288 bytes" is mapping-independent and was re-verified in this session
+  (§9). These are the load-bearing claims.
+- **Unsafe.** Every claim of the form "the instruction at *CPU address* X is Y"
+  depends on a translation that nobody has written down. Tracked as T071.
+  This must be pinned before any tooling consumes these offsets, and before any
+  force_lle / exclude_range / pokefor target derived from them is trusted.
+
+---
+
+## 9. Re-verified in this session (2026-10-01, at `ec4cabe`)
+
+Method: direct byte search over `SimCity (USA).sfc` (524,288 bytes) and direct
+reads of the working tree. No game run.
+
+| Claim | Result |
+|---|---|
+| `EE 51 0B` (`INC.w $0B51`) occurs exactly once, at file offset `0x18026` | ✅ **confirmed** |
+| `9C 51 0B` (`STZ.w $0B51`) occurs exactly once, at `0x1c77e`, inside a run of `STZ.w` state clears (`9c cb 0c / 9c 99 01 / 9c 97 01 / 9c 01 0b / 9c 51 0b …`) | ✅ **confirmed**, and it is genuinely an initialiser |
+| one writer of `$0B51` | ⚠️ **partly wrong**: `8F 51 0B` (`STA.w`) occurs **zero** times. The single writer is `8D 51 0B` = **`STA.l`**, at `0x1c9e3`. The address and the uniqueness are right; the mnemonic form is wrong. Same class as retraction #7. |
+| `FC 7A 1F` (`JSL ($1F7A)`) occurs zero times | ✅ **confirmed retracted** |
+| `02 00 28 6B` occurs exactly once, at file offset `0x20C` | ✅ sequence confirmed · ❌ **address label unconfirmed**, see §8 |
+| `_canonical_wait_loop` is back to `LDA abs / BNE -5` (`AD … / D0 FB`) | ✅ the `LDA dp / BEQ -3` widening **was reverted** |
+| `src/game_rtl.c` contains only `interp_bridge_run_until_quiescent`; none of the 12 recent `clock:` commits touch it | ✅ **the reorder and both `interp_bridge_run_loop` attempts were reverted** |
+| `interp_bridge_run_scheduler` and `interp_bridge_run_loop` exist | ✅ in `snesrecomp/runner/src/snes/interp_bridge.h` — **T062's prescription is buildable**, and is *not* the same function as the two that livelocked |
+| `recomp/bank00.cfg:44` contains `exclude_range 0x930D 0x9318` | ✅ T062 AC #1 satisfied |
+| peer public API carries no PC or block trace | ✅ **confirmed dead end**, §6 |
+| peer repository has no licence file | ✅ **confirmed**, §7 |
+| `aes/` and `.aes/` are in `.gitignore` | ⚠️ **the entire ticket queue is untracked and has never been committed** |
+
+---
+
+## 10. Not verified — do not read these as measured
+
+Flagged because they are load-bearing and no reader can currently re-run them:
+
+- All WRAM sampling figures (`$0B51=0000`, `$0DC7=0000`, `$0CE7=00`,
+  `$0B53=076C`, `$0B55=0001`, "53 addresses change across 30,000 frames").
+  **CLAIMED.** No probe output is committed.
+- All peer reference figures (`$0B51` +1 per ~200 frames, month =
+  `(($0B51 >> 2) mod 12) + 1`, `$0406` +100 per 100 frames, "102,158 addresses").
+  **CLAIMED.** The peer dumps live in an untracked directory.
+- The Deck measurements (4.511 / 6.540 / 5.916 ms). **CLAIMED.**
+- The 32746-bytes-of-`0xFF` SRAM result. **CLAIMED.**
+- Asar rebuilds to md5 `23715fc7ef700b3999384d5be20f4db5`. **CLAIMED.**
+
+The pattern is consistent and worth naming: every *byte-level* claim in this
+project has survived re-verification, and every *runtime* claim is currently
+unreproducible by a reader. See T074.
