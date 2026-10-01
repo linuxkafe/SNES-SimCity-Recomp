@@ -137,6 +137,8 @@ static uint16_t script_mask(unsigned frame) {
  * says the save actually changed. */
 static char g_sram_buf[4200];
 static const char *g_sram_path;
+/* Directory holding this executable, resolved once from /proc/self/exe. */
+static char g_exe_dir[4096];
 
 /* The default save location must be ABSOLUTE, anchored to this executable.
  *
@@ -164,10 +166,12 @@ static const char *resolve_sram_path(const char *opt) {
         char *slash = strrchr(exe, '/');
         if (slash) {
             *slash = 0;
+            snprintf(g_exe_dir, sizeof g_exe_dir, "%s", exe);
             snprintf(g_sram_buf, sizeof g_sram_buf, "%s/jj.srm", exe);
             return g_sram_buf;
         }
     }
+    snprintf(g_exe_dir, sizeof g_exe_dir, ".");
     snprintf(g_sram_buf, sizeof g_sram_buf, "jj.srm");
     return g_sram_buf;
 }
@@ -367,7 +371,8 @@ int main(int argc, char **argv) {
      * save is lost to a closed terminal, a kill, or a crash - and the one thing
      * we need from this frontend is a save that survives whatever happens next. */
     if (wram_every)
-        fprintf(stderr, "WRAM trace every %u frames -> jjwram.f*.bin\n", wram_every);
+        fprintf(stderr, "WRAM trace every %u frames -> %s/jjwram.f*.bin\n",
+                wram_every, g_exe_dir);
 
     unsigned autosave = 600u;
     {
@@ -499,9 +504,14 @@ int main(int argc, char **argv) {
          * whether something moved. This is how a working clock is compared with
          * a frozen one. */
         if (wram_every && (frames % wram_every) == 0) {
-            char path[512];
-            snprintf(path, sizeof path, "jjwram.f%llu.bin",
-                     (unsigned long long)frames);
+            /* Anchored to the executable, for the same reason the save is: a
+             * relative path lands in whatever directory the player happened to
+             * be standing in, which is how a 128 KiB dump ends up in the middle
+             * of a git working tree. Measured, not assumed - this was writing
+             * into the repository root. */
+            char path[4400];
+            snprintf(path, sizeof path, "%s/jjwram.f%llu.bin",
+                     g_exe_dir, (unsigned long long)frames);
             FILE *f = fopen(path, "wb");
             if (f) {
                 uint8_t *w = (uint8_t *)malloc(131072u);

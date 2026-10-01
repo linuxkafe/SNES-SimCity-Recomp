@@ -42,3 +42,10 @@ Testing/
 .docker/saves/
 last_run_report.json
 states/
+
+# Peer study frontend artefacts. The frontend now anchors these to the
+# executable's own directory, but a relative path once wrote a 128 KiB WRAM dump
+# into the repository root, so ignore them defensively.
+jjwram.*.bin
+jj.srm
+jj.srm.bak

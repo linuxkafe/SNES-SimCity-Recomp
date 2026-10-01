@@ -64,14 +64,32 @@ SCRIPT="${SCRIPT:-}"
 # exactly like "the windowed build is still headless".
 MODE=play
 SRAM_ARG=""
+# Everything after a bare -- goes to the frontend, so the natural invocation
+#
+#   build-peer-linux.sh -- --date --wram 300
+#
+# reaches jjwin instead of dying on an unknown option. Without this the only way
+# to pass a frontend flag was to run the frontend by hand, after the script had
+# already built it, which is two commands where one should do.
+FRONTEND_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    --) shift; FRONTEND_ARGS=("$@"); break ;;
     --headless|--measure) MODE=headless; shift ;;
     --sram) SRAM_ARG="$2"; shift 2 ;;
     -h|--help)
       sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//; $d'
+      printf '\nusage: %s [--headless] [--sram <path>] [--] [frontend args...]\n' "$0"
+      printf '  --headless          measure instead of playing\n'
+      printf '  --sram <path>       use this 32 KiB save\n'
+      printf '  -- <args...>        pass the rest to jjwin (--rom --date --wram ...)\n'
       exit 0 ;;
-    *) printf 'unknown argument: %s (try --help)\n' "$1" >&2; exit 2 ;;
+    *) printf 'unknown argument: %s\n' "$1" >&2
+       printf 'This script takes --headless, --sram and --help. To pass options to the\n' >&2
+       printf 'windowed frontend, put them after a bare --:\n\n' >&2
+       printf '  %s -- --rom "$PWD/SimCity (USA).sfc" --date --wram 300\n\n' "$0" >&2
+       printf 'Or just run the script with no arguments to build and play.\n' >&2
+       exit 2 ;;
   esac
 done
 
@@ -167,10 +185,18 @@ if [ "$MODE" = play ]; then
   say "launching the windowed frontend"
   # $SRAM_ARG is passed through only when given, so the frontend applies its
   # own default rather than being handed an empty string it would try to open.
-  if [ -n "$SRAM_ARG" ]; then
-    exec "$RUN/jjwin" "$ROM" "$SRAM_ARG"
+  # Any --rom the caller passed wins over our default, so the path they typed is
+  # the path that gets opened rather than one we guessed.
+  has_rom=0
+  for a in ${FRONTEND_ARGS+"${FRONTEND_ARGS[@]}"}; do
+    [ "$a" = "--rom" ] && has_rom=1
+  done
+  if [ "$has_rom" = 1 ]; then
+    exec "$RUN/jjwin" ${FRONTEND_ARGS+"${FRONTEND_ARGS[@]}"}
+  elif [ -n "$SRAM_ARG" ]; then
+    exec "$RUN/jjwin" --rom "$ROM" --sram "$SRAM_ARG" ${FRONTEND_ARGS+"${FRONTEND_ARGS[@]}"}
   else
-    exec "$RUN/jjwin" "$ROM"
+    exec "$RUN/jjwin" --rom "$ROM" ${FRONTEND_ARGS+"${FRONTEND_ARGS[@]}"}
   fi
 fi
 
