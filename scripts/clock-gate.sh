@@ -266,9 +266,15 @@ if [ "$fail" -ne 0 ]; then
   printf "  The cursor animating is NOT evidence the game is alive - OAM writes\n"
   printf "  continue while the simulation does not. That is what made this look\n"
   printf "  healthy for weeks.\n\n"
-  printf "  See docs/RE_CITY_FREEZE.md. Root cause recorded there: the AOT-compiled\n"
-  printf "  wait loop at \$930D clears vblank token \$00B9 in the same frame the NMI\n"
-  printf "  sets it, so the guest never leaves the spinlock.\n"
+  printf "  See docs/RE_CITY_FREEZE.md for the measurements. What is established:\n"
+  printf "  the main loop at \$00804D branches on vblank-done token \$0012, and\n"
+  printf "  \$0012 is written in exactly one place in the whole ROM - the tail of\n"
+  printf "  the round-robin scheduler CODE_03D283. Measured 0 in 13 of 13\n"
+  printf "  frame-boundary samples, so the per-vblank body CODE_008061 never\n"
+  printf "  runs. Forcing \$0012=1 with pokefor makes it run immediately:\n"
+  printf "  \$1F7D..\$1F7F become 00 80 03, which is what CODE_00825F writes.\n"
+  printf "  So the gate is \$0012, and \$0012 waits on the scheduler loop at\n"
+  printf "  CODE_03D287 exiting, which needs bit 7 of \$0014. Open question.\n"
   exit 1
 fi
 
