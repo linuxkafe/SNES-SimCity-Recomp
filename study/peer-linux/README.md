@@ -157,3 +157,39 @@ design. "It stays 0" is not evidence of a frozen clock. Use `$0B53`/`$0B55`.
 
 For how these fields were found, and for the full chain from the stalled
 scheduler to the frozen date, see `docs/RE_CITY_FREEZE.md`.
+
+## Measured: how the naming-screen cursor moves
+
+Mapped by differencing consecutive rendered frames. The screen is static except
+the hand, so the bounding box of what changed **is** the hand position. No
+guessing, no reading the disassembly.
+
+| press | effect |
+|---|---|
+| `right` | walks one row, 10 positions, `x = 56, 72, 88 … 200`, step 16, then wraps to 56 |
+| `down` | moves down one row; from the QWERTY row it lands on `y = 175`, the `Z … END` row |
+| `up` | moves up a row |
+
+The `END` key sits at the right of the `Z … END` row, `x ≈ 200, y = 175`. A
+reliable route to put the hand on it is:
+
+```
+press down   1        # to the Z..END row
+press right  8        # walk to END
+```
+
+### What is still unknown
+
+**Which button confirms.** `A` on `END` does not leave the screen, and `A` on a
+letter does not type into the field — measured, with frames rendered either side
+of the press. Tried and ruled out: `A` on a letter, `A` on `END`, and `A` on
+`END` after walking back onto a letter.
+
+The name field reads `11111▁___`, which may be five characters already typed
+rather than a prompt, so the refusal may be "name already set" rather than
+"confirms with a different button". Not distinguished.
+
+This is the last step to reaching a city from the keyboard, and it is the reason
+`scripts/cross-load-peer-save.sh` has not been run yet: it needs a save from a
+peer session that reached a running city, and the only one we have is the
+player's.
