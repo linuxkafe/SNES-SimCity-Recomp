@@ -55,8 +55,26 @@ FRAMES="${FRAMES:-5000}"
 # Absolute path. The peer chdirs to its own executable directory, so a relative
 # ROM path will not resolve.
 ROM="${ROM:-$PWD/SimCity (USA).sfc}"
-# Optional input script. Leave empty to let it sit on the title screen.
+# Optional input script, for the measuring run only.
 SCRIPT="${SCRIPT:-}"
+
+# Positional arguments are honoured, because silently ignoring them is how
+# "study/peer-linux/build-peer-linux.sh /path/to/jjwin /path/to/rom" ended up
+# building a windowed frontend and then running the headless one, which reads
+# exactly like "the windowed build is still headless".
+MODE=play
+SRAM_ARG=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --headless|--measure) MODE=headless; shift ;;
+    --sram) SRAM_ARG="$2"; shift 2 ;;
+    -h|--help)
+      sed -n '2,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//; $d'
+      exit 0 ;;
+    *) printf 'unknown argument: %s (try --help)\n' "$1" >&2; exit 2 ;;
+  esac
+done
+
 
 say() { printf '\n=== %s\n' "$*"; }
 
@@ -130,14 +148,40 @@ else
 fi
 
 # ------------------------------------------------------------------ 4. run
-[ -f "$ROM" ] || { echo "ROM not found: $ROM" >&2; exit 1; }
+[ -f "$ROM" ] || {
+  echo "ROM not found: $ROM" >&2
+  echo "The path must be absolute. If you passed one relative to where you" >&2
+  echo "typed the command, the core will not find it: it chdirs to its own" >&2
+  echo "executable directory before opening anything." >&2
+  exit 1
+}
+
+if [ "$MODE" = play ]; then
+  # ------------------------------------------------------------ 4a. play
+  if [ ! -x "$RUN/jjwin" ]; then
+    echo "the windowed frontend was not built, so there is nothing to play." >&2
+    echo "It needs SDL2 development headers: install libsdl2-dev, then re-run." >&2
+    echo "For measuring instead, re-run with --headless." >&2
+    exit 1
+  fi
+  say "launching the windowed frontend"
+  # $SRAM_ARG is passed through only when given, so the frontend applies its
+  # own default rather than being handed an empty string it would try to open.
+  if [ -n "$SRAM_ARG" ]; then
+    exec "$RUN/jjwin" "$ROM" "$SRAM_ARG"
+  else
+    exec "$RUN/jjwin" "$ROM"
+  fi
+fi
+
+# --------------------------------------------------------- 4b. measure
 mkdir -p "$OUT"
 # A 32 KiB all-zero SRAM. The game refuses to start without one, and an absent
 # path is reported as "srm_in bad" rather than being treated as cold boot.
 SRM="$RUN/cold.srm"
 [ -f "$SRM" ] || head -c 32768 /dev/zero > "$SRM"
 
-say "running $FRAMES frames"
+say "measuring: $FRAMES frames, no input unless SCRIPT is set"
 "$RUN/jjhead" "$ROM" "$SRM" "$RUN/srm.out" "$FRAMES" "${SCRIPT:--}" "$OUT"
 
 # ---------------------------------------------------------------- 5. verdict
@@ -145,13 +189,14 @@ say "what to look at"
 cat <<'EOF'
   $OUT/frame.f*.bgra   rendered frames, 256x210 BGRA (convert to PNG to view)
   $OUT/timeline.log    frame, master_clock, insns, $12, $B9, $C7, $0B51,
-                       $0B53, $0B55, $0B4D, $0B55
+                       $0B53, $0B55, $0B4D
   $OUT/wram.f*.bin     full 128 KiB WRAM snapshots
 
 Read $0B53/$0B55 as the date. $0B53=0 / $0B55=0 is 1900 JAN - that is the
-encoding, not "unset". A running city moves month to month roughly every 1900
-frames.
+encoding, not "unset". A city that is actually simulating moves month to month
+roughly every 1900 frames.
 
-If you got this far with no input, $0B55 staying 0 forever is CORRECT. The
-naming screen is mouse-gated. See the header of this script.
+With no input at all the game sits on the title screen and $0B55 stays 0
+forever. That is correct, not a failure. To drive it, pass SCRIPT= pointing at
+an input script, or just drop --headless and play it.
 EOF

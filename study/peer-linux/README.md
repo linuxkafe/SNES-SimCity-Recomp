@@ -41,20 +41,41 @@ the identical core.
 
 ## Run it
 
+The default is to **play** it. Build, then the window opens:
+
 ```bash
 # from the repository root, so the ROM resolves
 study/peer-linux/build-peer-linux.sh
-
-# with our own route into a city
-study/peer-linux/build-peer-linux.sh 2>&1 | tail -20
-SCRIPT="$PWD/scripts/d_city.script" FRAMES=4000 study/peer-linux/build-peer-linux.sh
 ```
 
-Useful variables: `SRC` (reuse an existing clone), `ROOT`, `OUT`, `FRAMES`,
-`ROM`, `SCRIPT`.
+To measure instead of play:
 
-The ROM path must be **absolute** — the peer chdirs to its own executable
-directory, so a relative path will not resolve.
+```bash
+study/peer-linux/build-peer-linux.sh --headless
+SCRIPT="$PWD/scripts/d_city.script" FRAMES=4000 study/peer-linux/build-peer-linux.sh --headless
+```
+
+Other flags: `--sram <path>` to use a specific save, `--help` for the full
+rationale. Environment: `SRC` (reuse an existing clone), `ROOT`, `OUT`,
+`FRAMES`, `ROM`, `SCRIPT`.
+
+The ROM path must be **absolute** — the core chdirs to its own executable
+directory before opening anything, so a relative path will not resolve. The
+script checks this and says so rather than letting the core fail obscurely.
+
+### Positional arguments are rejected on purpose
+
+An earlier version ignored them. Running
+
+```
+build-peer-linux.sh /tmp/opencode/peers/run/jjwin "$PWD/SimCity (USA).sfc"
+```
+
+therefore built a windowed frontend and then ran the *headless* driver, which
+reads exactly like "the windowed build is still headless". It now takes
+`--headless`, `--sram` and `--help`, and anything else is an error with exit
+code 2. A build script that silently discards what you typed is worse than one
+that refuses it.
 
 ## Two gotchas that cost real time
 
