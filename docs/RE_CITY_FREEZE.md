@@ -1823,3 +1823,150 @@ lados, não uma diferença entre nós e o peer.**
   inconclusivo — não prova nada sobre o core.
 - O PC `$821C` ser constante é artefacto de *quando* tiramos o savestate, não
   uma prova de travamento. Está escrito acima para não ser mal citado.
+
+---
+
+## 2026-10-01 (b) — `$14` é uma word, e eu estava a ler o fim errado
+
+### A correcção de largura, verificada nos bytes
+
+A入口 da secção anterior estava errada, e por minha causa. O terminador do
+scheduler existe, e é `LDA.w #$8000`, não um valor com bit 7.
+
+Quatro sítios, todos na cauda das tasks:
+
+| bank:addr | offset ROM | linha da descomp. | valor |
+|---|---|---|---|
+| `03:DA9E` | `0x01DA9E` | 41925-41926 | `$8000` |
+| `03:E20F` | `0x01E20F` | 42804-42805 | `$8000` |
+| `03:E27A` | `0x01E27A` | 42864-42865 | `$8000` |
+| `03:E2C1` | `0x01E2C1` | 42901-42902 | `$8000` |
+
+Bytes crus em `0x01DA9B`:
+
+```
+A9 00 80   LDA #$8000
+85 14      STA $14
+```
+
+`85` é *sempre* dp-relativo e a largura segue M. Com `REP.b #$20` em
+`03:DA91` (M=0) isto é uma **store de 16 bits**. E o `REP.b #$20` em
+`03:D292` torna o `LDA.b $14` do laço também 16 bits, portanto o `BPL` em
+`03:D29B` testa o **bit 15**, não o bit 7 do byte baixo.
+
+A descompilação imprime `STA.b $14` com o `.b` errado. Por isso nenhum dos 14
+candidatos que eu enumerei tinha bit 7: **o valor terminador nunca tem bit 7.
+Tem bit 15.**
+
+### Os meus próprios dados confirmam — e refutam-me
+
+Re li os dumps que eu já tinha, desta vez como word:
+
+```
+frame 31-60   $0014 = $0003    bit15 = 0
+frame 70      $0014 = $FFF7    bit15 = 1
+```
+
+O `$FFF7` é a prova. Eu tinha lido `$14 = F7` como "bit 7 posto, logo o laço
+sai" e escrevi isso. **Estava errado pela mesma razão duas vezes**: o campo é
+uma word. Lido como word, `$FFF7` é negativo, e o `BPL` **não** salta — o laço
+continua, exactamente como o resto da evidência exige.
+
+Isto é a segunda vez nesta investigação que a largura do operando, e não a
+lógica, me baralhou. Registado para o próximo não perder tempo.
+
+### `DP = $0000`, não `$005E`
+
+O `DP=$005E` que eu li vinha do meu parse do savestate, com um offset de struct
+que assumi. Medido directamente, em 51.978 frames de uma corrida de cidade:
+
+```
+[fslog] f=51977 frame-end S=1FF5 PB=00 DP=0000 resume=009311
+```
+
+`DP=0000` em todas as amostras. Confirmado estaticamente: os 49 sítios `TCD` do
+ROM são frames `PHD`…`PLD` balanceados, e os únicos quatro com imediato
+absoluto são `LDA.w #$0000 / TCD`, todos no handler de NMI. **Nenhum caminho de
+código no ROM pode produzir `DP=$005E`.** Portanto `$14` é WRAM `$0014/$0015` e
+`$12` é `$0012` — os endereços que eu assumi. O meu `DP` é que estava errado.
+
+### O que bloqueia o laço, medido
+
+```
+$0012 (porta) = $0000     $0014 (word) = $0001     $00C9 = $0000
+```
+
+`$14` está em `$0001` — índice da task 1, `CODE_03D2C6`. A cauda em `03:D2F4`:
+
+```
+03:D2F4  A5 C9     LDA $C9          ; 16-bit
+03:D2F6  29 00 90  AND #$9000
+03:D2F9  F0 08     BEQ $03:D303     ; <-- TOMADO
+03:D301  E6 14     INC $14          ; nunca alcançado
+```
+
+`$C9` é uma **latch de edge do joypad**, escrita só por `STA.b $C9,x` em
+`CODE_00929B` (`$00:929E`) a partir das quatro leituras de comando. É `$0000`
+em todas as amostras, logo `AND #$9000` dá zero, o `BEQ` é tomado, e o
+`INC $14` — a única coisa que avança o round-robin — nunca corre. O índice
+re-despacha-se a si próprio para sempre.
+
+Portanto **a porta não é `$12` nem um store negativo em falta. É
+`$C9 & #$9000` em `03:D2F6` (ROM `0x01D2F6`), dentro da task 1, a controlar o
+`INC $14` em `03:D301` (ROM `0x01D301`).** A cadeia até à data congelada
+mantém-se; tem mais um elo do que eu tinha documentado — e esse elo é uma latch
+de joypad, o que explica porque a falha é total e não parcial: o scheduler é
+uma lista *sequencial* e está preso no elemento 1 de ~23.
+
+Numa corrida mais longa o mesmo mecanismo foi visto com `$14` em `$0003` durante
+40+ frames sem avançar. O índice exacto preso depende do ponto de entrada, não
+do mecanismo.
+
+### O que NÃO está resolvido, e um teste que falhou
+
+**Não sei porque é que `$C9` lê `$0000` numa cidade a correr.** Os bits `$9000`
+são os dois botões altos do joypad 1. Uma latch permanentemente limpa sugere
+que a detecção de edge em `CODE_00929B`
+(`STA.b $BF / EOR.w $011B,x / AND.b $BF / STA.b $C9,x`) não está a ver edges, ou
+`$011B,x` está a ser pré-carregado com o estado corrente do pad e o XOR
+cancela sempre. **Não medi qual das duas.**
+
+`forcepoke 00C9 0090` não serve: o poke é reescrito cada frame pela leitura do
+joypad, e `$C9` continuou `$0000` em 6 dumps até ao frame 4500. Isso é
+consistente, não contraditório — `$C9` não é uma latch que se possa manter, é
+recalculada por frame.
+
+**Teste que falhou, e falhou mal.** Tentei responde se input de joypad
+destranca o scheduler, com `press` de todos os botões dentro da cidade viva. O
+ecrã foi **a preto** e o WRAM encheu de `$48` — a sequência de input levou o
+game a um estado morto, não a um resultado. Inconclusivo, e o caminho
+óbvio é mais suave: um botão de cada vez, poucos frames, e ver `$14` mexer.
+
+### Onde isto deixa a investigação
+
+A cadeia está assim, e cada elo tem medição própria:
+
+```
+$009311  o guest espera por $B9 (NMI)          medido: $B9 = 0, $C7 a rodar
+   |
+$03D287  o laço do scheduler                    medido: $14 não avança
+   |
+$03D2F6  AND #$9000  ->  INC $14                ROM 0x01D2F6   <== A PORTA
+   |
+$03D2A3  $12 = 1                                 medido: $12 = 0 em 13/13
+   |
+$008061  corpo de vblank                        provado por pokefor: corre
+   |                                           quando $12 é forçado
+$00825F  escreve CODE_038000 em $1F7D..$1F7F    medido: 00 00 00 00 em jogo normal
+   |
+$038000  a task que incrementa o mês             medido: não corre nem com o
+   |                                           hook instalado à força
+$0B51/$0B53/$0B55                                  $0B55 nunca sai de 0
+```
+
+O elo a fechar é o de baixo: com o hook instalado à força, `CODE_038000` ainda
+não corre. E o elo de cima é o que precisa de uma explicação de *porquê*: um
+scheduler que só avança com um edge de joypad é uma coisa estranha para um
+jogo, e é o primeiro ponto desta lista que cheira a **bug nosso** e não a
+característica do ROM. `$C9` a zero pode ser o jogo a fazer a coisa certa com
+informação que nós não lhe damos.
