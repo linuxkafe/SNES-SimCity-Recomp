@@ -2173,3 +2173,98 @@ JAN**, não FEV. A tabela de meses que escrevi no `--date` do `jjwin.c` era
 
 Isto mede-se contra um HUD renderizado, que é a forma certa — ao contrário da
 tabela anterior, que foi inferida de um nome que eu próprio escrevi.
+
+---
+
+## 2026-10-01 (g) — a verdade de terreno, e duas retractações
+
+O Deck produziu o traço de WRAM do peer com uma cidade viva ao longo de 33.700
+frames e 23 meses, e o mesmo traço do nosso build. A comparação fecha a cadeia
+numa só frase.
+
+### `$0B51` é o endereço, e eu retractei a afirmação certa
+
+O peer, cidade viva:
+
+```
+$0B51  f3800=00 f4600=01 f4800=02 f5000=03 f5200=04 ... f30000=006D
+$0DC7  +7 por tick: f4600=0007 f4800=000E f5000=0015 f5200=001C f30000=005B
+$0DAD  0,1,2,...,11, depois 0 a cada Janeiro
+$0CE7  00 em JAN 1900, 01 do primeiro tick em diante, para sempre
+```
+
+**`$0B51` é um contador de 16 bits que sobe monotonicamente. NÃO é um contador
+módulo 4.**
+
+E é aqui que eu me engano duas vezes, e a segunda foi a pior:
+
+1. Afirmei primeiro que "`$0B51` fica a 0 → o tick nunca corre". **Estava certo.**
+2. Retractei isso: "é um contador livre módulo 4, lê 0 um frame em quatro por
+   desenho, logo não prova nada". **Estava errado.**
+
+Retractei a afirmação correcta. E foi a minha segunda retractação do mesmo
+endereço, em direcções opostas, o que devia ter-me dito para não tocar nele sem
+ler a rutina. A rotina está em `CODE_038016`:
+
+```
+CODE_038016:  ... JSR CODE_03ADDF
+  REP #$20
+  INC.w $0B51                 ; contador mestre, +1 por tick
+  $0DC7 += $0DC5              ; dinheiro de imposto acumulado
+  LDA.w $0B51
+  AND.w #$0003
+  BNE  CODE_0380B0            ; o mes so avanca quando (ticks & 3) == 0
+  INC.w $0B55                 ; CurrentMonthLo
+  se $0B55 == 13: $0B55 = 1; INC.w $0B53
+  $0DA9 = $0B53 - 10 ; $0DAD = $0B55 - 1 ; $0CE7 = 1
+```
+
+`AND #$0003` lê os **dois bits baixos** de um contador de 16 bits. Não é
+módulo 4 no sentido de "ciclo de 4". `$0B51` é o contador mestre da cidade.
+
+### A cadeia inteira reduz-se a um facto
+
+Nossos, cidade viva, do frame 3150 ao 30000:
+
+| | nosso | peer |
+|---|---|---|
+| `$0B51` tick | `0000` **em todas as amostras** | `0000 -> 001C -> 0033 -> 006C -> 006D` |
+| `$0DC7` imposto | `0000` sempre | `+7` por tick |
+| `$0CE7` | `00` sempre | `00 -> 01` no primeiro tick |
+| `$0DAD` | `0000` sempre | `0,1,...,11,0` a cada Janeiro |
+| `$0B55` | `0001` sempre | `01 -> 0C -> 01` |
+| `$0B53` | `076C` sempre | `076C -> 076D -> 076E` |
+
+O argumento é aritmético e não admite fuga: **com `$0B51 == 0`, `AND #$0003` dá
+zero, pelo que a PRIMEIRA execução da rotina avançaria o mês imediatamente.** E
+nunca acontece. Logo **`INC.w $0B51` executa zero vezes** — `CODE_038016` nunca é
+alcançada depois do carregamento da cidade. `$0DC7` são duas instruções depois e
+também está morta, o que é corroboração independente do mesmo bloco.
+
+O nosso build muda **53** endereços em 30.000 frames de cidade. O peer muda
+**102.158**. A nossa cidade está quase inerte.
+
+### `$0B12` era uma pista falsa — retractada
+
+O agente reportou antes que o peer punha `$0B12 = 01` numa cidade viva. **Não
+reproduz.** `$0B12` é `$00` nos 337 dumps do peer ao longo de 33.700 frames e 23
+meses, e nos 61 dumps nossos. Não aparece na rotina do tick. É um par `$0B11/$0B13`
+usado por aritmética sem relação. **A minha pista mais afiada era ruído**, e eu
+promovi-a a "lead" no README com base num único relatório sem repetir a medição.
+
+### A contradição de `$1F7C` continua, e é agora mais séria
+
+`CODE_00825F` escreve `CODE_038000` em `$1F7D..$1F7F` com `$1F7C = 0`, e é a
+única coisa que instala a task. **`$1F7A..$1F7F` é escrita-só em todo o ROM.**
+Procurei de duas maneiras:
+
+- opcodes que lêem o endereço directamente — `LDA/LDX/LDY/INC/DEC/ASL/LSR/ROR/
+  BIT` absoluto, `JMP/JML/JSR/JSL` (abs), (abs,X), (ind),Y — contra `$1F7A`,
+  `$1F7C`, `$1F7D`, `$1F7E`: **um único acerto em 512 KB**, `JSL ($1F7A)` em
+  ROM `0x76DE9`.
+- **imediatos** que carreguem o endereço para o usar como ponteiro — `LDA/LDX/
+  LDY #$1F79..$1F7F`: **nenhum**.
+
+Ou a descompilação está incompleta, ou o mecanismo não é um hook. O peer corre o
+mesmo ROM e o relógio funciona, logo o mecanismo existe. **Esta é a pergunta, e
+é a única que fica.**
