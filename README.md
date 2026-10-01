@@ -88,13 +88,33 @@ writes. In normal play those bytes are `00 00 00 00` in every sample, so
 `CODE_008061` demonstrably does not run. The open question is one link further
 down: what makes `$14` negative, which lets the scheduler loop exit.
 
-**The reference that works.** `Junior-Jones/SimCity-SNES-Static-Recomp` recompiles
-the same ROM and its clock runs — 1900 JAN to 1900 OCT across 12,000 frames. We
-drive it ourselves: `study/peer-linux/` builds its portable core on Linux and adds
-a windowed SDL2 frontend, because its own launcher is Windows-only and the core
-has no mouse. A city is reachable from the keyboard alone. At a running city the
-peer sets `$0B12 = 01`, a token this build has never been seen to set — the
-sharpest measured difference between a clock that runs and ours.
+**The reference that works, and what comparing against it proved.**
+`Junior-Jones/SimCity-SNES-Static-Recomp` recompiles the same ROM and its clock
+runs — 23 months across 33,700 frames. We drive it ourselves: `study/peer-linux/`
+builds its portable core on Linux and adds a windowed SDL2 frontend, because its
+own launcher is Windows-only and the core has no mouse. A city is reachable from
+the keyboard alone. Both cores were then traced at 100-frame intervals and
+diffed, and it reduces to a single fact.
+
+`$0B51` is the 16-bit master city tick counter. `CODE_038016` does
+`INC.w $0B51`, accumulates tax into `$0DC7`, and only advances the month when
+`AND.w #$0003` is zero. In the peer it climbs `00 -> 006D`. In this build it is
+`0000` at every single sample from frame 3150 to 30000.
+
+That arithmetic has no escape: **with `$0B51` at zero, `AND #$0003` is zero, so
+the first execution would advance the month immediately.** It never does.
+Therefore `INC.w $0B51` executes zero times — the tick routine is never reached
+after the city loads. `$0DC7`, two instructions later, is dead too, which is
+independent corroboration of the same block. This build changes 53 WRAM
+addresses across 30,000 frames of a live city; the peer changes 102,158.
+
+**The open question, and it is one.** `CODE_00825F` writes `CODE_038000` into
+`$1F7D..$1F7F` and is the only thing that installs the task — and `$1F7A..$1F7F`
+is **write-only across the entire ROM**. Searched both ways: direct-address
+readers give one hit in 512 KB (`JSL ($1F7A)` at `0x76DE9`), and immediates
+loading the address as a pointer give none. Either the disassembly is incomplete
+or this is not a hook. The peer runs the same ROM and its clock works, so the
+mechanism exists.
 
 Two corrections to what this file previously claimed, both because the
 measurements were wrong rather than the reasoning:
@@ -103,8 +123,17 @@ measurements were wrong rather than the reasoning:
   `1900` (`0x076C`). `$0B55` is the month index, 0-based. So `$0B53 = 0` means
   **there is no city** — which is what our build reads at every sample. The date
   here is not stuck, it has never been written.
-- `$0B51` is a free-running counter modulo 4 and reads 0 one frame in four by
-  design. Treating "it stays 0" as a bug signal was simply wrong.
+- `$0B51` was retracted twice in this file, in opposite directions. It was
+  **not** a free-running counter modulo 4 reading 0 one frame in four by design;
+  it is the 16-bit master city tick. The original claim that "`$0B51` stays 0, so
+  the tick never runs" was right, and retracting it was the error. Do not retract
+  it again without reading `CODE_038016`.
+
+- `$0B12` was published here as the sharpest lead between a clock that runs and
+  this one. **It was noise.** It is `$00` across all 337 peer dumps over 33,700
+  frames and 23 months, and appears nowhere in the tick routine. One unrepeated
+  report was promoted to a lead; it should have been measured twice before being
+  written down.
 
 `$02BF` is also not a pause flag — it is written once in the whole ROM. The vblank
 wait loop is not a livelock (the guest leaves it every frame), and the frame
