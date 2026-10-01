@@ -1348,3 +1348,112 @@ sabe que nada lê este valor de qualquer forma.
 
 **A pergunta passou de "que condição bloqueia o tick" para "o que impede o main
 loop de correr".** É uma pergunta diferente e mais pequena.
+
+---
+
+## 2026-09-30 — as peers: o que foi útil, e três correções minhas
+
+### Existe exactamente UM outro port de recompilação deste jogo
+
+Pesquisa no GitHub devolve **um** candidato: `Junior-Jones/SimCity-SNES-Static-Recomp`
+— **o mesmo ROM** (SHA-256 igual ao nosso). O
+`Yoshifanatic1/SimCity-SNES-Disassembly` não é um port (já ingerido), e
+`linuxkafe/SNES-SimCity-Recomp` é **o nosso próprio repositório** re-carregado.
+Nenhum outro.
+
+### O peer compila e corre no Deck — e tem 57.944 templates contra os nossos 302 nós
+
+**B3 — o dispatch COP está resolvido lá, e a forma é a nossa.** O handler é
+`COP → $008211 → PHB/PEA $0000/PLB/PLB/REP #$20/REP #$10/ASL A/TAX/
+JSR ($8223,X)/PLB/RTI`, com a tabela de 11 entradas em **`$00:8223`** — bank 0,
+não `$01:8223` como eu tinha dito. Todas as entradas medidas:
+`A=0,5,6 → $930D` (vblank wait), `A=2 → $8EA9` (o nosso `PPU_Bitpack`),
+`A=8 → $90DD` (LC_LZ5), `A=1,10 → $86A4/$86C8` (OAM).
+
+**B2 — o frame model é o beam, e a constante não é o problema.** A constante
+dele medida é `357366`; a nossa é `357368` — **diferença de 2 clocks**. O que
+importa é **onde o NMI é(assertido)**: ao nível do beam no scanline 225
+hclock 6, entregue nos limites de instrução (`before_instruction` /
+`finish_instruction`), e o **spin do próprio guest é a fronteira de frame**.
+O host dele é literalmente `while (scheduler.frame < target_frame) step();` —
+sem `MASTER_CYCLES_PER_FRAME`, sem slice loop, sem `lle_took_wai()`.
+
+### Três correções minhas, e a segunda é grave
+
+1. **`$008061` NÃO é o "corpo do main loop".** Corre uma vez, não é
+   `lle_only`-morto: corre **exactamente uma vez**, no boot. É uma cadeia
+   one-shot de init de hardware (`JSR $8288` / `JSR $8690` / `COP #$00` /
+   `JSR $825F`). **O nosso próprio `recomp/bank00.cfg:60-66` já a nomeava
+   `Init_Hardware 0x8061`.** Eu li um label e escrevi "main loop".
+
+2. **`$009311` são 6.996.200 execuções, não 881.646.** 1.665,8 por frame é
+   **comportamento correcto**: o guest entra na espera ~0,79×/frame e roda
+   ~1.666 vezes até o `INC $00B9` do NMI a libertar. **A espera de vblank está
+   saudável. O pacing de frame está saudável.** As 881.646 eram o meu
+   `COUNT_PC` sem prefixo `0x` — a armadilha do octal.
+
+3. **O dispatch COP não está partido.** `$8211` e `$821E` correm **10.775
+   vezes** em 4.200 frames, 2,56/frame. A `indirect_dispatch` em falta é uma
+   lacuna de *análise estática*, não a causa do relógio.
+
+Números do Deck, todos `lle_only`/`force_lle` para que um zero signifique algo:
+
+```
+$0080B2  NMI_Handler              4,191 = 1.00/frame
+$008211  COP_Handler             10,775 = 2.56/frame
+$00821E  JSR ($8223,X)           10,775 = 2.56/frame
+$009311  spin head               6,996,200 = 1665.8/frame
+$00804D  VBlank_Wait                   2 = boot only
+$038000  bank-03 tick                 0 = NEVER
+$038026  INC $0B51                    0 = NEVER
+```
+
+### A directive `indirect_dispatch` é correcta masinerte — medido
+
+Declarei `indirect_dispatch 821E 11 idx:X`. O loader lê-a
+(`{'site_pc16': 33310, 'count': 11, 'idx_reg': 'X', 'table_bases': ()}` — 33310
+= 0x821E). Mas um **A/B com e sem ela dá manifesto idêntico**: 239 AOT / 63
+LLE, e a lista de razões de `$008061` inalterada.
+
+Porque: os `cop_at_*` nomeiam um **COP dentro de cada função envenenada**
+(`$806C` dentro de `$8061`, `$8E5A` dentro de `$8E43`, …), não este site de
+dispatch. Autorizar o dispatch não os limpa. **Mantida porque é correcta e
+custa nada**, e anotada para que ninguém a volte a derivar.
+
+### O peer tem os mesmos defeitos, e isso é informação
+
+- **HDMA é write-only** — confirmado por leitura: `sc_machine.c:309` é a única
+  escrita de `hdma_enabled_mask` e a única leitura em toda a árvore é a própria
+  declaração. O README dele diz "HDMA" na lista de implementações. **Não está
+  implementado.** E `$00B5` foi 0 em todas as amostras, nos dois.
+- **Sem SNES Mouse** — `grep -ril mouse` sobre todos os `.c`/`.h` não devolve
+  nada. **A "running city" dele não é reproduzível por nenhuma interface que
+  publica**, porque o passo que cria a cidade é `mouseclick right`.
+- **Só 2 gates**, ambos de áudio. Nenhum afirma o relógio, o frame model, ou que
+  o main loop corra.
+- **Tem o corpo do tick gerado** (`v35_group_000E0.c:121-185`) **e também não
+  tem caller** — a sua única referência a `0x038000` é o próprio caso de
+  entrada. Varri todas as tabelas `$82xx` de 11 entradas em todos os banks:
+  **zero hits** para `$0380xx`.
+
+### O B1 real, e é este
+
+NMI 1/frame ✓, dispatch COP 2,56/frame ✓, spin 1.666/frame ✓, e
+`$038000`/`$038026` **zero**. O tick é inalcançável por um **terceiro caminho**
+que ninguém — nem nós, nem o peer — encontrou. E o corpo está analisado
+(`038000:M1X1`, 134 instruções, `$038026` dentro do range) e agora compilado.
+**O que falta é o caller, e é uma pergunta de análise estática sobre bytes do
+ROM, não de emulação.**
+
+### Sobre o `snesref` e o peer, para o registo
+
+O `snesref` com snes9xbuilt em `/tmp` corre o nosso ROM. No hardware real
+`$00C5` é escrito uma vez e nunca muda em 9.820 frames — **o nosso recomp
+concorda**, o que desfaz a hipótese "dispatch quebrado".
+
+O peer, corrido no Deck: **112,94 fps** em modo core-only (sem SDL, sem
+present) — 1,88× o seu próprio nominal de 60,098 fps. O nosso, no Deck com
+apresentação: **60,0 fps**, `guest` 3,599 ms/frame (21,6% do orçamento) contra
+`upload-present` **7,761 ms/frame (46,6%)**. **O caminho de apresentação do
+host custa 2,16× o guest.** Isso é um achado sobre o renderer, não sobre o
+recompilador.
