@@ -2024,3 +2024,54 @@ O que fica provado:
   viva. Também coerente, também não é prova.
 
 Continua a faltar o botão que confirma o nome. Quem já chegou a cidade把它.
+
+---
+
+## 2026-10-01 (d) — o cross-load é impossível, e eu devia tê-lo visto
+
+O peer chegou a uma cidade e a data andou de JAN para FEV. Trouxe o `jj.srm`.
+**Não há nada para carregar.**
+
+```
+run/jj.srm        32768 bytes  distintos=7   nao 00/FF: 10   topo=[255 x 32746, 0 x 12, 'S' x 2]
+saves/save.srm    32768 bytes  distintos=5   nao 00/FF:  8   topo=[  0 x 32760, 'S' x 2]
+```
+
+Os dois SRAM são **basicamente vazios**. O do peer é `SIM` seguido de 32746
+bytes de `0xFF`; o nosso é `SIM` seguido de 32760 bytes de `0x00`. A única
+diferença entre eles é o byte de apagamento. **Nenhum dos dois contém uma
+cidade.**
+
+Portanto **a cidade não está no SRAM de pilha.** Está em WRAM, que é volátil.
+Isto não é uma surpresa para quem leu o cabeçalho do meu próprio script — ele
+diz, em linhas, que a data vive em WRAM e que por isso um save carregado vai
+ler `1900 JAN` mesmo que venha de uma cidade que chegou a 1901 APR. **Eu escrevi
+essa ressalva e não a segui até à conclusão.** Ela não era um detalhe sobre a
+data: era a prova de que o teste inteiro não podia funcionar.
+
+O cross-load é impossível nas duas direções, e por razões que não se resolve com
+esforço:
+
+- O `simcity_recomp_snapshot_save/load` do peer é um estado runtime *matched à
+  build dele*, e o próprio header diz que não é formato de save de utilizador. Só
+  o peer o carrega.
+- Os nossos savestates (`save1.sav`) são o nosso WRAM no nosso formato. Nem
+  intercompatíveis, nem com um caminho para lá chegarem.
+
+**O que eu fiz:** projetei um teste sobre uma suposição que nunca verifiquei — que
+um save de pilha de 32 KiB leva a cidade dentro. Escrevi o script, escrevi o
+README, e chamei-lhe "o teste decisivo". Não era. Era um teste que só podia
+produzir um de dois resultados, e um deles era indistinguível de "não há cidade".
+
+### O que fica, e é melhor
+
+A referência que eu queria **não pode ser transferida, mas pode ser observada.**
+O que eu queria saber era o que um relógio do SimCity a funcionar toca. Isso
+não exige mover nada entre corações: exige WRAM do peer com uma cidade viva.
+
+E há uma第二条 via que é mais limpa do que a que eu estava a tentar, e que não
+depende de mim adivinhar o botão de confirmar: **o frontend windowed já sabe
+conduzir-se por script, e o peer é determinístico.** Quem já chega à cidade com
+o teclado gera um traço de WRAM, e nele vemos exactamente que bytes mudam entre
+JAN e FEV. Isso é a verdade de terreno que fecha a cadeia — e é a única coisa
+que este teste devia ter sido desde o início.
