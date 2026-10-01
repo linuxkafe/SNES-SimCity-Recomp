@@ -1588,3 +1588,73 @@ E o peer, que **não tem o nosso handshake**, funciona. A diferença entre nós 
 ele no MainLoop não é o frame model — é que o `STZ $00B9` no topo de `$930D`
 existe. **Se o token fosse reposto só depois do `LDA`, o `run_loop` com
 `flag_value` teria a forma que assume.**
+
+---
+
+## 2026-09-30 — o peer compila para Linux, e駙 passa à mesma parede sem rato
+
+### Sim, compila para Linux — e agora há um harness
+
+`libsimcity-static-recomp.a` compila limpo em Linux (o core é C++ — precisa de
+`-lstdc++` no link). O harness anterior saltava os `mouseclick`; agora
+conduz-se o peer **com a nossa rota exacta**, `scripts/d_city.script`, porque a
+API pública `simcity_recomp_advance_headless(inst, input_mask, frames, res)`
+aceita a mesma máscara de botões que nós.
+
+Corrida medida, 5.000 frames, ROM e script idênticos aos nossos:
+
+```
+video_standard=NTSC nominal_fps=60.098814 avg_master_clocks_per_frame=357366
+RESULT failed=0 frames=5000 insns=58981392 sram_dirty=1
+```
+
+**E o peer chega ao ecrã de nome com a nossa rota** — renderizado, correcto,
+`11111_`, mão sobre o SPACE. Isto confirma que a rota é boa e que o core do peer
+corre o jogo até ao mesmo ponto onde nós corremos.
+
+### Mas o rato é a parede, e é uma parede partilhada
+
+Substituímos cada `mouseclick` por `press down` + `press a`. **A mão não se
+moveu.** E o motivo está medido:
+
+```
+$0193 (town-route index):  0 -> 0
+$00C5 (dispatch index):    0 -> 0
+```
+
+**O cursor do ecrã de nome é controlado pelo rato, não pelo d-pad.** O d-pad
+move o cursor de escolha de ferramenta no mapa, mas na tela de nome é o rato.
+Isto é **exactamente o mesmo limite que a nossa documentação registou** — e o
+motivo pelo qual `d_city.script` precisou do `mouseclick`. Não é uma
+diferença entre nós e o peer; **é o mesmo obstáculo dos dois lados**, e o peer
+também não o resolve porque `grep -ril mouse` no código dele é vazio.
+
+E aqui está o ponto que importa: **o `$0B51` (tick de 4) fica a 0 no peer
+também**, exactamente como no nosso. Porque está parado no ecrã de nome, como
+nós. **O clock do peer só avançou porque o Proton o conduziu com `F8` e
+`xdotool` até lá** — ou seja, com um rato真, dentro do frontend Win32 que tem
+o interface para o receber. **O core Linux, sozinho, não chega lá.**
+
+Isto é a resposta à pergunta que eu não tinha resolvido: **o peer funciona,
+mas só através do seu frontend Windows e um rato.** O core é bom; o interface é
+que não é scriptável. E nós temos o oposto: interface scriptável, core
+travado.
+
+### O que isto ensina, e o que não
+
+**Não ensina** que o relógio é insolúvel — o peer provou que é solúvel.
+**Ensinha** que o obstáculo é de *entrada*, não de execução: tanto nós como o
+peer precisamos de um clique de rato para criar a cidade. nós temos o
+`mouseclick` no script; o peer tem de o fazer à mão no Proton.
+
+**Isto reabre uma pergunta que eu tinha marcado como fechada.** Escrevi
+anteriormente que `$038000` "não é alcançado por um salto estático" e que o
+town-route index nunca é posto. **No peer, com um rato真, `$0193` é posto e o
+relógio avança.** Portanto o índice é posting — por input, que é o que a
+medição acima de `$0193=0` confirma. O que nos falta é precisamente o
+**clique de rato que põe o índice**, e nós já o temos (`mouseclick`) e o
+usamos — mas no nosso build o `$0193` continua a 0.
+
+**Essa é a próxima pergunta, e é mais específica do que era:** no nosso build,
+`mouseclick right` põe `$0193`? Já medi que o token `$00B9` e o cursor mexem,
+mas nunca medi `$0193` depois de um clique. **É uma medição de um minuto.**
