@@ -2836,3 +2836,103 @@ trace e tem `invoke_recomp` desligado em v2).
 **A pergunta continua a mesma e continua a ser uma run:** qual dos quatro
 `ORA #$80` em `$03:C8D7`, `CB4D`, `CBEB`, `CE6C` executou por último, e qual dos
 quatro `AND #$7F` devia tê-lo seguido.
+
+---
+
+## 2026-10-01 (o) — o bit 7 **não** é a fechadura. Retractação, e um defeito encontrado pelo caminho
+
+Experimento pedido, feito de duas formas porque a primeira enganou.
+
+### Primeiro: `pokefor` não era a ferramenta certa
+
+```
+  f3500..f9000   $B1=81   $B9=00   $0B51=0000
+```
+
+`pokefor 00B1 01 4000` **não teve efeito nenhum** — `$B1` continua `$81`. A
+diferença entre as duas formas está em `host_main.c:4002` vs `:4006`: o `pokefor`
+é aplicado **antes** do guest correr, e o guest reescreve o byte no mesmo frame.
+`forcepoke` é aplicado **depois**. É o que queríamos.
+
+### Segundo, e é a falsificação
+
+```
+  forcepoke 00B1 01   (bit 7 limpo, forcado em cada frame)
+
+  frame   $B1 $B2 $B3   word($B1..$B2)  bit15  $B9    $0B51  $0B55  $0DC7
+  3500     01  00  81      $0001         0      00     0000    01    0000
+  5000     01  00  81      $0001         0      00     0000    01    0000
+  9000     01  00  81      $0001         0      00     0000    01    0000
+```
+
+O handler lê `$00B1` como **long de três bytes** (`AF B1 00 00`), portanto o `BMI`
+testa o **bit 15 da word `$B1..$B2`** — e com `$B1=$01, $B2=$00` isso é `0`. O
+caminho não-negativo **deveria** correr e `INC $B9` **deveria** acontecer.
+
+**Não acontece.** `$B9` fica `$00` durante mais 5.500 frames.
+
+**Logo o bit 7 de `$B1` não é a fechadura, e a hipótese que publiquei na entrada
+anterior está errada.** Eu escrevi que o jogo se punha num estado em que recusa o
+seu próprio token por causa do bit 7. O bit 7 é *sintoma* do facto de o corpo de
+vblank ter corrido, não a sua causa. `$B3` passou de `$00` a `$81` exactamente
+entre f3100 e f3200 — ou seja, no frame em que `CODE_008061` correu pela primeira
+vez — e forçar o bit 7 a zero não restaura nada.
+
+### E a NMI está a ser entregue
+
+Do log de `FRAME_SLOG` da mesma corrida:
+
+```
+  linhas 'pre-nmi' : 3191
+  ultimo           : f=3199 pre-nmi
+  ultimo frame-end : f=3199
+```
+
+`pre-nmi` só é impresso dentro de `if (!booting && g_snes->nmiEnabled)`. **A NMI
+é entregue em todos os frames até ao fim.** Não é gating, não é `$4200`, e não é
+o branch do handler.
+
+Isto deixa uma pergunta mais apertada e mais estranha: **o host entrega a NMI,
+corre o handler até ao `RTI`, e o `INC $B9` não acontece.** Ou o handler não
+executa o seu corpo, ou a escrita em WRAM é descartada.
+
+### Um defeito verificado, encontrado pelo caminho
+
+O `$00:930D` — o spin de vblank — está em:
+
+```
+recomp/bank00.cfg:44    exclude_range 0x930D 0x9318
+```
+
+Mas este ROM é **HiROM**, e para a bank 00 o offset é `endereco & 0x7FFF`. Logo
+`$00:930D` vive no offset de ficheiro **`0x130D`**, não `0x930D`.
+
+O `exclude_range` está escrito com o endereço **sem máscara** e está a excluir
+os bytes `0x930D-0x9318`, que o agente do Deck leu como uma **tabela de dispatch
+na bank 01** — não o spin. O único `64 B9` (`STZ $B9`) no ROM está em `0x130F`,
+que é onde o spin está de facto.
+
+**A mitigação que existe para o spin está a cobrir os bytes errados.** É
+exactamente o modo de falha que o project-manager previu quando avisou que a
+afirmação `exclude_range` era a única AC satisfeita de um ticket anterior sem
+estar verificada. E explica uma assimetria que nunca fez sentido: porque é que o
+`$0080B2` está forçado ao interpretador e o `$00930D` não?
+
+Cuidado com o alcance: isto **não** explica `$B9` não ser incrementado. Excluir
+os bytes errados desperdiça LLE numa tabela de dispatch da bank 01; não impede um
+`INC` em `$00:80BC`. É um defeito real e uma pista sobre o mesmoencipher.
+
+### O que fica, e é mais apertado
+
+```
+$008061 corre  ->  $B3 = $81, $B1 = $81
+NMI entregue   ->  sim, 3191 linhas, ate ao ultimo frame
+bit 7 limpo    ->  nao restaura nada
+$009311/$009313 ->  o guest esta dentro do spin
+INC $B9        ->  nunca acontece
+```
+
+A pergunta é agora: **o host chama o handler, mas o corpo do handler não executa
+o `INC`, ou executa e a escrita em WRAM não sobrevive?** São dois bugs
+completamente diferentes, e distinguem-se por uma leitura de `$B9` imediatamente
+depois do handler correr, dentro do mesmo frame.
