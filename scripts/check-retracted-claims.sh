@@ -353,6 +353,21 @@ to_digit() {
 # non-adjacent form was rewritten during this pass; the trade is deliberate and
 # the limitation is a floor, not a proof -- exactly what
 # docs/DEFINITION_OF_DONE.md says a guard is.
+# HOLE FOUND, ATTEMPTED, NOT CLOSED - see docs/CONFLICTS.md CONF-14.
+#
+# This pattern matches only the phrasing "N retractions". The ledger's own output
+# says "N refuted", and so does the table in README.md's gate list - so a stale
+# refuted count in the most-read file passed this check. Measured: README read
+# "34 rows = 26 refuted + ..." while the ledger said 28, and this gate said
+# PASS.
+#
+# A fix WAS ATTEMPTED AND REVERTED. Adding an alternation for "N refuted" made
+# this check fire on three FALSE POSITIVES against the project's own corpus -
+# two markdown table rows whose trailing "| 0 |" precedes the word "refracted"
+# on the same line, and this script's own header text. A guard that cries wolf
+# on its own corpus is worse than the hole it closes, and the correct fix needs
+# a number-extraction that does not pick the first integer on the line. LEFT
+# OPEN DELIBERATELY.
 CNT_RE="($WORDNUM|[0-9]{1,3}) +retract[a-zçãõ]*"
 for f in "${COUNT_SCOPE[@]}"; do
 	[ -f "$f" ] || continue

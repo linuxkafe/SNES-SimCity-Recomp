@@ -506,7 +506,7 @@ is that re-run, not a carry-over:
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
-| `make retraction-count` | the retraction count, computed | **34 rows = 26 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+| `make retraction-count` | the retraction count, computed | **36 rows = 28 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
 **`make clock` exits 1, not 2**, and the distinction is load-bearing: the gate
 uses exit 1 for "a city is loaded and its date did not advance" and a *different*

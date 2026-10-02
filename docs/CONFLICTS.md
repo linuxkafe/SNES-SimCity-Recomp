@@ -536,3 +536,122 @@ A `REFUTED F-13` or `REFUTED F-14` line accompanied by
 `make check-claims → RESULT: PASS` is **this flake, not a finding**. Re-run
 before believing it. Do not "fix" the doc it names; the doc it names is not the
 problem.
+
+---
+
+**CONF-13 · severity MEDIUM · the Deck, `ssh`, and backgrounding**
+
+**A heavy Deck run launched in the background dies silently. A foregrounded one
+does not. Every load-bearing number in T101 exists because the runs were
+foregrounded, and nothing in the tree would catch a repeat.**
+
+Found during T101 (`9069182`). Carried as **D014 V3** and as finding #3 of
+`aes/peer-reviews/T101/REVIEW.md`.
+
+**What was measured.** Three runs launched as `setsid nohup ./run.sh > log 2>&1
+< /dev/null & disown` from an `ssh` command line died with **no error message, no
+core, and no exit status**, at run-frames **2160, 1440 and 1440**. The identical
+command run **in the foreground** through `ssh` completed 30 000 frames in **211 s
+with `EXIT=0`**, three times out of three.
+
+```
+$ ../jjhead-clean "SimCity (USA).sfc" cold.srm out.srm 30000 s.script .
+RESULT failed=0 frames=30000 master_clock=10720929618 insns=356512178 sram_dirty=1
+EXIT=0
+seconds: 211
+```
+
+**Why this is a conflict and not a nuisance.** The project's own measured rule —
+*"`exit: SDL_QUIT` on the Deck means you signalled it; a truncated trace is not a
+smaller trace"* — exists because a truncated run reads exactly like a short one.
+A run that dies without writing any exit status at all is the **same failure with
+one fewer clue**, and it is silent in the worst way: the log looks complete up to
+the frame it reached.
+
+**The three discarded runs are named here so nobody re-derives them.** Nothing in
+T101 rests on them. Every peer number in that commit is a foreground run with an
+observed `EXIT=0`.
+
+**Cause: OPEN.** Not measured. The candidates were not separated — a signal from
+session teardown, the Deck's user-session reaper, or resource behaviour under
+concurrency. The first three attempts also ran **three at once**, so concurrency
+is confounded with backgrounding and neither is isolated.
+
+**No guard is written, deliberately.** The closure condition is in the review: the
+run wrapper must write `rc=$?` to a file that the analysis step requires to exist
+and be non-empty. **A new guard must be falsified before it is committed — red on
+a seeded violation — and this session has no budget to do that properly.** Wiring
+an unfalsified guard into this repository's evidence path is precisely the
+`af08ff7` shape (a commit body claiming a green gate that was never
+demonstrated). Recorded instead.
+
+**Interim rule, stated so the next session inherits it:**
+
+> **Foreground every heavy Deck run through `ssh`, and read `EXIT=` before you
+> read the log.** If a run must be backgrounded, the wrapper writes
+> `rc=$?` to a file and you check that file exists before trusting anything the
+> run produced.
+
+---
+
+**CONF-14 · severity MEDIUM · `scripts/check-retracted-claims.sh` check #3 cannot see the ledger's own phrasing**
+
+**The count guard matches `"N retractions"`. The ledger's own output says
+`"N refuted"`. So a stale count in the ledger's native phrasing passes.**
+
+## What was measured
+
+`CNT_RE="($WORDNUM|[0-9]{1,3}) +retract[a-zçãõ]*"` (line 366). `README.md`'s gate
+table stated:
+
+```
+| `make retraction-count` | the retraction ledger, computed | **34 rows = 26 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+```
+
+`make retraction-count` said **36 rows / 28 refuted**. The gate's check #3
+reported **`(no violations)`** — because the line says `26 refuted`, not
+`26 retractions`. **The number in the most-read file in the repository was stale
+and the guard built to catch exactly that did not see it.**
+
+**The stale number is fixed** (`36 rows = 28 refuted + 6 superseded + 2
+invalidated-premise`). **The hole is not closed.**
+
+## The fix was attempted and REVERTED, and that is the finding
+
+Adding an alternation for `"N refuted"` was implemented and then measured against
+the project's own corpus. It produced **three false positives**:
+
+```
+VIOLATION   README.md:506 states a count of "0"; the ledger says 28
+VIOLATION   README.md:507 states a count of "0"; the ledger says 28
+VIOLATION   scripts/check-retracted-claims.sh:128 states a count of "two"; the ledger says 28
+```
+
+Both classes are the same defect and neither is the seeded violation: the number
+extractor takes **the first integer or word-number anywhere on the line**, so a
+markdown table row whose trailing cell is `| 0 |` is read as "0 retractions" if
+the word *retracted* appears anywhere on that line, and the guard's own header
+text is read as "two retractions".
+
+**A guard that cries wolf on its own corpus is worse than the hole it closes** —
+it trains the reader to ignore the check, and this project's own script says so
+at line 343. The alternation was removed. The failed attempt is recorded **in the
+script's own comment block**, not only here, so the next person meets it before
+re-deriving it.
+
+## What a real fix needs
+
+Not a wider pattern. A **number extractor that binds to the token immediately
+adjacent to the count noun** — `([0-9]{1,3})[[:space:]]+(refuted|retractions?)`
+with the match, not the line, supplying the number. That is a rewrite of the
+extraction step, it changes which lines the guard reads, and it therefore needs
+its own falsification run over the whole corpus before it is committed.
+
+**OPEN. Deliberately not closed in the same session that discovered it.**
+
+## Interim rule
+
+> **The retraction count has exactly one authority: `make retraction-count`.**
+> Do not type it. If a document must state it, state it as
+> `N rows = M refuted + …` **and re-read it after running the command** — which is
+> what caught this one.

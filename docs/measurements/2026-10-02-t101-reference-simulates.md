@@ -83,6 +83,42 @@ free-running one. Across **1 344 city samples in three independent runs**:
 | R2 watched core, `scripts/d_city_kbd.script` | 452 | **0** |
 | R4 clean core, `route.script` | 440 | **0** |
 
+### And at event granularity, not only at sample granularity
+
+The 1 344 samples above are one observation every **60 frames** (`dump_every =
+60`), which is a real limit on what they can establish: between two samples the
+counter could have moved some other number of times and still satisfy the
+relation at both endpoints. So the relation was re-derived from **the write log
+itself**, where every individual write to `$0B51` is an observation. Each tick
+frame writes the byte twice - `$00`, then the incremented value - so the log
+pairs cleanly:
+
+```
+paired tick events: 113
+events where post-value != previous+1: 0
+first 3: ['f3857 0->1', 'f4009 0->2', 'f4262 0->3']
+last  3: ['f29585 0->111', 'f29725 0->112', 'f29967 0->113']
+month-roll events (post-value a multiple of 4): 28
+   f4402   $0B51=4   = 1 month x 4
+   f5190   $0B51=8   = 2 months x 4
+   f5978   $0B51=12  = 3 months x 4
+   f13073  $0B51=48  = 12 months x 4
+   f29725  $0B51=112 = 28 months x 4
+strictly monotonic: True
+```
+
+**Every one of 113 individual tick events increments `$0B51` by exactly +1, and
+the month rolls at exactly the 28 events where it reaches a multiple of 4** - the
+same 28 date images the 60-frame sampling found. So the sampling gap is closed:
+the relation is not merely consistent with the data, it is observed at **every
+individual tick event**. **[MEASURED, Deck-native]**, from R2's watch log
+(230 rows, f0-f29967).
+
+**This is the strongest form the claim takes.** 1 344 samples sounds like a lot
+and is worth far less than 113 events, because the samples are 60 frames apart and
+the events are consecutive.
+
+
 Observed at every month roll in R1: f3000 `m=01 b51=0000`, f4440 `m=02
 b51=0004`, f5220 `m=03 b51=0008`, f6000 `m=04 b51=000C`, f6780 `m=05 b51=0010`,
 f7560 `m=06 b51=0014`, f8400 `m=07 b51=0018`, f9180 `m=08 b51=001C`, f9960
@@ -212,7 +248,8 @@ earlier *backgrounded* attempt on the Deck died silently at f1440 and f2160 with
 no error and no exit status; **those runs are discarded and nothing here rests
 on them.** The foreground/background difference is **OPEN** and is not this
 document's business — but it is the reason the numbers above were taken the slow
-way.
+way. It is now recorded as **CONF-13**, whose interim rule is:
+*foreground every heavy Deck run and read `EXIT=` before reading the log.*
 
 ## What this changes, and what it does not
 
