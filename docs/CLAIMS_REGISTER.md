@@ -378,3 +378,49 @@ works.
 **A measurement is retracted only by a second measurement. An interpretation may
 be retracted by reasoning.** Never retract a measurement with an argument —
 that is how the correct `$0B51` claim was replaced by a wrong one.
+
+## 16. MEASURED 2026-10-02, entry (s): bank 03 executes, and stops at f3301
+
+Full artifact, with the exact commands and the raw per-bank counts:
+**`docs/measurements/2026-10-02-deck-interp-histogram.md`**. Machine: Steam Deck,
+binary compiled natively on the Deck (Release + `-DSNESRECOMP_INTERP_PROFILE`),
+headless. *Environment-fidelity caveat: the Deck's SteamOS rootfs is missing 503
+of 504 glibc headers while pacman reports the package installed, so this build
+resolves libc headers from a hand-assembled prefix via `-idirafter`. Every Deck
+number inherits that.*
+
+| Claim | Status | Evidence |
+|---|---|---|
+| "bank 03 does not execute" (as a claim about the whole run) | **REFUTED** | 921 distinct PCs, 515,043 interpreted steps over f0–f3700 |
+| "bank 03 does not execute in the live city" | **MEASURED, TRUE** | 0 steps in f3381–f3700; 0 steps in f3300–f3380; independently reproduced by entry (r)'s AOT bracket for f3400–f3600 |
+| "the bank-03 tick … still does not run" (`README.md`) | **REFUTED as stated** | it runs until f3300; the defensible claim is "not after f3300" |
+| where bank 03 stops | **MEASURED: f3301** | 160,693 steps in f3100–f3300 (≈803/frame), then zero |
+| "`$03:8026` (`INC.w $0B51`) is among the bank-03 PCs that execute" | **OPEN** | `$0B51 = 0000` at f3600 while bank 03 ran 515,043 steps — suggestive, **not** decisive: the dump prints only the top 60 PCs by host-ms |
+| "bank 03 executes no AOT blocks anywhere" | **OPEN** | the histogram is blind to AOT; no whole-run AOT histogram exists |
+| why bank 03 stops at f3301 | **OPEN** | not measured. No cause asserted. |
+
+Two structural facts from the same run that are worth more than the bank-03
+question, because they change how the rest of the file should be read:
+
+- **The live-city window is confined to banks 00 and 01** — 813 + 415 distinct PCs.
+  `$02` and `$05` are zero there too, not only `$03`. Entry (r) reported only the
+  `$03` absence.
+- **The live-city window's interpreted time is the vblank handshake.**
+  `$009313`/`$009311`/`$009315` at ~610,200 steps each over 339 frames, plus the
+  NMI handler `$0080B2` at 320 executions (once per frame), with `$00B9 = 01` and
+  `$00C7` advancing at f3600. Consistent with the deadlock being broken; it is not
+  a hang.
+
+## 17. A third instrument trap: a header with no rows is not a negative result
+
+`[interp_profile] N distinct PCs, top 60 by host-ms` prints **nothing** unless
+`SNESRECOMP_INTERP_MS_PROF=1` is set. With it unset, every entry's `ms` is `0.0`,
+`_hist_cmp` returns 0 for all pairs, the sort is stable, and the leading array
+slots are unused hash-table entries (`PROFILE_HIST_CAP` = 65,536, ~6,000 used), so
+the `s_interp_hist[i].n` guard fails before 60 entries. Observed directly: the
+whole-run dump printed `6055 distinct PCs` and then **zero** PC lines.
+
+Third instance of the same class after (r)'s two (`CYC_WATCH` blind to AOT;
+`AOTBLK` taking a frame window, not a PC range). **The rule this earns: a
+measurement section header with no rows under it is not evidence of absence, and
+must not be cited as one.**

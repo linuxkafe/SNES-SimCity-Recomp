@@ -1,22 +1,35 @@
 # T060 — the clock does not advance in a running city
 
-> ## ⚠ STATUS AS OF `afceeec`, measured 2026-10-02 — read this before anything below
+> ## ⚠ STATUS — measured 2026-10-02; newest entry **(s)**. Read this before anything below.
 >
-> This file is an **append-only chronological log**, 3,130 lines and 41 entries.
-> **97.8% of it predates its own newest entry** and 94.0% predates the root
-> cause. There is no other way to find the current position, so here it is.
+> This file is an **append-only chronological log**, ~3,400 lines and 44 entries.
+> **98% of it predates its own newest entry** and 94% predates the root cause.
+> There is no other way to find the current position, so here it is. This block
+> is the only part of the file that is maintained as current; nothing below it is.
 >
 > | Question | Answer | Instrument |
 > |---|---|---|
-> | Does the city load? | **Yes.** `$0B53 = 0x076C` (1900), `$0B55 = 1` (January), `$0B9D = 20000`; the framebuffer at f3400/f4000 is a rendered city. | 5 × `SNESRECOMP_WRAM_DUMP_AT` + screenshot |
-> | Is the vblank deadlock fixed? | **Yes.** `$00B9 = 0001` at 5/5; `$00C7` advances 5/5. | same 5 samples |
+> | Does the city load? | **Yes.** `$0B53 = 0x076C` (1900), `$0B55 = 1` (January), `$0B9D = 20000`; the framebuffer at f3400/f4000 is a rendered city. | 5 × `SNESRECOMP_WRAM_DUMP_AT` + screenshot; re-confirmed at **(s)** |
+> | Is the vblank deadlock fixed? | **Yes.** `$00B9 = 0001` at 5/5; `$00C7` advances 5/5. | same 5 samples; re-confirmed at **(s)** |
 > | Does the city simulate? | **No.** 34 WRAM bytes across 2,599 frames of a live city; the date never leaves `1900 JAN`. | byte diff f3400→f5999 |
-> | **Why not?** | **NOT ESTABLISHED. OPEN.** `$0B51 = 0000` at 5/5, and `$0B51` is the peer-derived tick candidate — but that role is INFERRED, not measured here. | — |
+> | Does bank 03 execute at all? | **Yes — 921 distinct PCs, 515,043 interpreted steps over f0–f3700.** | interpreted histogram, Deck-native build, **(s)** |
+> | Where does it stop? | **At f3301.** 160,693 steps in f3100–f3300; **zero** in f3300–f3380 and zero in the live-city window f3381–f3700. | same, **(s)** |
+> | **Why does the city not simulate?** | **NOT ESTABLISHED. OPEN.** `$0B51 = 0000` at 5/5, and `$0B51` is the peer-derived tick candidate — but that role is INFERRED, not measured here. | — |
 >
-> **Three claims below that are NOT established, and are asserted as if they were:**
+> **The two open questions, in order of how much they would reduce uncertainty:**
+>
+> 1. **Why does bank 03 go silent at f3301?** Unmeasured. No cause is asserted
+>    anywhere in this file.
+> 2. **Is `$03:8026` (`INC.w $0B51`, ROM `0x18026`) among the 921 bank-03 PCs
+>    that do execute?** Unmeasured, and it needs an instrument change — the
+>    histogram prints only the top 60 PCs by host-ms. **This is the next
+>    measurement.** See **(s)** and
+>    `docs/measurements/2026-10-02-deck-interp-histogram.md`.
+>
+> **Four claims below that are NOT established, and are asserted as if they were:**
 >
 > 1. **The `$0012` diagnosis (entry (a), and the text `scripts/clock-gate.sh`
->    prints under "What is established") is REFUTED.** `$0012 = 0001` in 5/5
+>    printed under "What is established") is REFUTED.** `$0012 = 0001` in 5/5
 >    samples and `$0014 = 8000` (bit 7 set) in 5/5. Its own stated evidence
 >    ("0 in 13 of 13 samples") is what measurement refuted.
 > 2. **"The city does not load" (entry (q)) is RETRACTED** — see the retraction
@@ -24,15 +37,17 @@
 > 3. **`CODE_008061` "never runs" is OPEN, not retracted.** Its premise
 >    (`$0012 == 0`) is false, which voids the inference and establishes
 >    nothing. Whether it executes has never been measured.
+> 4. **"The bank-03 tick is compiled to native C and still does not run"** (as
+>    `README.md` puts it) is **REFUTED as stated**: bank 03 runs 515,043
+>    interpreted steps before the city exists. The true statement is narrower —
+>    it runs **until f3300** and not after. See **(s)**.
 >
-> The next measurement that would most reduce uncertainty is a **PC/block
-> histogram over f3400-f3600**: which addresses execute in a live city, and is
-> `$03:8000-$03:81FF` among them. One 6,000-frame headless run, ~40 s. Unrun.
->
-> Entry index: the root cause is **(p)** at line ~3000; the deadlock fix is
-> **(q)** at the end. Entries (a)–(o) are history and several of their
-> conclusions are superseded. **`docs/CLAIMS_REGISTER.md` is the index of what
-> is retracted, and `docs/DEFINITION_OF_DONE.md` is the standard of proof.**
+> Entry index: the root cause of the vblank deadlock is **(p)**; the deadlock fix
+> is **(q)**; the Deck-native build and the live-window histogram are **(r)**;
+> **the whole-run histogram and the bank-03 boundary are (s)**. Entries (a)–(o)
+> are history and several of their conclusions are superseded. **`docs/CLAIMS_REGISTER.md`
+> is the index of what is retracted, and `docs/DEFINITION_OF_DONE.md` is the
+> standard of proof.**
 
 Entry into the game is solved (`RE_SCENARIO_NAV.md`). This is the remaining
 bug, and it is narrow: **the city runs, animations play, and the date stays at
@@ -3341,3 +3356,94 @@ instrumento já está compilado, é uma run headless de 6000 frames, sem código
 novo. A bracket provou que a bank 03 está ausente *ali*; a questão em aberto é
 se a bank 03 executa **algum dia** nesta build (boot/attract) ou **nunca**. Esse
 facto único decide se "a cidade simula por outro caminho" sequer está disponível.
+
+---
+
+## 2026-10-02 (s) — A bank 03 executa. Encontra-se o limite: cala-se em f3301
+
+A medição gratuita proposta no fim de (r) foi corrida no Deck, com um binário
+compilado **nativamente no Deck** (gcc 15.1.1, cmake 4.0.3), Release com
+`-DSNESRECOMP_INTERP_PROFILE`. Nenhum código novo. Artifacts e comando exacto em
+`docs/measurements/2026-10-02-deck-interp-histogram.md`.
+
+### A resposta
+
+> **A bank 03 EXECUTA nesta build: 921 PCs distintos, 515 043 passos
+> interpretados, em f0–f3700.**
+
+Isto refuta, como afirmação de toda a run, o enquadramento de (r). (r) mediu
+`f3400–f3600` e encontrou zero — o que continua verdadeiro, e agora tem um
+**limite medido** em vez de uma extrapolação.
+
+### Os contagens por fase ( PCs distintos / passos )
+
+| janela | `$00` | `$01` | `$02` | `$03` | `$05` |
+|---|---|---|---|---|---|
+| boot 0–200 | 478 / 1 664 752 | 0 / 0 | 0 / 0 | **10 / 10** | 428 / 932 195 |
+| attract 201–1200 | 494 / 5 336 356 | 575 / 5 411 938 | 542 / 601 366 | **499 / 11 035** | 392 / 328 481 |
+| menus 1201–3380 | 1753 / 17 808 456 | 1231 / 56 967 | 0 / 0 | **532 / 503 998** | 191 / 250 260 |
+| cidade 3381–3700 | 813 / 2 046 776 | 415 / 261 823 | 0 / 0 | **0 / 0** | 0 / 0 |
+| **total 0–3700** | 1822 / 26 856 340 | 1814 / 5 730 728 | 542 / 601 366 | **921 / 515 043** | 956 / 1 510 936 |
+
+As brackets **particionam exactamente**: a soma das quatro janelas é a linha
+`total` em cada bank, à unidade. `$04`, `$06`, `$07` nunca executam em f0–f3700.
+
+### O limite, que é a parte nova
+
+`f3100–f3300`: bank 03 com **160 693 passos** (≈803/frame).
+`f3300–f3380`: bank 03 com **ZERO**.
+
+Portanto a bank 03 cala-se em **f3301**. A cidade entra no ecrã por volta de
+**f3378** — ou seja, a bank 03 cala-se **~78 frames ANTES** de a cidade aparecer,
+e não no momento em que ela aparece. Isto é uma correlação com a entrada da
+cidade; **não é uma causa**, e nada nesta secção afirma que seja.
+
+### O que isto decide, e o que não decide
+
+- **"a cidade simula por outro caminho" NÃO está disponível** a partir da bank
+  03 na janela viva: a bank 03 está silenciosa lá. Confirmado por dois
+  instrumentos, e o meu reproduz os números de (r) (813 e 415 PCs distintos em
+  `$00` e `$01`, os mesmos).
+- **A bank 03 não é código que esta build nunca alcança.** Ela corre 515 043
+  passos antes de a cidade existir. Qualquer frase do tipo "a bank 03 nunca
+  corre" tem de ser corrigida para "a bank 03 não corre **depois de f3300**".
+- **`$0B51` continua `0000` com a bank 03 a correr 515 043 passos.** Isto
+  **reforça** a conclusão de (r) pelo lado correcto: se `INC.w $0B51` (`$03:8026`,
+  offset `0x18026`) estivesse entre esses 921 PCs, `$0B51` não seria zero.
+  **Mas isso NÃO está medido** — o dump só imprime os 60 PCs com maior tempo de
+  host, e sem `SNESRECOMP_INTERP_MS_PROF` não imprime nenhum (ver abaixo).
+  `$03:8026` amongst os 921 continua **OPEN**.
+- **Porque é que a bank 03 cala-se: OPEN.** Não medido, e não vai ser adivinhado
+  aqui.
+
+### Uma terceira armadilha de instrumento, encontrada ao correr isto
+
+`[interp_profile] N distinct PCs, top 60 by host-ms` **não imprime nada** sem
+`SNESRECOMP_INTERP_MS_PROF=1`. Sem ele, todas as entradas têm `ms = 0.0`,
+`_hist_cmp` devolve 0 para todos os pares, o `qsort` é estável, e os primeiros
+slots do array são entradas **não usadas** da tabela de hash
+(`PROFILE_HIST_CAP` = 65 536, ~6 000 usadas) — o guard
+`s_interp_hist[i].n` falha antes de chegar a 60. Observado directamente: a run
+`whole` reportou `6055 distinct PCs` e **zero** linhas de PC.
+
+É a mesma classe das duas descobertas de (r): um instrumento que parece mudo e não
+está, ou que parece calado e está só a não imprimir. **Um cabeçalho de secção sem
+linhas por baixo não é um resultado negativo.**
+
+### Ressalva de fidelidade de ambiente
+
+Todos os números acima são do Deck, com o binário compilado no Deck mas contra um
+prefixo de headers de glibc reconstruído à mão em `/home/deck/sysroot`
+(`-idirafter`), porque o rootfs do SteamOS está danificado (503 de 504 headers de
+glibc ausentes em disco, pacman reporta o pacote instalado). Runs headless com
+`SDL_VIDEODRIVER=dummy`. Isto vale para todos os números do Deck citados onde quer
+que apareçam.
+
+### O que continua OPEN depois disto
+
+1. **Porque é que a bank 03 cala-se em f3301.** A pergunta original.
+2. **Se `$03:8026` (`INC.w $0B51`) está entre os 921 PCs de `$03` que executam.**
+   Exige um dump completo por bank — uma mudança de instrumento, não uma run mais
+   longa.
+3. **Se a bank 03 executa blocos AOT** nalguma janela. O histograma é cego ao AOT
+   (medido em (r)); não existe histograma AOT de run inteira. **Não é medido.**
