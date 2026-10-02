@@ -212,21 +212,10 @@ void GameRunOneFrame(void)
     const uint64_t frame_end = g_cpu.master_cycles + GAME_MASTER_CYCLES_PER_FRAME;
     const int booting = (g_resume_pc == 0);
     int slice;
+    int nmi_delivered = 0;
 
     if (booting)
         g_resume_pc = reset_vector();
-
-    /* Vblank edge. NMITIMEN gates it: delivering before the guest has enabled
-     * NMI would land an interrupt frame in the middle of its SEI boot
-     * sequence. Nothing is delivered on the very first frame either — reset
-     * has not run yet, so there is no instruction stream to interrupt. */
-    if (!booting && g_snes->nmiEnabled) {
-        g_snes->inNmi = true;
-        frame_slog("pre-nmi");
-        game_run_interrupt(nmi_vector(), frame_end);
-        frame_slog("post-nmi");
-        g_snes->inNmi = false;
-    }
 
     /* Run the guest until it parks on a read-only poll (its vblank wait) or
      * the frame's clock runs out. A single call is not enough: the guest
@@ -234,6 +223,21 @@ void GameRunOneFrame(void)
      * flag, on its own state machine — and each park needs either an
      * interrupt or simply more time. */
     for (slice = 0; slice < GAME_MAX_SLICES_PER_FRAME; slice++) {
+        /* The vblank token must be delivered even when the guest has already
+         * burned this entire frame spinning on it - which is precisely the
+         * deadlock. Delivering below the deadline check meant the handler got
+         * a zero-cycle budget and could not set $B9, so the spin exited never.
+         * Deliver here, before the check breaks out, and only once per frame. */
+        if (!nmi_delivered && !booting && g_snes->nmiEnabled && !g_snes->inNmi &&
+            g_cpu.master_cycles >= frame_end) {
+            g_snes->inNmi = true;
+            frame_slog("pre-nmi-deadline");
+            game_run_interrupt(nmi_vector(), frame_end);
+            frame_slog("post-nmi-deadline");
+            g_snes->inNmi = false;
+            nmi_delivered = 1;
+        }
+
         if (g_cpu.master_cycles >= frame_end)
             break;
         interp_bridge_set_master_deadline(frame_end);
@@ -270,11 +274,52 @@ void GameRunOneFrame(void)
             game_run_interrupt(irq_vector(), frame_end);
             continue;
         }
+        /* Vblank edge, delivered HERE rather than at the top of the frame.
+         *
+         * T079: the game's vblank wait is a token handshake. The guest clears
+         * the token (STZ $00B9 at $00:930D) and then spins reading it (LDA
+         * $00B9 / BEQ at $00:9313), and the NMI handler is the only thing that
+         * sets it (INC $00B9 at $00:80BC). Delivering NMI once at the top of
+         * the frame made the handshake structurally impossible: the handler
+         * ran and set the token, the guest then ran and cleared it, and spun on
+         * a zero that nothing would ever change again.
+         *
+         * The peer takes NMI in-band, sampled between instructions, which is
+         * what makes the handshake work there. We cannot be in-band without a
+         * real interrupt-driven scheduler, but we can at least stop setting the
+         * token BEFORE the guest clears it: the slice loop runs the guest until
+         * it parks, and only then is the interrupt delivered, so the next slice
+         * observes the token and the spin exits.
+         *
+         * NMITIMEN gates delivery, and nothing goes to the very first frame:
+         * reset has not run yet, so there is no instruction stream to
+         * interrupt. */
+        if (!booting && g_snes->nmiEnabled && !g_snes->inNmi) {
+            g_snes->inNmi = true;
+            frame_slog("pre-nmi");
+            game_run_interrupt(nmi_vector(), frame_end);
+            frame_slog("post-nmi");
+            g_snes->inNmi = false;
+            nmi_delivered = 1;
+            continue; /* let the guest observe the token before deciding it is idle */
+        }
+
         /* Parked with no interrupt pending and clock left over: the guest is
          * waiting for the next vblank. Nothing more happens this frame. */
         if (interp_bridge_lle_took_wai())
             break;
     }
+    /* The guest consumed the whole frame without ever parking, so the loop
+     * above never reached the delivery point. Deliver now, after the guest has
+     * stopped, for the same reason: after, never before. */
+    if (!booting && g_snes->nmiEnabled && !nmi_delivered && !g_snes->inNmi) {
+        g_snes->inNmi = true;
+        frame_slog("pre-nmi");
+        game_run_interrupt(nmi_vector(), frame_end);
+        frame_slog("post-nmi");
+        g_snes->inNmi = false;
+    }
+
     frame_slog("frame-end");
 }
 

@@ -3055,3 +3055,75 @@ diferente do emulador.
 reentregá-la dentro do slice loop, em vez de uma vez no topo do frame. Mais a
 máscara em `recomp/bank00.cfg:44`. **Medição de confirmação, uma run:** `$B9`
 deve ficar não-zero na fronteira de frame depois de o spin ceder.
+
+---
+
+## 2026-10-01 (q) — Correção aplicada: o bloqueio do vblank está quebrado
+
+Duas correcções, juntas, como previsto em (p).
+
+### 1. `recomp/bank00.cfg:44` — a máscara HiROM
+
+`exclude_range 0x930D 0x9318` → `exclude_range 0x130D 0x1318`. Sem a máscara o
+`STZ $B9` corria compilado dentro de `bank_00_930D_M0X0` e **nunca cedia**, o que
+era a razão de `AOTBLK` ser mudo e de um breakpoint de bloco nunca o ver.
+
+### 2. `src/game_rtl.c:GameRunOneFrame` — entregar a NMI depois, nunca antes
+
+A entrega no topo do frame foi removida. A NMI passa agora a ser entregue:
+
+- **dentro do slice loop, depois de o guest ter corrido e estacionado** — o
+  spin deixa de ser infinito, o slice termina, e a NMI é servida; ou
+- **num ponto de topo do loop activado quando o guest já queimou o frame
+  inteiro** a girar no token.
+
+### O erro que eu cometi na primeira versão, e que é o instructive
+
+A primeira versão só entregava a NMI **depois** de `interp_bridge_run_until_
+quiescent`, dentro do loop. **Não funcionou** — `make clock` deu byte-idêntico,
+última alteração em f3378. A razão é que o check de deadline
+
+```c
+        if (g_cpu.master_cycles >= frame_end)
+            break;
+```
+
+está **no topo** do loop. O guest queima o frame inteiro a girar no token, o
+check dispara, o loop sai — **e a entrega dentro do loop nunca é alcançada.** O
+fallback pós-loop entregava-a com `frame_end` já esgotado, ou seja, orçamento
+zero para o handler, que por isso não conseguia escrever `$B9`.
+
+Ou seja: **corrigi a ordem e o primeiro sintoma — "o token nunca é posto" — só
+desapareceu quando corrigi a segunda: "o token nunca tem orçamento para ser
+posto".** Oenus medi na primeira versão, e corrigi com o raciocínio do sintoma
+errado. A regra que devia ter seguido desde o início: quando uma correcção não
+muda nada observável, a correcção está errada, não o sintoma.
+
+### Evidência medida depois da correcção
+
+```
+  $B9 = $01   à fronteira de frame      (era $00 em todas as amostras de antes)
+  $C7 = $07 → $85 → $9B em f3500/f6000/f11200   (era estático)
+```
+
+`$B9` é o token do vblank, e `INC $C7` está dentro do spinlock. **O token
+sobrevive e o spin sai.** O handshake deixou de ser estruturalmente impossível.
+
+### O que ainda não funciona, sem enfeite
+
+**A cidade não carrega** com `scripts/d_city_kbd.script` nem com
+`scripts/d_city.script` a partir de um save de 32768 bytes zerado, em f3500,
+f6000 e f11200: `$0B53 = 0`, população `0`, fundos `0`. Isto é um problema
+**separado** do bloqueio do vblank, e ainda não está diagnosticado — e o save
+zerado pode não ser o estado a partir do qual aqueles scripts foram escritos.
+
+`make clock` continua FAIL. Não há data a avançar porque não há cidade, e o gate
+continua a dizer exactamente o que mede.
+
+### Confirmação ainda em falta
+
+Um run no Deck com o protocolo de assentamento de 2 minutos depois da cidade
+carregar, a verificar data, população e fundos. E uma leitura directa de `$B9`
+imediatamente antes e depois do handler, para converter a inferência
+("$B9=1 depois do handler, 0 à fronteira" → agora "$B9=1 **e** à fronteira") em
+medição.
