@@ -49,11 +49,99 @@
 > is the index of what is retracted, and `docs/DEFINITION_OF_DONE.md` is the
 > standard of proof.**
 
+
+---
+
+## 📇 INDEX OF ENTRIES — the maintained part of this file
+
+**Read this table and stop.** Everything below it is an append-only chronological
+log of a 44-entry investigation, and **the log is not the current position**. This
+table is. Where an entry below contradicts this table, **this table is right and
+the entry is wrong**, and the entry carries a banner saying so at its own header.
+
+This index was added 2026-10-02 at Phase 3 of the aes chain, after the file was
+found to be ~3,400 lines with the newest entry 98% of the way down and **no
+per-entry state label anywhere**. The disease is not that the old entries are
+wrong — retracting them in place is correct practice, and this file does it well.
+The disease is that a reader arriving at any entry other than the last one had no
+way to know what state that entry was in.
+
+**Every row's state was assigned by reading that entry, not by counting
+retractions.** The vocabulary:
+
+| state | meaning |
+|---|---|
+| `CURRENT` | this is the newest measured position |
+| `MEASURED` / `MEASURED — FIXED` | the entry's claim was measured and stands |
+| `SUPERSEDED` | the entry was true; a later measurement replaced it |
+| `RETRACTED` | the entry's claim was measured false |
+| `PARTLY RETRACTED` / `PARTLY SUPERSEDED` | part of the entry stands, part does not — the banner names which |
+| `OPEN` | the entry raises a question that has never been answered either way |
+| `HISTORICAL` | method, process or a bug fix, not a claim about the clock |
+
+**Two entries are the ones that carry the investigation.** (p) is the cause and
+the fix. (s) is the newest measurement. **Everything between them is the road
+between those two points, and most of it is wrong in ways this table now say out
+loud.**
+
+| # | the entry's headline, verbatim | state | why |
+|---|---|---|---|
+| 1 | A correction worth keeping | **HISTORICAL** | a standing correction, still valid |
+| 2 | Measuring it properly | **HISTORICAL** | method; its numbers were re-taken since |
+| 3 | What the readings mean | **HISTORICAL** | reading of a superseded run |
+| 4 | Where the month probably is | **SUPERSEDED** | "probably" — the RAM-table hypothesis died at (i) |
+| 5 | Two savestate bugs, one fixed | **HISTORICAL** | bug fix, not a clock claim |
+| 6 | Determinism has a fourth input, and it is not the ROM | **HISTORICAL** | still valid; D-01/D-02 |
+| 7 | A correction to the widescreen claim | **HISTORICAL** | still valid |
+| 8 | Also worth knowing | **HISTORICAL** | mixed; see the ledger per claim |
+| 9 | the city is reachable, and the clock is still frozen | **SUPERSEDED** | reachability stands; "frozen" became "a hang" one entry later |
+| 10 | it is not a frozen clock. It is a hang. | **RETRACTED** | the hang diagnosis rested on a parked guest; the deadlock was structural |
+| 11 | the AOT wait loop clears the token in the same frame the NMI sets it | **RETRACTED** | refuted by the next entry |
+| 12 | 30.000 frames, uma única imagem | **SUPERSEDED** | the picture-still reading was taken while the guest was deadlocked |
+| 13 | The gate (`make clock`) | **SUPERSEDED** | the gate was rewritten; it now reads the guest year word |
+| 14 | CORRECTION: the vblank handshake is NOT the cause | **HISTORICAL** | a correction entry; still valid |
+| 15 | o renderer está VIVO. A simulação é que não corre. | **SUPERSEDED** | the finding stands; the evidence under it was pre-fix |
+| 16 | a terceira refutação: os bancos 02/03/05 correm | **SUPERSEDED** | correct that they run; (s) quantifies it |
+| 17 | as duas fontes que mudam a investigação | **HISTORICAL** | still valid |
+| 18 | QUEBREDO: a descompilação reassembla byte-idêntica, e nomeia a data | **HISTORICAL** | still valid; mapping pinned at D007 |
+| 19 | o `$1F7C` nunca é lido. E um bug de medição meu que invalida probes antigas. | **HISTORICAL** | still valid, and honest about its own instrument |
+| 20 | o main loop não corre na cidade, e um valor armado não bate certo | **OPEN** | the "main loop does not run" half was never measured with an AOT-capable instrument |
+| 21 | as peers: o que foi útil, e três correções minhas | **HISTORICAL** | three corrections, all still valid |
+| 22 | O mecanismo de `$038000` e o fork privado (estudo, sem publicar) | **HISTORICAL** | the mechanism is INFERRED from the peer, not measured here |
+| 23 | frame model dos peers: tentativa, **REVERTIDA**, e porquê | **HISTORICAL** | reverted, and says so in its own headline |
+| 24 | o peer compila para Linux, e passa à mesma parede sem rato | **HISTORICAL** | the "no mouse" half was wrong; corrected at (f) |
+| 25 | o port não está "congelado": nunca arranca. E a fechadura é `$12` | **RETRACTED** | the `$0012` lock is REFUTED — `$0012 = 0001` in 5/5. Banner inside |
+| 26 | `$14` é uma word, e eu estava a ler o fim errado | **RETRACTED** | same refuted `$0012` premise; `$0014 = 8000`, bit 7 set |
+| 27 | o cross-load corre, e ainda não prova nada (mas a tubagem está provada) | **RETRACTED** | at (d): the cross-load is impossible |
+| 28 | o cross-load é impossível, e eu devia tê-lo visto | **MEASURED** | the disproof stands |
+| 29 | o peer tem relógio, e eu tinha a data mal | **SUPERSEDED** | the peer clock still runs; ours does not |
+| 30 | o rato nunca foi a causa | **MEASURED** | still valid |
+| 31 | a verdade de terreno, e retractações em sentido oposto | **PARTLY RETRACTED** | "$0B51 stays 0" is correct; retracting it was the error |
+| 32 | `CODE_038000` tem zero entradas. E a descompilação é exacta. | **OPEN** | "zero entries" used an instrument later shown partly blind |
+| 33 | a hipótese da tabela em RAM morreu, e `CODE_00825F` corre | **MEASURED** | RAM-table hypothesis dead; reachability stands |
+| 34 | a causa é o nosso recompilador, e eu fechei a fonte cedo demais | **RETRACTED** | refuted by (p) |
+| 35 | é o byte `$00B1`, e o Deck estava desligado | **RETRACTED** | refuted by (o) |
+| 36 | quem põe o bit 7: o próprio jogo, num protocolo de dois lados | **SUPERSEDED** | the protocol is real; it is not what stops the clock |
+| 37 | "aumentar fps muda o tempo de jogo?" A resposta é não, e já é architectural | **MEASURED** | still valid; ledger R-017 |
+| 38 | o cliff dos slices não existe; e o `AOTBLK` não funciona sequer no build de trace | **SUPERSEDED** | slice cliff gone; `AOTBLK` takes a FRAME window and does work |
+| 39 | o bit 7 **não** é a fechadura. Retractação, e um defeito encontrado pelo caminho | **MEASURED** | the retraction is valid and current |
+| 40 | A CAUSA: a NMI é entregue **antes** do guest, e o guest limpa o token | **MEASURED — FIXED** | the vblank deadlock, its cause and the fix. Stands |
+| 41 | Correção aplicada: o bloqueio do vblank está quebrado | **PARTLY RETRACTED** | fix MEASURED; "the city does not load" inside is RETRACTED |
+| 42 | O Deck compila nativamente, e a cidade viva nunca toca a bank 03 | **PARTLY SUPERSEDED** | Deck-native build stands; the whole-run bank-03 claim is superseded by (s) |
+| 43 | A bank 03 executa. Encontra-se o limite: cala-se em f3301 | **CURRENT** | the newest measurement |
+
 Entry into the game is solved (`RE_SCENARIO_NAV.md`). This is the remaining
 bug, and it is narrow: **the city runs, animations play, and the date stays at
 1900 JAN.**
 
 ## A correction worth keeping
+
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — a standing correction, still valid.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 The first version of this document concluded that the city started and then
 froze with a corrupted screen. **That was wrong**, and the reason it was wrong
@@ -85,6 +173,13 @@ they are worth having:
 
 ## Measuring it properly
 
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — method; the numbers it measures were re-taken since.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 `scripts/clock-probe-live.sh` measures the **live** game: it takes two WRAM
 dumps by frame number while the city is on screen, plus a screenshot, and
 diffs them. No savestate, nothing to trust but the game itself.
@@ -100,6 +195,13 @@ instead of the table quietly explaining a wrong moment.
 
 ## What the readings mean
 
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — reading of a superseded run.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 - **Thousands of bytes moving** → the simulation is running and the clock is
   specifically stuck. The slow runs are then the tick candidates.
 - **Dozens of bytes moving** → not a live city; the screenshot will show which
@@ -112,6 +214,13 @@ alone, which is why the probe also screenshots and judges.
 
 ## Where the month probably is
 
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — "probably" — the RAM-table hypothesis was killed at (i).
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 Unmeasured, so stated as a guess and nothing more: SimCity advances time from
 its NMI handler, once per vblank, against a frame counter. NMI is delivered and
 returns clean, so if the month does not move, the handler is running and
@@ -122,6 +231,13 @@ diff is what would name it.
 ---
 
 ## Two savestate bugs, one fixed
+
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — bug fix, not a clock claim.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 Both were found by measuring rather than by reading, and both had the same
 shape: something the snapshot does not carry, which is silent until you look.
@@ -175,6 +291,13 @@ what the clock is being measured from.
 
 ## Determinism has a fourth input, and it is not the ROM
 
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — still valid; see D-01/D-02.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 A cross-platform battery (`scripts/crossplatform-determinism.sh`, commit
 `82456e7`) ran the same binary on two machines and found the framebuffers and
 WRAM byte-identical across 23,340 simulated frames - and one real trap on the way.
@@ -207,6 +330,13 @@ had exactly this bug with `DUMP=states/live`; both probes now use absolute paths
 
 ## A correction to the widescreen claim
 
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — still valid.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 `README.md` said the emulated picture is "byte-identical either way" with
 16:9. **That was wrong, and the battery caught it.** In 16:9 the PPU frame is
 256 wide instead of 336, so the *presented framebuffer* is a different width and
@@ -218,6 +348,13 @@ have caught this, because it only checks the arithmetic and never hashed a
 frame.
 
 ## Also worth knowing
+
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — mixed; see the ledger for each claim.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 - The 4:3 window is **1008x672, which is 3:2** - the 7:6 pixel-aspect
   correction is not applied to the window. Pre-existing, and 16:9 (1194x672) is.
@@ -235,6 +372,13 @@ frame.
 ---
 
 ## 2026-09-30 — the city is reachable, and the clock is still frozen
+
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — reachability stands; "frozen" was reclassified as a hang one entry later.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 **The explanation above was wrong, and it is worth being precise about which
 half is wrong.** This document concluded that "the clock did not advance because
@@ -308,6 +452,13 @@ month. That guess has now survived one more round of elimination and no more.
 ---
 
 ## 2026-09-30 (later) — it is not a frozen clock. It is a hang.
+
+> **STATE (2026-10-02, from the index at the top of this file): RETRACTED** — the hang diagnosis rested on a parked guest; the deadlock was structural and is now fixed.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 The section above frames this as "the city runs and the month tick is gated".
 That framing is wrong, and the evidence is uncomfortable: **the game hangs.**
@@ -412,6 +563,13 @@ that asymmetry produces a hang rather than a wrong picture.
 ---
 
 ## 2026-09-30 (root cause) — the AOT wait loop clears the token in the same frame the NMI sets it
+
+> **STATE (2026-10-02, from the index at the top of this file): RETRACTED** — refuted by the next entry: the vblank handshake is not the cause.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 **Found by comparing against the three games that work on this framework**, then
 confirmed here by direct measurement. This is the end of the line for this bug.
@@ -566,6 +724,13 @@ framework change if the containment turns out to be needed.
 
 ## 2026-09-30 (confirmado pelo dono) — 30.000 frames, uma única imagem
 
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — the picture-still observation was taken while the guest was deadlocked; a live city renders and animates.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 O dono relata, jogando: *"a imagem mexe-se porque tem animação, não significa
 que o tempo passe, as estações não avançam mudando a coloração de todo o mapa,
 não aparece FEV nem MAR"*.
@@ -654,6 +819,13 @@ nota num documento.
 
 ## The gate (`make clock`)
 
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — the gate was rewritten; its current form reads the guest year word.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 `scripts/clock-gate.sh`, wired as `make clock`. It runs
 `scripts/d_city.script` for 6,000 frames and reads the HUD date off the screen
 — the same thing the owner does — and fails if the date did not advance after
@@ -733,6 +905,13 @@ whole argument for this gate existing.
 ---
 
 ## 2026-09-30 — CORRECTION: the vblank handshake is NOT the cause
+
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — a correction entry; still valid as a correction.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 Everything above this line that blames `$930D` / `$00B9` is **wrong**, and it
 was wrong in a way that survived three rounds of measurement because every
@@ -817,6 +996,13 @@ number I quoted was real; the conclusion drawn from them was not.
 ---
 
 ## 2026-09-30 — o renderer está VIVO. A simulação é que não corre.
+
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — "the simulation does not run" is still the finding; the evidence under it was taken pre-fix.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 O dono jogou e disse: *"existe animação, no ecrã, o tempo é que não passa, a
 população não cresce, as estações não aparecem"*. **Está certo, e refuta a
@@ -912,6 +1098,13 @@ render"), que é exactamente a distinção que este documento precisa.
 ---
 
 ## 2026-09-30 — a terceira refutação: os bancos 02/03/05 correm
+
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — correct that they run; the whole-run histogram at (s) quantifies it.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 Duas das minhas premissas anteriores estavam erradas, ambas sobre o mesmo
 erro: inferir a partir de uma ausência.
@@ -1020,6 +1213,13 @@ uma coisa: **a rotina que escreve o tempo**.
 
 ## 2026-09-30 — as duas fontes que mudam a investigação
 
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — still valid.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 ### Existe uma descompilação pública do NOSSO ROM
 
 **`Yoshifanatic1/SimCity-SNES-Disassembly`**, USA, MD5
@@ -1092,6 +1292,13 @@ erro exacto antes de nós o cometermos.**
 ---
 
 ## 2026-09-30 — QUEBREDO: a descompilação reassembla byte-idêntica, e nomeia a data
+
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — still valid; the ROM->CPU mapping is pinned at D007.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 `Yoshifanatic1/SimCity-SNES-Disassembly` com o framework em **V1.0.1** e
 asar 1.91 reassembla para **exactamente os nossos bytes**:
@@ -1254,6 +1461,13 @@ o guest deixou de redesenhar o HUD neste build.
 
 ## 2026-09-30 — o `$1F7C` nunca é lido. E um bug de medição meu que invalida probes antigas.
 
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — still valid, and unusually honest about its own instrument.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 ### `$1F7C` é write-only, e a hipótese do "transferimento computado" está refutada
 
 `CODE_00825F` (medido: corre **1 vez**, em f3277, o frame em que a cidade é
@@ -1343,6 +1557,13 @@ Binário `279e253e0df544f00259fd026e99fc40`, **idêntico** ao local.
 
 ## 2026-09-30 — o main loop não corre na cidade, e um valor armado não bate certo
 
+> **STATE (2026-10-02, from the index at the top of this file): OPEN** — the "main loop does not run in the city" half was never measured with an AOT-capable instrument.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 Duas medições adicionais, com `0x` no `COUNT_PC` (a armadilha do octal está
 documentada acima).
 
@@ -1407,6 +1628,13 @@ loop de correr".** É uma pergunta diferente e mais pequena.
 ---
 
 ## 2026-09-30 — as peers: o que foi útil, e três correções minhas
+
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — three corrections, all still valid.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 ### Existe exactamente UM outro port de recompilação deste jogo
 
@@ -1517,6 +1745,13 @@ recompilador.
 
 ## 2026-09-30 — O mecanismo de `$038000` e o fork privado (estudo, sem publicar)
 
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — the mechanism is INFERRED from the peer; it is not measured in this build.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 ### Decisões do dono
 
 **Fork privado para estudo** do peer sem licença, e **adotar o frame model dos
@@ -1592,6 +1827,13 @@ possível do lado do nosso frame loop.
 
 ## 2026-09-30 — frame model dos peers: tentativa, **REVERTIDA**, e porquê
 
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — reverted, and says so in its own headline.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 O dono aprovou adoptar o padrão dos pares. Implementei-o em `GameRunOneFrame`:
 o guest passa a correr com `interp_bridge_run_loop(g_resume_pc, 0x009311, 0x00B9,
 flag_value=1)` até estacionar no seu próprio token de vblank, e o NMI é
@@ -1647,6 +1889,13 @@ existe. **Se o token fosse reposto só depois do `LDA`, o `run_loop` com
 ---
 
 ## 2026-09-30 — o peer compila para Linux, e passa à mesma parede sem rato
+
+> **STATE (2026-10-02, from the index at the top of this file): HISTORICAL** — the "no mouse" half was wrong; corrected at (f).
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 ### Sim, compila para Linux — e agora há um harness
 
@@ -1727,6 +1976,13 @@ mas nunca medi `$0193` depois de um clique. **É uma medição de um minuto.**
 ---
 
 ## 2026-10-01 — o port não está "congelado": nunca arranca. E a fechadura é `$12`
+
+> **STATE (2026-10-02, from the index at the top of this file): RETRACTED** — the `$12` lock diagnosis is REFUTED — `$0012 = 0001` in 5/5. See the banner inside the entry.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 Esta é a entrada mais longa e a mais útil. Baseia-se num savestate tirado
 **de dentro de uma cidade a correr** (`saves/save1.sav`, 330248 bytes), que
@@ -1929,6 +2185,13 @@ mão, e o frontend do peer não tem uma linha de código de rato.
 
 ## 2026-10-01 (b) — `$14` é uma word, e eu estava a ler o fim errado
 
+> **STATE (2026-10-02, from the index at the top of this file): RETRACTED** — built on the same refuted `$0012` premise; `$0014 = 8000`, bit 7 set.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 ### A correcção de largura, verificada nos bytes
 
 A入口 da secção anterior estava errada, e por minha causa. O terminador do
@@ -2079,6 +2342,13 @@ informação que nós não lhe damos.
 
 ## 2026-10-01 (c) — o cross-load corre, e ainda não prova nada (mas a tubagem está provada)
 
+> **STATE (2026-10-02, from the index at the top of this file): RETRACTED** — at (d): the cross-load is impossible.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 O frontend windowed ficou com autosave, portanto já existe um `jj.srm` gerado
 por nós — de uma sessão que chega ao **ecrã de nome**, não a uma cidade, porque
 o botão de confirmar continua por identificar. Meti-o no cross-load na mesma,
@@ -2121,6 +2391,13 @@ Continua a faltar o botão que confirma o nome. Quem já chegou a cidade把它.
 ---
 
 ## 2026-10-01 (d) — o cross-load é impossível, e eu devia tê-lo visto
+
+> **STATE (2026-10-02, from the index at the top of this file): MEASURED** — SRAM does not carry the city; the disproof stands.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 O peer chegou a uma cidade e a data andou de JAN para FEV. Trouxe o `jj.srm`.
 **Não há nada para carregar.**
@@ -2173,6 +2450,13 @@ que este teste devia ter sido desde o início.
 
 ## 2026-10-01 (e) — o peer tem relógio, e eu tinha a data mal
 
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — the peer remains the only reference whose clock runs.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 O peer, com a rota de teclado, chega a cidade e a data anda. Capturado do
 frontend com `--date`:
 
@@ -2219,6 +2503,13 @@ referência que sabemos funcionar.
 ---
 
 ## 2026-10-01 (f) — o rato nunca foi a causa
+
+> **STATE (2026-10-02, from the index at the top of this file): MEASURED** — still valid.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 `scripts/d_city_kbd.script` chega a uma cidade viva **sem um único
 `mouseclick`**, só com o d-pad e `B`:
@@ -2271,6 +2562,13 @@ tabela anterior, que foi inferida de um nome que eu próprio escrevi.
 ---
 
 ## 2026-10-01 (g) — a verdade de terreno, e retractações em sentido oposto
+
+> **STATE (2026-10-02, from the index at the top of this file): PARTLY RETRACTED** — "$0B51 stays 0" is correct; the mod-4-counter retraction of it was wrong.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 O Deck produziu o traço de WRAM do peer com uma cidade viva ao longo de 33.700
 frames e 23 meses, e o mesmo traço do nosso build. A comparação fecha a cadeia
@@ -2367,6 +2665,13 @@ mesmo ROM e o relógio funciona, logo o mecanismo existe. **Esta é a pergunta, 
 
 ## 2026-10-01 (h) — `CODE_038000` tem zero entradas. E a descompilação é exacta.
 
+> **STATE (2026-10-02, from the index at the top of this file): OPEN** — "zero entries" was measured with an instrument later shown to be partly blind.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 O agente不再是 está a procurar uma coisa:沸 fez um census de cobertura e um scan
 de bytes, e o resultado é negativo e rigoroso.
 
@@ -2451,6 +2756,13 @@ e o mecanismo é a tabela de saltos em WRAM.
 
 ## 2026-10-01 (i) — a hipótese da tabela em RAM morreu, e `CODE_00825F` corre
 
+> **STATE (2026-10-02, from the index at the top of this file): MEASURED** — the RAM-table hypothesis is dead; reachability via `$00825F` stands.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 Duas coisas, uma delas a retractar o que escrevi há uma entrada.
 
 ### A tabela de saltos em RAM não existe
@@ -2524,6 +2836,13 @@ O que resta, e é o que eu proporia a seguir:
 ---
 
 ## 2026-10-01 (j) — a causa é o nosso recompilador, e eu fechei a fonte cedo demais
+
+> **STATE (2026-10-02, from the index at the top of this file): RETRACTED** — refuted by (p): the cause is NMI ordering, not the recompiler.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 O agente fez o que eu não fiz: leu o código do peer e comparou **quatro
 decisões de implementação**, não o comportamento. Trouxe a resposta.
@@ -2642,6 +2961,13 @@ nossa e é nossa de uma forma que se pode ler no código.
 
 ## 2026-10-01 (k) — é o byte `$00B1`, e o Deck estava desligado
 
+> **STATE (2026-10-02, from the index at the top of this file): RETRACTED** — refuted by (o): bit 7 is not the lock.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 O Deck não respondeu — ARP `FAILED`, sem rota, host ausente da rede. O agente
 não ligou ao IP público a que `deck.linuxkafe.com` resolve, e está bem: aquilo
 não é a máquina. Ficou a metade de leitura, e essa metade valeu.
@@ -2732,6 +3058,13 @@ emissor chama-a sem guarda nenhuma (`emit_function.py:533, 586, 2123`).
 
 ## 2026-10-01 (l) — quem põe o bit 7: o próprio jogo, num protocolo de dois lados
 
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — the two-sided protocol is real; it is not what stops the clock.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 `/tmp/opencode` foi limpo e a descompilação desapareceu com ele. Não faz falta:
 a pergunta responde-se nos bytes do ROM, e melhor — a descompilação já nos
 enganou duas vezes.
@@ -2799,6 +3132,13 @@ independentes de mapeamento, por isso são o conjunto em que confio.
 ---
 
 ## 2026-10-01 (m) — "aumentar fps muda o tempo de jogo?" A resposta é não, e já é architectural
+
+> **STATE (2026-10-02, from the index at the top of this file): MEASURED** — still valid; cf. ledger R-017.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 Pergunta razoável, e a resposta é melhor do que "é simples": **já são
 desacoplados, por construção.**
@@ -2869,6 +3209,13 @@ e tem de ser tratado antes de qualquer optimização.
 
 ## 2026-10-01 (n) — o cliff dos slices não existe; e o `AOTBLK` não funciona sequer no build de trace
 
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED** — the slice cliff is gone; `AOTBLK` was later found to take a FRAME window, not a PC range, and does work.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 Duas medições, uma boa e uma má.
 
 ### Os slices: 64× de margem
@@ -2934,6 +3281,13 @@ quatro `AND #$7F` devia tê-lo seguido.
 ---
 
 ## 2026-10-01 (o) — o bit 7 **não** é a fechadura. Retractação, e um defeito encontrado pelo caminho
+
+> **STATE (2026-10-02, from the index at the top of this file): MEASURED** — the retraction is valid and still current.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 Experimento pedido, feito de duas formas porque a primeira enganou.
 
@@ -3034,6 +3388,13 @@ depois do handler correr, dentro do mesmo frame.
 ---
 
 ## 2026-10-01 (p) — A CAUSA: a NMI é entregue **antes** do guest, e o guest limpa o token
+
+> **STATE (2026-10-02, from the index at the top of this file): MEASURED — FIXED** — the vblank deadlock, its cause, and the fix. Stands.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 Não é (A) nem (B). Ambas as hipóteses foram falsificadas por medição directa no
 Deck. A causa é uma **de ordenação no nosso frame model**, mais a máscara errada
@@ -3154,6 +3515,13 @@ deve ficar não-zero na fronteira de frame depois de o spin ceder.
 
 ## 2026-10-01 (q) — Correção aplicada: o bloqueio do vblank está quebrado
 
+> **STATE (2026-10-02, from the index at the top of this file): PARTLY RETRACTED** — the fix is MEASURED; the "the city does not load" paragraph inside is RETRACTED — see its banner.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
+
 Duas correcções, juntas, como previsto em (p).
 
 ### 1. `recomp/bank00.cfg:44` — a máscara HiROM
@@ -3256,6 +3624,13 @@ medição.
 ---
 
 ## 2026-10-02 (r) — O Deck compila nativamente, e a cidade viva nunca toca a bank 03
+
+> **STATE (2026-10-02, from the index at the top of this file): PARTLY SUPERSEDED** — the Deck-native build stands; the whole-run claim about bank 03 is SUPERSEDED by (s).
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 O Deck deixou de ser uma máquina de binários copiados. Compila nativamente, com
 gcc 15.1.1, cmake 4.0.3, git 2.50.1, Zen 2 8 threads. `make test` 2/2.
@@ -3360,6 +3735,13 @@ facto único decide se "a cidade simula por outro caminho" sequer está disponí
 ---
 
 ## 2026-10-02 (s) — A bank 03 executa. Encontra-se o limite: cala-se em f3301
+
+> **STATE (2026-10-02, from the index at the top of this file): CURRENT** — the newest measurement.
+>
+> The index is the maintained part of this document. Everything below it is
+> chronological history and is not updated; where an entry contradicts the index,
+> the index is right and the entry is wrong, and the entry says so where it can.
+
 
 A medição gratuita proposta no fim de (r) foi corrida no Deck, com um binário
 compilado **nativamente no Deck** (gcc 15.1.1, cmake 4.0.3), Release com

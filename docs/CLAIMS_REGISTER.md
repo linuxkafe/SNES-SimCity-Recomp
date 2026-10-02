@@ -487,3 +487,81 @@ forward-only and adjacent-only, and it reports zero false positives on this
 corpus** — at the cost of missing a count separated from the keyword by an
 intervening word, which is stated in the script as a known limitation rather than
 left to be discovered by the next reader.
+
+## 19. The narrative shape of `RE_CITY_FREEZE.md`, fixed (2026-10-02, Phase 3)
+
+**The instrument first, because it is the standing lesson of this phase series.**
+`aes-narrative` ships only `SKILL.md`. Its target is `make narrative-analysis`,
+which **does not exist in this repository** — it is a target of the AES toolkit's
+own Makefile at `/opt/aes/Makefile:1144`, running `scripts/narrative-analysis.py`,
+which pins `AES_ROOT` from its own location and reads the *toolkit's*
+`aes/shadow/SD-*.md`, `aes/INDEX.md` and `aes/shadow/access.log`. Run here it
+prints **`Risk score: 0/8 — LOW`**.
+
+**Do not believe that about this project.** It is the toolkit's score, and three
+of its five dimensions have no input here at all (no `INDEX.md`, no `access.log`,
+no `/synthesis` markers). A harness that prints a green number when its inputs are
+absent is the same hazard as `verify-rom-render.sh` passing on a black screen.
+None of its five dimensions is even about the right failure: they measure what a
+*memory system surfaces*, while this project's failure is what *prose asserts*.
+The measurements below were made by hand and the method is given per item so each
+can be redone.
+
+### What was measured, before anything was changed
+
+| dimension | measured | how |
+|---|---|---|
+| position of the newest finding | **98%** of the file precedes entry (q) | `awk` on header line numbers |
+| entries with a state label | **0 of 43** | `grep -c '^> \*\*STATE'` → 0 before this change |
+| retraction banners | present and good, **in place**, at 5 of the 5 `$0012` chain sites | read each site; §"the `$0012` diagnosis" banner sits 2 lines under the assertion |
+| sites where a retracted claim is asserted with **no** marker | **0** | the guard, verified by seeding (below) |
+| lines added to `RE_CITY_FREEZE.md` by this phase | +382, of which 43 are per-entry banners | `git diff --stat` |
+
+The honest finding is that **the retraction discipline was already good** — the
+file retracts in place, at the point of claim, and the previous review's "asserted
+at 12 further sites, retracted at zero" described a state that `3959cb6` fixed.
+The defect that remained was **discoverability**: 98% of the file predates its own
+newest entry and not one of the 43 entries said what state it was in.
+
+### What was changed
+
+1. **An INDEX OF ENTRIES at the top**, all 43 rows, each with the entry's headline
+   verbatim, an epistemic state, and a one-line reason. It states which way a
+   conflict resolves: the index is right, the entry is wrong, and the entry says
+   so at its own header.
+2. **A per-entry `> **STATE …**` banner** under every one of the 43 headers, so the
+   label is visible **at the entry** and not only in the index. A reader who
+   arrives at any entry by search, anchor link or scroll now learns its state
+   without going back to the top.
+3. **A stated vocabulary** for the states, so `RETRACTED` here and `refuted` in the
+   ledger cannot drift apart silently.
+
+**Every state was assigned by reading that entry, not by counting retractions
+against it.** Two entries are labelled `OPEN` because they raise a question that
+has never been answered in either direction, and they are the only two where the
+file itself had not already reached a verdict.
+
+### What this does not fix
+
+It does not make the 3,400-line log shorter, and it does not delete anything —
+deleting a retracted claim erases the record that the error was made, which is the
+one practice every retraction in this file shares a common cause with. The index
+is a navigation layer over an intact history, and the log remains a log.
+
+### The guard, re-falsified rather than trusted
+
+`scripts/check-retracted-claims.sh` exited 0 on this tree before any of the above.
+An exit code is not evidence that a guard can fail, so the `$0012` chain site from
+entry (a) was reconstructed in a scratch copy **with its retraction banner
+removed** — the exact shape the previous review said was unmarked:
+
+```
+$ ./scripts/check-retracted-claims.sh          # in the seeded scratch tree
+  VIOLATION docs/RE_CITY_FREEZE.md:1781  R-003 (refuted) asserted without a retraction marker
+  RESULT: FAIL
+$ ./scripts/check-retracted-claims.sh          # in this tree
+  RESULT: PASS, 0 violations
+```
+
+**One violation seeded, one raised, zero false positives.** The guard works on the
+shipped text of the failure it was written for.
