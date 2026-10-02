@@ -275,6 +275,9 @@ and name this conflict; the rubric keeps the historical wording.
 | CONF-5 | MEDIUM | tracked↔gitignored | eleven tracked references into `aes/`, which is uncommittable by rule |
 | CONF-6 | LOW | aes↔docs | seven stale `docs/*.md` references from local artefacts |
 | CONF-7 | MEDIUM | docs↔ROM bytes | the mapper is **LoROM** (header at `0x7FC0`); 2 tracked files still call it HiROM. The **formula** is right — it is the LoROM rule |
+| CONF-8 | HIGH | code↔code | `scripts/verify-implementation.sh` reports ✅ for a **ticked** criterion with no check, and `bash -c`s a command lifted from prose. **Still present, still named "Verification Gate"** |
+| CONF-9 | MEDIUM | docs↔build flags | the Deck trace tier "cannot link" because its sysroot is "partial" — **refuted, R-032**; the real cause was `-idirafter` on `CMAKE_C_FLAGS` and not on `CMAKE_CXX_FLAGS` |
+| CONF-11 | HIGH | code↔gate | both evidence gates read **`git ls-files`** = the INDEX. An untracked new doc asserting a refuted claim passed `check-claims` and turned it red the moment `git add` staged it. **Paid for in `af08ff7`**, whose commit body claims `check-claims RESULT: PASS` and is false. Fixed with `ls-files -co --exclude-standard` |
 
 ## 9. `code ↔ code` — a tracked script named "Verification Gate" reports ✅ without checking
 
@@ -368,3 +371,87 @@ condition; it is therefore an attractive explanation, and it will keep absorbing
 the next build failure that happens to occur on the same machine. A second
 failure on a broken machine is not evidence that the machine's breakage caused
 it — that is a measurement, and it takes one command to make.
+
+## 11. `code ↔ gate` — the evidence gates read the INDEX, not the tree
+
+**CONF-11 · severity HIGH · `scripts/check-retracted-claims.sh`, `scripts/check-cause-claims.sh`**
+
+**This is the mechanism behind the failure mode this file keeps recording: a
+gate that reports green on a commit that is not.** Found by *being* that failure
+mode, in this session, in the commit immediately before it was found.
+
+Both evidence gates built their scope from `git ls-files '*.md'`, which lists
+**tracked files only**. A file authored but not yet staged is therefore
+**invisible to the gate**. Demonstrated, not argued:
+
+```
+$ printf 'The vblank token handshake is the cause. <-- THE GATE\n' \
+      > docs/measurements/zz-scope-probe.md
+$ make check-claims          # the file is UNTRACKED
+  RESULT: PASS                            <-- a refuted claim is waved through
+$ git add docs/measurements/zz-scope-probe.md
+$ make check-claims
+  VIOLATION docs/measurements/zz-scope-probe.md:2  R-024 (refuted) asserted
+    without a retraction marker
+  RESULT: FAIL
+```
+
+Identical behaviour in `check-cause-claims.sh`, with an untracked `scripts/*.sh`
+containing an unlabelled causal assertion.
+
+**The cost, paid in this session.** Commit `af08ff7` ("clock: what gates the
+entry into bank `$03`") added
+`docs/measurements/2026-10-02-f3271-entry-gate.md`, whose disassembly listing
+contained this line:
+
+```
+$03:D2AA  85 12      STA $0012       <-- the gate flag, set to 1
+```
+
+`<-- the gate flag` contains `<-- THE GATE`, which is **R-024's** pattern,
+matched case-insensitively. The gate run that preceded that commit reported
+`make check-claims RESULT: PASS` — **because the new file was not yet staged and
+so was not in scope.** The commit body repeats that PASS. **It was false.**
+Verified against the committed tree:
+
+```
+$ git stash -u && make check-claims      # tree exactly as af08ff7 left it
+  VIOLATION docs/measurements/2026-10-02-f3271-entry-gate.md:68  R-024 (refuted)
+    asserted without a retraction marker
+  RESULT: FAIL
+```
+
+So `af08ff7`'s gate block is wrong in one line, and this entry is the record of
+it. The pattern was **not** weakened to make the check pass. The over-broad
+annotation in the new document was reworded to `<-- writes 1 to the flag`, which
+is also the more accurate description of what `STA $0012` does there.
+
+**Fixed.** Both gates now build their scope from
+
+```bash
+git ls-files -co --exclude-standard
+```
+
+`-c` cached, `-o` untracked, `--exclude-standard` drops whatever `.gitignore`
+covers. That is exactly the set `git add -A` would stage, so a gate run taken at
+any point in the working tree reports on the files that are about to be
+committed. `aes/` stays out of scope **because it is gitignored**, which is the
+mechanism DoD D4.3 asks for — not because it is inconvenient to reach.
+
+**Falsified in both directions, in both gates, after the change:**
+
+| seeded violation | file state | result |
+|---|---|---|
+| R-024 phrase in a `.md` | **untracked** | `RESULT: FAIL` (was PASS) |
+| unlabelled causal assertion in a `scripts/*.sh` | **untracked** | `RESULT: FAIL` (was PASS) |
+| the same R-024 phrase under `aes/` | untracked **and gitignored** | `RESULT: PASS` — correctly ignored |
+| restored tree | — | both `RESULT: PASS` |
+| `check-claims-self-test` / `check-causes-self-test` | — | both `RESULT: PASS` |
+
+**The general rule this establishes, and it is the one the next session needs:**
+*run the evidence gates after `git add`, or on a gate that reads the working tree.*
+A green evidence gate measured over a subset of the tree is not a green evidence
+gate. This is the same class as CONF-1 — a guard whose scope did not include the
+file carrying the falsified claim — and the scope was wrong in both cases. In
+CONF-1's case it is still wrong: `docs/RE_SCENARIO_NAV.md` remains outside
+`SCOPE_FILES`.

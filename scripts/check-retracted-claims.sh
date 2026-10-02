@@ -206,13 +206,25 @@ while IFS= read -r f; do
 			SCOPE_EXCLUDED=$((SCOPE_EXCLUDED+1)); continue ;;
 	esac
 	SCOPE_FILES+=("$f")
-done < <(git ls-files '*.md' 2>/dev/null)
+done < <(git ls-files -co --exclude-standard '*.md' 2>/dev/null)
 if [ "$SCOPE_EXCLUDED" -gt 0 ]; then
 	echo "  scope   : ${#SCOPE_FILES[@]} file(s); $SCOPE_EXCLUDED excluded as dated-or-hashed records"
 	echo "            (docs/review/RUBRIC.md, docs/review/REVIEW-*.md - audit with:"
 	echo "             git ls-files 'docs/review/*')"
 fi
 
+# SCOPE IS THE WORKING TREE, NOT THE INDEX. This used to be plain `git ls-files`,
+# which lists only TRACKED files. **MEASURED hole, demonstrated in
+# docs/CONFLICTS.md CONF-11:** a brand-new doc asserting a refuted claim PASSED
+# this gate while it was still untracked, and turned the gate red the moment
+# `git add -A` staged it (the exact before/after is pasted there). An evidence
+# gate run BEFORE staging was therefore reporting on a smaller file set than the
+# one about to be committed - which is the shape of "the gate said green and the
+# commit was red". `-c` adds cached, `-o` adds untracked, `--exclude-standard`
+# drops anything .gitignore covers - so this is exactly the set `git add -A` would
+# stage, and aes/ stays out because it
+# is gitignored by rule (DoD D4.3).
+#
 # A line is "retraction context" if a correction marker is within 6 lines. This
 # is the same heuristic used in the 2026-10-02 review, and it deliberately
 # over-approximates: a hit inside a retraction is not a violation, and a

@@ -76,7 +76,10 @@ SCOPE=()
 while IFS= read -r f; do
 	case "$f" in docs/review/RUBRIC.md|docs/review/REVIEW-*.md) continue ;; esac
 	SCOPE+=("$f")
-done < <(git ls-files '*.md' 'scripts/*.sh' 2>/dev/null)
+# -co --exclude-standard: tracked PLUS untracked-but-not-ignored, i.e. exactly
+# what `git add -A` would stage. Plain `git ls-files` silently under-scopes a
+# gate run taken before staging. See docs/CONFLICTS.md CONF-11.
+done < <(git ls-files -co --exclude-standard '*.md' 'scripts/*.sh' 2>/dev/null)
 
 # Both patterns were tightened after they fired on real text. The failures are
 # recorded because a guard that cries wolf is worse than no guard, and this one
@@ -99,7 +102,7 @@ note() { printf "  %-9s %s\n" "$1" "$2"; }
 
 echo "== check-cause-claims =="
 echo "  repo  : $ROOT"
-echo "  scope : ${#SCOPE[@]} tracked file(s)"
+echo "  scope : ${#SCOPE[@]} file(s), tracked + untracked-not-ignored"
 echo
 
 # normalise: strip escapes, emphasis, backticks, unicode punctuation

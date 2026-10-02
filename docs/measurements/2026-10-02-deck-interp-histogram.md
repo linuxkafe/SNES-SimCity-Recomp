@@ -64,10 +64,35 @@ Read from `wram.f3600.bin` (128 KiB), two independent runs agreeing:
 | `$0B9D` | `20000` | treasury, the exact `$20000` the HUD shows |
 | `$00B9` | `01` | the vblank token **survives** the frame boundary |
 | `$00C7` | `C8` | the per-frame counter inside the spinlock advances |
-| `$0012` | `01` | not 0 — the retracted "$0012 is the gate" premise stays refuted |
-| `$0014` | `8000` | bit 7 set — also refutes that premise |
+| `$0012` | `01` | not 0 — **and this is now MEASURED to be exactly the condition that keeps bank `$03` out.** See the retraction marker below |
+| `$0014` | `8000` | bit 7 set — the *mechanism* this was read as evidence against is still wrong; see below |
 | `$0B51` | `0000` | the master city tick has not advanced |
 | `$0DC7` | `0000` | two instructions after `INC $0B51`; also dead |
+
+> ⚠️ **RETIRED IN PART — 2026-10-02, measured on the Deck.** The two lines above
+> were written to support a claim that has since been **half refuted by
+> measurement, in this project's favour, and the row was left saying otherwise.**
+>
+> What this page asserted: `$0012 = 01` and `$0014 = 8000` **refute** the premise
+> that `$0012` is the gate.
+>
+> What is now MEASURED (`docs/measurements/2026-10-02-f3271-entry-gate.md`):
+> **`$0012` IS the gate.** `$00:804D` is `LDA $0012`, `$00:804F` is
+> `BNE $805C`, and `$00:8056` is `JSL $03D283` — the bank-`$03` entry. Reading
+> `$0012 = 01` at f3600 does not exonerate `$0012`; it is the reason bank `$03` is
+> dead at f3600, which is precisely what this page was trying to explain.
+>
+> What survives of the original claim: **the mechanism is still wrong.** C-009's
+> second half — *"`$0012` waits on `CODE_03D287` exiting, which needs bit 7 of
+> `$0014`"* — is not what happens. Measured: `$0012` has exactly three writes in
+> 3 700 frames, and the decisive one is **`$03:D2AA` `STA $0012` = 1 at f3271**,
+> written by bank `$03` itself one instruction before its final `RTL`. `$0014`
+> bit 7 was not measured to be the gate; `$03:D299`'s `BPL $03:D287` branches on
+> it, which is a different thing and remains **OPEN**.
+>
+> Ledger rows **R-005**/**R-006** retract the *compound* claim. This entry does not
+> resurrect it: C-009's mechanism stays retracted, and its first half is now
+> independently MEASURED (C-052) rather than restored.
 
 ## 3. The histogram, per bank, whole run
 

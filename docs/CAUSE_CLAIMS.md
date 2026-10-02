@@ -26,6 +26,30 @@ this project has hurt itself repeatedly: a refuted premise voids an inference an
 establishes **nothing in its place**. Swapping one unmeasured assertion for
 another of opposite sign is the mechanism behind the paired `$0B51` retraction.
 
+## Two obligations on every row, and the second one is new
+
+**First: a state.** `MEASURED` / `INFERRED` / `OPEN` / `RETRACTED`. A claim may be
+MEASURED only if it names the instrument that observed **the cause itself**, not a
+correlate of it.
+
+**Second: the machine.** Every number must name the machine it came from, because
+three separate findings in this repository were caused by a number's machine label
+being missing or wrong rather than the number being wrong:
+
+- the AOT histogram was labelled host-only for a day and a half because the Deck
+  was believed unable to run the instrument at all (R-032 — a false cause, not a
+  false number);
+- a "host-only" T093 answer turned out to have a **wrong writer in it** that only
+  a second, Deck-native run could expose (R-034);
+- the peer write-watch and the `$0012` gate are both Deck-native, and the
+  `$0012` measurement **contradicts a host-era table** in
+  `2026-10-02-deck-interp-histogram.md` that had been left standing.
+
+`MEASURED (Deck-native)` means the number was produced on `steamdeck`.
+`MEASURED (Deck + host)` means two machines agree. `HOST-ONLY` marks a number that
+may **not** close any question — the AOT histogram carried that label for one
+commit and it was the right call, and this row set is the reason it now carries it.
+
 ## The classification
 
 | # | claim as asserted | state | instrument / why not | where |
