@@ -158,6 +158,18 @@ echo
 
 # Files whose user-facing prose is allowed to name a cause. A gate's output is
 # the most-read text in a project, which is why it is in scope.
+# SCOPE IS A LIST, AND A LIST HAS BLIND SPOTS.
+#
+# docs/RE_SCENARIO_NAV.md was NOT in this list until 2026-10-02, and it held an
+# unmarked assertion that `force_lle 0x009311` was present in recomp/bank00.cfg
+# - a directive git proves was removed by 436b25b, before the sentence was
+# written. A falsified claim sat in a file the guard never opened. Finding it
+# took reading the file, not running the guard.
+#
+# So: every tracked markdown file and every gate script is now in scope. The list
+# is derived from the tree rather than maintained by hand, so a NEW doc cannot
+# silently be born outside it. If you add a document, it is in scope the moment
+# it is tracked, and that is the intended behaviour.
 SCOPE_FILES=(
 	scripts/clock-gate.sh
 	scripts/perf-gate.sh
@@ -169,6 +181,31 @@ SCOPE_FILES=(
 	docs/ROADMAP.md
 	docs/DEFINITION_OF_DONE.md
 )
+# Derived scope, added to the hand list above rather than replacing it.
+#
+# TWO EXCLUSIONS, both narrow, both about records that must not be edited:
+#   docs/review/RUBRIC.md     pre-registered, committed with a sha256. Editing
+#                              it to add a retraction marker would break the
+#                              hash chain that is its entire purpose.
+#   docs/review/REVIEW-*.md   a dated record of a review conducted at a named
+#                              commit, quoting the tree as it was. Adding
+#                              markers to it would falsify what was found then.
+# They are COUNTED and PRINTED below, because an exemption nobody can see is a
+# gate with a hole in it.
+SCOPE_EXCLUDED=0
+while IFS= read -r f; do
+	case " ${SCOPE_FILES[*]} " in *" $f "*) continue ;; esac
+	case "$f" in
+		docs/review/RUBRIC.md|docs/review/REVIEW-*.md)
+			SCOPE_EXCLUDED=$((SCOPE_EXCLUDED+1)); continue ;;
+	esac
+	SCOPE_FILES+=("$f")
+done < <(git ls-files '*.md' 2>/dev/null)
+if [ "$SCOPE_EXCLUDED" -gt 0 ]; then
+	echo "  scope   : ${#SCOPE_FILES[@]} file(s); $SCOPE_EXCLUDED excluded as dated-or-hashed records"
+	echo "            (docs/review/RUBRIC.md, docs/review/REVIEW-*.md - audit with:"
+	echo "             git ls-files 'docs/review/*')"
+fi
 
 # A line is "retraction context" if a correction marker is within 6 lines. This
 # is the same heuristic used in the 2026-10-02 review, and it deliberately

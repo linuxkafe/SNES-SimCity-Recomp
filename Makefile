@@ -1,5 +1,6 @@
 .PHONY: build debug test test-rom perf clock clock-self-test check-claims \
-        check-claims-self-test retraction-count review-check clean doctor
+        check-claims-self-test check-causes check-causes-self-test \
+        retraction-count review-check clean doctor
 
 BUILD_DIR := build
 
@@ -73,6 +74,23 @@ clock-self-test: build
 # guard that has never been seen to fail has not been tested.
 check-claims: build
 	scripts/check-retracted-claims.sh
+
+# The second evidence gate, and the one check-retracted-claims.sh cannot be.
+#
+# check-retracted-claims.sh is LEXICAL: it holds strings that were already
+# refuted. A cause claim nobody has retracted yet is invisible to it. This one
+# asks the structural question instead - does this line assert a CAUSE, and does
+# it say where the cause came from - so it needs no ledger row to catch a new
+# false claim.
+#
+# Run it with --self-test. It seeds from git history (the tree at 9624f0e) and
+# asserts both directions: that it fires there, and that it is clean here. A
+# guard that has never been seen to fail has not been tested.
+check-causes:
+	scripts/check-cause-claims.sh
+
+check-causes-self-test:
+	scripts/check-cause-claims.sh --self-test
 
 # The retraction count, computed. Not prose, not a git-log grep, not a tally:
 # the number of ledger rows whose status is `refuted`. Added 2026-10-02 after

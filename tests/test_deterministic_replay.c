@@ -22,19 +22,57 @@
  * The ROM is user-supplied and is never committed, so it cannot be baked in.
  * It is taken from, in order: $SIMCITY_ROM, then the first existing candidate
  * beside the executable or in the source root. If none is found the test
- * SKIPS with a clear message and exit 0, because a gate that fails for want of
- * a file the project is not allowed to ship trains people to disable tests.
- * Callers that need a hard requirement should run the ROM gates
- * (`make test-rom`, `make clock`), which do take a ROM and do fail without one.
+ * FAILED with a clear message and a non-zero exit, because until 2026-10-02 it
+ * skipped with exit 0 and ctest rendered that as **Passed**: a tree with no ROM
+ * reported "100% tests passed". A gate that reports green on work it did not do
+ * teaches the next reader a false fact, which is the failure mode this whole
+ * project keeps paying for. If you have no ROM, a red `make test` here is the
+ * correct answer; `make test-rom` and `make clock` are the gates that need one.
+ *
+ * One consequence, stated so nobody is surprised: `make test` is now unusable on
+ * a machine with no ROM. That is the intended trade. docs/DEFINITION_OF_DONE.md
+ * D1.2 counts `make test` as a criterion, and it must not be satisfiable by
+ * declining to run.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
+#include <stdlib.h>
 
 #define MAX_FRAMES 30
 #define TRACE_LINE_SIZE 128
+
+/* Resolve a path to an absolute one, in place. Returns 0 on success.
+ *
+ * WHY THIS EXISTS (added 2026-10-02, review finding R-12):
+ *
+ * The emulator chdir()s to its own executable directory before it opens the ROM,
+ * so a RELATIVE ROM path silently stops working. This test passed one candidate
+ * straight through - "SimCity (USA).sfc" - and running the test binary with the
+ * repository root as its working directory produced:
+ *
+ *     FAIL: Run 1 exited with code 256
+ *     Using ROM: SimCity (USA).sfc
+ *
+ * while the same binary under ctest (whose working directory is the build dir)
+ * resolved "../SimCity (USA).sfc" and passed. Same binary, same ROM, same
+ * commit, two verdicts, decided entirely by the working directory. README
+ * already warns about this for the command line; this made it true of the test
+ * harness too.
+ */
+static int absolutise(char *path, size_t pathsz)
+{
+    char resolved[PATH_MAX];
+    if (path[0] == '/')
+        return 1;
+    if (!realpath(path, resolved))
+        return 0;
+    snprintf(path, pathsz, "%s", resolved);
+    return 1;
+}
 
 /* Locate a ROM without hardcoding anyone's home directory. Returns 1 if found. */
 static int find_rom(char *out, size_t outsz)
@@ -50,12 +88,12 @@ static int find_rom(char *out, size_t outsz)
 
     if (env && *env && access(env, R_OK) == 0) {
         snprintf(out, outsz, "%s", env);
-        return 1;
+        return absolutise(out, outsz);
     }
     for (i = 0; i < sizeof(cands) / sizeof(cands[0]); i++) {
         if (access(cands[i], R_OK) == 0) {
             snprintf(out, outsz, "%s", cands[i]);
-            return 1;
+            return absolutise(out, outsz);
         }
     }
     return 0;
@@ -76,9 +114,25 @@ int main(void)
         printf("SKIP: no ROM found (set SIMCITY_ROM=/path/to/'SimCity (USA).sfc').\n");
         printf("      This test replays the guest, so it needs a ROM. The ROM is\n");
         printf("      user-supplied and is never committed, which is deliberate.\n");
-        printf("      For a gate that REQUIRES one, use `make test-rom` or\n");
-        printf("      `make clock` - both take a ROM and both fail without it.\n");
-        return 0;
+        printf("\n");
+        printf("THIS IS A FAILURE, NOT A PASS. Changed 2026-10-02, review finding R-01.\n");
+        printf("\n");
+        printf("This used to `return 0`, and CMakeLists.txt sets no SKIP_RETURN_CODE,\n");
+        printf("so ctest rendered the skip as **Passed**. The measured result on a\n");
+        printf("tree containing no ROM at all:\n");
+        printf("\n");
+        printf("    100%% tests passed, 0 tests failed out of 2      <- with ctest rc=0\n");
+        printf("\n");
+        printf("A gate that reports green on work it did not do is worse than one that\n");
+        printf("is red, because the green is what the next session starts from. The\n");
+        printf("previous review closed a BLOCKER whose letter was 'no absolute path to\n");
+        printf("the author's home appears in tests/' while its substance - a tree with\n");
+        printf("no ROM reports 2/2 passed - survived the fix in this exact form.\n");
+        printf("\n");
+        printf("If you have no ROM, that is a legitimate state and `make test` SHOULD\n");
+        printf("fail here. For the gates that need a ROM and say so, use `make\n");
+        printf("test-rom` or `make clock`.\n");
+        return 2;
     }
     printf("Using ROM: %s\n", rom_path);
 

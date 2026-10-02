@@ -105,6 +105,22 @@ retired two rows on 2026-10-02; their original text is kept under
 | ~~D3.4~~ | ~~A claim marked MEASURED in the claims register names the command that produces it~~ | ~~`scripts/check-numbers.sh`~~ | — | **NO — retired 2026-10-02** |
 | D3.5 | Every load-bearing open question is labelled **open** in every file that mentions it | `scripts/check-retracted-claims.sh --open-labels` | exit 0 | **yes, but see below** |
 | **D3.6** | **No prose count of the retractions disagrees with the ledger.** The count is *computed* from `scripts/retracted-claims.tsv`; it is never written by hand | `scripts/check-retracted-claims.sh` (section 3) · `make retraction-count` prints it | exit 0 | **yes** — added 2026-10-02, falsification demonstrated |
+| **D3.7** | **Every causal assertion in a tracked file carries provenance** — a measurement, a retraction, an `OPEN` label, or an explicit "inferred" — within five lines. Applies to claims **no ledger row knows about yet** | `make check-causes` · `make check-causes-self-test` | exit 0 | **yes** — added 2026-10-02, falsification demonstrated against the tree at `9624f0e` |
+
+**D3.6 and D3.7 exist because D3.1/D3.2 are lexical and therefore partial.**
+`check-retracted-claims.sh` holds strings that have *already been refuted*. A
+cause claim that nobody has retracted yet is invisible to it, and four of the five
+retracted claims this audit found in tracked files were caught by **reading**, not
+by running anything. D3.7 asks the structural question instead — does this line
+assert a cause, and does it say where the cause came from — so it needs no ledger
+row to catch a new false claim. It normalises shell escapes, markdown emphasis
+and Unicode punctuation first, because the earlier guard missed
+`printf "the gate is \$0012"` for exactly that reason.
+
+**D3.7's known limit, stated so it is not oversold:** it checks *labelling*, not
+*truth*. A confidently wrong cause that carries the word "measured" passes it. No
+lexical guard can do better, and a guard that implied otherwise would be the same
+disease it was written against.
 
 D3.1 and D3.2 are the guard whose absence produced this session's work. The
 gate's failure text asserted `$0012` was clear; `$0012` measured `0001` in 5/5

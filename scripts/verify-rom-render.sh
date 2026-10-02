@@ -10,9 +10,21 @@
 #
 # What this measures: the emulator's own presented-frame fingerprints. The host
 # writes one crc32 per present (SNESRECOMP_PRESENT_LOG), so "the picture is
-# moving" reduces to "the crc32 column has many distinct values". Measured on this
-# ROM: 206 distinct crc32 over frames 200-800 when healthy, 1 when the field is
-# black. The threshold below is 10, which keeps a wide margin on both sides.
+# moving" reduces to "the crc32 column has many distinct values".
+#
+# The healthy figure is 257 distinct crc32 over frames 200-800, measured
+# 2026-10-02 on the dev host `seyon` at commit 166c82b. It said 206 until then,
+# and 254 before that, and 206 was the number printed inside this script's own
+# FAIL block - i.e. handed to a reader at the moment they needed it. Three
+# figures were in circulation for one measurement, which is rubric E-04 and is
+# also the subject of ledger rows R-013/R-022.
+#
+# The threshold is 10, and it is a FLOOR, not a target: it exists to catch a dead
+# renderer (1 distinct value), not to certify the picture. **A frozen city moves
+# about four times per 1,000 frames and would still pass this gate** - see
+# docs/DEFINITION_OF_DONE.md D2.4, which requires a printed dead-build baseline
+# beside this threshold and does not have one yet (ticket T064). Do not read a
+# PASS here as evidence that anything simulates.
 #
 # It cannot be a ctest: the ROM is never committed, and a test that needs it
 # would break for every developer without one. Hence a make target, not add_test.
@@ -92,9 +104,9 @@ FAIL: the emulated picture does not move.
 
   ${distinct} distinct presented crc32 over frames ${SKIP}-${FRAMES}, need >= ${MIN_DISTINCT}.
 
-  A healthy run of this ROM gives ~206 over the same window. One distinct
-  value means every presented frame is byte-identical, which is what a black
-  field looks like. This is the failure T057 shipped for a day and a half with
+  A healthy run of this ROM gives 257 over the same window (measured 2026-10-02,
+  dev host seyon, commit 166c82b). One distinct value means every presented frame
+  is byte-identical, which is what a black field looks like. This is the failure T057 shipped for a day and a half with
   ctest green, so do not "fix" it in the renderer before checking the other
   cause it usually is:
 

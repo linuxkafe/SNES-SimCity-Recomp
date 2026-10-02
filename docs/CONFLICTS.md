@@ -37,6 +37,7 @@ $ git log --oneline -S"force_lle 0x009311" -- recomp/bank00.cfg
 436b25b recomp: exclude the vblank spinlock from AOT (force_lle did not cover it)
 $ sed -n '145p' docs/RE_SCENARIO_NAV.md
 - `force_lle 0x009311` is correct because the NMI must be delivered *during* the
+# (the line as it stood BEFORE this phase's fix - unmarked, present tense, false)
 ```
 
 The line is in the **present tense**, in backticks, as file content, and it is
@@ -68,6 +69,9 @@ The gate's own header states:
 > Also: the Deck cannot build this project. SteamOS has an immutable rootfs with
 > no glibc headers, so `make build` there fails at configure. Every Deck number
 > in this repo comes from a binary built on the dev host and copied over.
+>
+> <!-- (the quotation above is the text as it stood BEFORE this phase's fix.
+>      It is false; see the measurement below.) -->
 
 **False since `9624f0e`.** The Deck compiles this project natively (gcc 15.1.1,
 cmake 4.0.3, `make test` 2/2). The rootfs damage is real and still true; the

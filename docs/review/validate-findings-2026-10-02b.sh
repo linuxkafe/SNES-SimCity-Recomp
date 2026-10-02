@@ -97,7 +97,12 @@ if [ -n "$hits" ]; then
     # and README line 75 says "measured false" about the $0012 chain, forty
     # lines away. A window that catches a DIFFERENT retraction is a false
     # negative wearing a green tick.
-    lo=$(( ln>1 ? ln-1 : 1 )); hi=$(( ln+1 ))
+    # +-4, with the marker required to be CLAIM-SPECIFIC. The keywords below
+    # name this claim (515,043 steps, f3301) or say RETRACT. A bare "false" is
+    # deliberately NOT in the list: README line 75 says "measured false" about
+    # the $0012 chain, forty lines away, and accepting it was the false negative
+    # the first version of this check had.
+    lo=$(( ln>4 ? ln-4 : 1 )); hi=$(( ln+4 ))
     sed -n "${lo},${hi}p" README.md | grep -qiE "retract|515,?043|f3301|does not run.*(false|wrong)|not \*\*does not run\*\*" && marked=$((marked+1))
   done <<< "$hits"
   [ "$marked" -eq "$total" ] && ok "occurrence(s) carry a marker" \
@@ -134,10 +139,13 @@ echo
 
 # --- R-05: the render gate's healthy figure ---
 echo "-- R-05  verify-rom-render.sh states 206 where 257 was measured (E-04) --"
-if grep -qn "206" scripts/verify-rom-render.sh; then
-  no "CONFIRMED: the stale figure 206 is still in scripts/verify-rom-render.sh"
+# Asserting forms only. A bare "206" also matches the sentence that RECORDS the
+# correction ("it said 206 until then"), and flagging that would train a reader
+# to ignore this check - which is how a guard ends up worse than none.
+if grep -qnE '(gives|give|is|was|~) *~?206|206 distinct' scripts/verify-rom-render.sh; then
+  no "CONFIRMED: the stale figure 206 is still ASSERTED in scripts/verify-rom-render.sh"
 else
-  ok "the stale figure is gone"
+  ok "206 no longer appears in an asserting form (a historical mention is fine)"
 fi
 echo
 
@@ -155,17 +163,23 @@ echo
 
 # --- R-09: CLAIMS_REGISTER ticks a row its own section 14 calls false ---
 echo "-- R-09  CLAIMS_REGISTER section 9 contradicts section 14 (E-04) --"
-if grep -q "exclude_range 0x930D 0x9318" docs/CLAIMS_REGISTER.md; then
-  s9=$(grep -n "exclude_range 0x930D 0x9318" docs/CLAIMS_REGISTER.md | head -1 | cut -d: -f1)
-  lo=$(( s9>4 ? s9-4 : 1)); hi=$(( s9+6 ))
-  if sed -n "${lo},${hi}p" docs/CLAIMS_REGISTER.md | grep -qiE "superseded|false|corrected|retracted|0x130D"; then
-    ok "the row carries its correction inline"
+# EVERY match, not just the first. The first version took `head -1`, which
+# happened to be section 8's prose and reported the wrong line - a validator that
+# checks one of two occurrences is a validator that checked the wrong one.
+r09_bad=0
+while IFS= read -r h; do
+  [ -z "$h" ] && continue
+  s9="${h%%:*}"
+  lo=$(( s9>6 ? s9-6 : 1)); hi=$(( s9+6 ))
+  if sed -n "${lo},${hi}p" docs/CLAIMS_REGISTER.md | grep -qiE "superseded|false|corrected|retracted|RETRACTED|0x130D"; then
+    say "ok" "line $s9 carries its correction"
   else
-    no "CONFIRMED: the section 9 row is ticked with no correction near it (line $s9)"
+    no "CONFIRMED: line $s9 states 0x930D 0x9318 with no correction near it"
+    r09_bad=$((r09_bad+1))
   fi
-else
-  ok "the stale row is gone"
-fi
+done < <(grep -n "exclude_range 0x930D 0x9318" docs/CLAIMS_REGISTER.md || true)
+[ "$r09_bad" -eq 0 ] && [ "$(grep -c 'exclude_range 0x930D 0x9318' docs/CLAIMS_REGISTER.md)" -eq 0 ] \
+  && ok "the stale range is gone entirely"
 echo
 
 # --- R-10: cross-load-peer-save.sh still has no dead-end banner ---

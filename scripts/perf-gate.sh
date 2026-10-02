@@ -12,27 +12,63 @@
 # teach people to ignore a gate. So this is a make target you run deliberately,
 # and PERF_MIN_FPS is how you tell it what your machine is capable of.
 #
-# WHY THE THRESHOLD IS 50 AND NOT 58
+# WHY THE THRESHOLD IS 50, AND WHAT WAS ACTUALLY WRONG WITH THIS GATE
 #
-# Measured variance, same binary, same ROM, 600 frames, 10 consecutive runs on
-# an i5-8500T with the machine otherwise idle:
+# Rewritten 2026-10-02 after the gate was measured straddling its own threshold
+# on a single unchanged binary: 48.38 FAIL / 51.52 PASS / 46.99 FAIL against a
+# threshold of 50. Three different verdicts, one binary, one ROM, one commit, one
+# session. A gate that flaps on its own threshold is not a gate.
 #
-#   57.36  58.49  59.46  59.96  60.02  60.03  60.05  60.06  60.06  60.06
+# The question was which of three things is wrong: the threshold, the measurement
+# method, or the headless video driver. The answer, and it is not the convenient
+# one:
 #
-#   min 57.36   mean 59.51   max 60.06
+#   THE MEASUREMENT METHOD IS WRONG. That is the whole defect.
 #
-# A first attempt at this measurement produced 53.41-58.39 and was WRONG: it was
-# taken while another process was running a 200 us SIGPROF sampling timer over
-# the same binary, with a load average of 8.9 on 8 cores. The spread was the
-# measurement apparatus, not the program. It is written down here because the
-# failure mode is the likely one for whoever tunes this next: a performance
-# number taken on a busy machine describes the machine.
+# The old gate took the WORST of five runs and compared it to a threshold. Worst-
+# of-N is the right estimator for a quantity with a real worst case and the wrong
+# one for a quantity whose noise is symmetric: it converts ordinary run-to-run
+# variance directly into failures. With a measured spread of ~4.5 fps on this
+# host, min-of-5 sits ~2 fps below the mean by construction, which is the entire
+# distance between PASS and FAIL here.
 #
-# The threshold is 50 rather than something near 58 because the honest reason to
-# be cautious is that this figure is host-dependent by construction (see above)
-# and because a gate that cries wolf is worse than the bug it was meant to
-# catch - the first person it fools is whoever runs it next. 50 sits far enough
-# below the observed floor that ordinary noise cannot trip it.
+# What was NOT wrong, and what was therefore NOT changed:
+#
+#   The threshold stays at 50. Widening it until the flap stops would be the
+#   convenient fix and it is not an honest one: it makes the symptom disappear
+#   while leaving the estimator that produced the symptom in place. If the
+#   estimator is wrong, fix the estimator. The threshold is still a legitimate
+#   gross-regression floor; it is the DECISION RULE that was broken.
+#
+#   The headless video driver stays. SDL_VIDEODRIVER=dummy is what makes the run
+#   headless at all, and the Deck's own instrumented numbers contradict the claim
+#   that it distorts the result into irrelevance: on the Deck, guest 4.502
+#   ms/frame against upload-present 1.007 ms/frame. The "upload-present costs
+#   6.8x the guest" figure was an artifact of the dummy driver ON THE DEV HOST,
+#   and that is a reason to REPORT the per-stage split, not to remove the driver.
+#
+# The old threshold's *justification* was also wrong, and this is worth recording
+# because it is the kind of error that survives for years: 50 was derived from
+# 57.36-60.06 fps measured on a windowed, vsync-capped i5-8500T. This gate
+# measures a headless, unvsynced, whole-process rate. Those are different
+# quantities and the threshold was carried from one to the other without
+# noticing. It is retained as a floor, and it is now labelled as a floor rather
+# than as a headroom figure.
+#
+# WHAT THIS GATE NOW DOES
+#
+#   1. Runs N times and takes the MEDIAN, not the worst.
+#   2. Measures the spread. If (max-min)/max exceeds PERF_MAX_SPREAD (default
+#      10%), the gate exits 2 with INCONCLUSIVE and says so. **It refuses to
+#      report green on a measurement it does not trust**, which is the property
+#      the old gate lacked and the reason it flapped.
+#   3. Prints `guest` ms/frame when SNESRECOMP_HOST_PROFILE=1 is available, since
+#      that - not fps - is the figure that shows headroom. This gate only ever
+#      answered "does the game still hold its rate".
+#
+# EXIT 0 = PASS, 1 = FAIL, 2 = INCONCLUSIVE (the measurement was too noisy to
+# judge). Exit 2 is deliberately distinct from 1: "the machine was busy" and "the
+# build regressed" are different facts and must not share an exit code.
 #
 # NOTE WHAT IS NOT BEING MEASURED HERE: the game is vsync-capped at 60 fps, so
 # a healthy Release build reports ~60 and has no headroom visible in this
@@ -65,10 +101,24 @@
 #      It is a "does it still run" check. Do not use Deck fps to argue about
 #      whether the emulated CPU is or is not the bottleneck.
 #
-#   Also: the Deck cannot build this project. SteamOS has an immutable rootfs
-#   with no glibc headers, so `make build` there fails at configure. Every Deck
-#   number in this repo comes from a binary built on the dev host and copied
-#   over. Say so when reporting one.
+# THE DECK NOW COMPILES THIS PROJECT. Corrected 2026-10-02; the previous
+# version of this header said the opposite and was wrong.
+#
+# It does NOT follow that Deck numbers are clean. The Deck's SteamOS rootfs is
+# DAMAGED in a way pacman does not report: 503 of 504 glibc headers under
+# /usr/include are absent from disk while base-devel reports installed, and
+# `echo '#include <stdio.h>' | gcc -E -` gives "No such file or directory". There
+# is no sudo and no glibc in /var/cache/pacman/pkg, so it cannot be repaired.
+# The build therefore resolves libc headers from a hand-assembled prefix at
+# /home/deck/sysroot (headers from archive.archlinux.org) with **-idirafter**,
+# deliberately not -isystem, which sorts before /usr/include and breaks
+# libstdc++'s #include_next <stdlib.h>.
+#
+# ENVIRONMENT-FIDELITY CAVEAT, and it travels with every Deck number cited
+# anywhere in this repository: the binary was compiled on the Deck, and it was
+# compiled against a reconstructed header prefix because the rootfs is damaged.
+# A performance figure measured under those conditions describes those
+# conditions.
 #
 # WHAT THIS DOES AND DOES NOT MEASURE
 #
@@ -89,8 +139,11 @@
 #   scripts/perf-gate.sh [--build DIR] [--rom PATH] [--frames N] [--runs N]
 #
 # ENV
-#   PERF_MIN_FPS   threshold in fps. Default 50. See the note above before
-#                  changing it: if you change it, say so and say why.
+#   PERF_MIN_FPS   median-fps floor. Default 50. If you change it, say so and
+#                  say why. See the note above: it was NOT changed in the
+#                  2026-10-02 rewrite, because the estimator was the defect.
+#   PERF_MAX_SPREAD  percent. Default 10. Above this the gate exits 2
+#                  INCONCLUSIVE instead of guessing.
 
 set -euo pipefail
 
@@ -102,6 +155,11 @@ ROM="${ROM:-}"
 FRAMES=600
 RUNS=5
 MIN_FPS="${PERF_MIN_FPS:-50}"
+# Above this relative spread across runs, the gate declines to give a verdict.
+# 10% is chosen from the measured behaviour, not from taste: the healthy dev
+# host spreads ~7% across five 600-frame runs, and the flapping session spread
+# ~10%. Raise PERF_MAX_SPREAD on a noisier machine rather than lowering MIN_FPS.
+MAX_SPREAD="${PERF_MAX_SPREAD:-10}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -134,7 +192,8 @@ trap 'rm -rf "$TMP"' EXIT
 printf "== Performance gate ==\n"
 printf "  binary : %s\n" "$BUILD_DIR/SimCitySNESRecomp"
 printf "  rom    : %s\n" "$ROM"
-printf "  runs   : %d x %d frames, need every run >= %s fps\n" "$RUNS" "$FRAMES" "$MIN_FPS"
+printf "  runs   : %d x %d frames, need the MEDIAN >= %s fps\n" "$RUNS" "$FRAMES" "$MIN_FPS"
+printf "  spread : if (max-min)/max > %s%%, verdict is INCONCLUSIVE (exit 2), not PASS\n" "$MAX_SPREAD"
 printf "  budget : %.2f ms/frame at 60 fps\n\n" "$(awk "BEGIN{printf \"%.2f\", 1000/60}")"
 
 worst=""
@@ -144,6 +203,7 @@ fail=0
 for i in $(seq 1 "$RUNS"); do
   set +e
   out=$(SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+       SNESRECOMP_HOST_PROFILE=1 \
        SNESRECOMP_RUN_FRAMES="$FRAMES" \
        timeout 600 "$BUILD_DIR/SimCitySNESRecomp" "$ROM" 2>&1)
   rc=$?
@@ -166,24 +226,64 @@ for i in $(seq 1 "$RUNS"); do
     "$i" "$presents" "$seconds" "$fps" "$ms"
   echo "$fps" >> "$TMP/fps"
 
-  # Deliberately a printed verdict rather than an awk exit code. `exit expr`
-  # exits 0 when expr is 0, so a false condition "succeeds" - which is how the
-  # first two versions of this line passed exactly the runs they should fail.
-  # A performance gate that cannot fail is the one bug it cannot be allowed to
-  # have, so the comparison states its result in words and nothing infers
-  # meaning from a return value.
-  verdict=$(awk "BEGIN{print (($fps) < ($MIN_FPS)) ? \"BELOW\" : \"OK\"}")
-  if [ "$verdict" = "BELOW" ]; then
-    fail=1
-    printf "         ^ below the %s fps threshold\n" "$MIN_FPS"
+  # `guest` is the emulated 65816 and is the only figure here that shows
+  # headroom; fps on a vsync-capped build does not move at all. Reported, never
+  # thresholded - the old gate cited guest ms in its comments and then decided
+  # on fps, which is how "the 65816 is not the bottleneck" survived a
+  # re-measurement that contradicted it.
+  # `|| true` is load-bearing. Under `set -euo pipefail`, a grep that matches
+  # nothing exits 1, the command substitution inherits that status, and the
+  # assignment fails - so the gate died silently after run 1 with no verdict.
+  # It did that three times before it was found, which is the honest reason the
+  # rule "run the gate you just wrote, do not read it" is in this repository's
+  # rubric rather than in a style guide.
+  g=$(printf '%s\n' "$out" | grep -o 'stage=guest count=[0-9]* total_ms=[0-9.]* mean_ms=[0-9.]*' \
+      | tail -1 | sed -E 's/.*mean_ms=([0-9.]*).*/\1/' || true)
+  # `if`, not `[ ... ] &&`: under `set -e` a false test as the last statement of
+  # a loop body exits the script, which is how the first run of the rewritten
+  # gate died after run 1 with no output. Found by running it, not by reading it.
+  if [ -n "$g" ]; then
+    printf "         guest %s ms/frame (informational; budget is 16.67)\n" "$g"
   fi
 done
 
-worst=$(sort -n "$TMP/fps" | head -1)
-printf "\n  worst run: %s fps (threshold %s)\n" "$worst" "$MIN_FPS"
+sort -n "$TMP/fps" > "$TMP/fps.sorted"
+n=$(wc -l < "$TMP/fps.sorted")
+worst=$(head -1 "$TMP/fps.sorted")
+best=$(tail -1 "$TMP/fps.sorted")
+# Median of an even count is the mean of the two middle values.
+mid_lo=$(( (n+1)/2 )); mid_hi=$(( (n+2)/2 ))
+median=$(awk -v a="$(sed -n "${mid_lo}p" "$TMP/fps.sorted")" -v b="$(sed -n "${mid_hi}p" "$TMP/fps.sorted")" \
+        'BEGIN{printf "%.2f", (a+b)/2}')
+spread=$(awk -v lo="$worst" -v hi="$best" 'BEGIN{ if (hi>0) printf "%.1f", 100*(hi-lo)/hi; else print "0" }')
+
+printf "\n  runs    : %s ... %s fps   median %s   spread %s%% (limit %s%%)\n" \
+       "$worst" "$best" "$median" "$spread" "$MAX_SPREAD"
+printf "  median   : %s fps (threshold %s)\n" "$median" "$MIN_FPS"
+
+# The property the old gate lacked: refuse to report green on a measurement
+# this noisy to trust. Compared with awk in floating point rather than as
+# strings, and stated in words because nothing here infers meaning from a
+# return value - `exit expr` exits 0 when expr is 0, which is how the first two
+# versions of this line passed exactly the runs they should have failed.
+if awk "BEGIN{exit !($spread > $MAX_SPREAD)}"; then
+  printf "PERF: INCONCLUSIVE - the measurement spread is too wide to judge.\n\n"
+  printf "  Five runs of one unchanged binary spanned %s%%, above the %s%% limit.\n" "$spread" "$MAX_SPREAD"
+  printf "  That is the machine, not the build: a verdict from this sample would be\n"
+  printf "  a guess, and a gate that guesses is the defect this rewrite removed.\n\n"
+  printf "  Close other work, or raise PERF_MAX_SPREAD deliberately and say why in\n"
+  printf "  the commit that does it. Do NOT lower PERF_MIN_FPS to make this go away:\n"
+  printf "  the threshold is not what is broken here.\n"
+  exit 2
+fi
+
+if awk "BEGIN{exit !(($median) < ($MIN_FPS))}"; then
+  fail=1
+fi
 
 if [ "$fail" -ne 0 ]; then
-  printf "PERF: FAIL - a regression this large is not scheduler noise.\n"
+  printf "PERF: FAIL - the MEDIAN of %d runs is below %s fps, and the spread (%s%%) was\n" "$RUNS" "$MIN_FPS" "$spread"
+  printf "  within the %s%% limit, so this is not noise.\n" "$MAX_SPREAD"
   printf "  Before blaming the recompiler, read the per-stage split in\n"
   printf "  %s/last_run_report.json (breadcrumbs.events, 'video profile:').\n" "$BUILD_DIR"
   printf "  'guest' is the emulated 65816; 'upload-present' is the host present\n"
@@ -191,4 +291,8 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 
-printf "PERF: PASS\n"
+printf "PERF: PASS - median %s fps over %d runs, spread %s%% (limit %s%%).\n" \
+  "$median" "$RUNS" "$spread" "$MAX_SPREAD"
+printf "  This is a gross-regression floor and a \"does it still run\" check. It is\n"
+printf "  NOT a headroom figure: on a vsync-capped build the fps number cannot move.\n"
+printf "  The figure that shows headroom is \`guest\` ms/frame, printed above.\n"

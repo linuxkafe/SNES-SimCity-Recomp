@@ -142,9 +142,23 @@ once per frame.
 
 - `$9311` dominating execution is the game spending the frame waiting for the
   next VBlank - not doing work there.
-- `force_lle 0x009311` is correct because the NMI must be delivered *during* the
-  spin, and delivery happens at AOT call boundaries; this spin **is** one of
-  those boundaries. A native spin never returns.
+<!-- RETRACTED 2026-10-02 (review finding R-04): the line below asserted, in the
+     present tense and in backticks as file content, that `force_lle 0x009311` is
+     correct. It was REMOVED by 436b25b, BEFORE this sentence was written.
+     `git log -S"force_lle 0x009311" -- recomp/bank00.cfg` proves it, and the
+     current set is {0x008000, 0x0080B2, 0x00927C, 0x009280, 0x009287, 0x00928F,
+     0x00804D}. It was removed BECAUSE a force_lle pins one PC inside a function
+     beginning at $930D, so acting on the original sentence reintroduced a
+     defect that was already diagnosed and closed. The surrounding analysis -
+     that the NMI must be delivered during the spin - remains valid; the
+     mechanism named to achieve it was removed and replaced by an
+     `exclude_range` at recomp/bank00.cfg:44. -->
+- ~~`force_lle 0x009311` is correct because the NMI must be delivered *during* the
+  spin~~ — **RETRACTED 2026-10-02, removed by `436b25b`.** The requirement it
+  described is still real and is now met by `exclude_range 0x130D 0x1318`
+  (`recomp/bank00.cfg:44`), which keeps the whole spinlock out of AOT. Delivery
+  happens at AOT call boundaries; a native spin never returns; the fix is to
+  ensure there is no native spin.
 - The watchdog at frame 2607 is `$C7` overflowing.
 
 It also settles the shape of the fix: "wait for the next VBlank" is what Super

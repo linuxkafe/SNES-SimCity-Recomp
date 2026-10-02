@@ -83,8 +83,30 @@ four sites has now been corrected.** `README.md:179`, `docs/ROADMAP.md:83` and
 gitignored. Additionally, `make perf` **straddles its own threshold on the dev
 host** — the same binary measured **FAIL at 48.38 fps** and **PASS at 51.52
 fps** against a threshold of 50, in one session. So the figures below are a
-historical correction, not a current measurement, and **no current per-stage
-split exists for this binary** (the Deck cannot build the project at all).
+historical correction, not a current measurement. ~~and no current per-stage
+split exists for this binary (the Deck cannot build the project at all)~~
+— **RETRACTED 2026-10-02:** the Deck compiles this project natively, so a current
+per-stage split is obtainable; it was simply not taken before this audit. The
+Deck's own figures at `9624f0e` are guest 4.502 / upload-present 1.007 /
+deadline-wait 11.275 ms per frame.
+> ⚠ **ENVIRONMENT-FIDELITY CAVEAT — every Deck number in this repository.**
+> The Steam Deck's rootfs is **damaged in a way pacman does not report**: 503 of
+> 504 glibc headers under `/usr/include` are absent from disk while `base-devel`
+> reports installed, and `echo '#include <stdio.h>' | gcc -E -` fails with
+> `No such file or directory`. There is no sudo and no cached glibc, so it cannot
+> be repaired. The Deck build resolves libc headers from a hand-assembled prefix
+> at `/home/deck/sysroot` (from `archive.archlinux.org`) with **`-idirafter`** —
+> not `-isystem`, which sorts before `/usr/include` and breaks libstdc++'s
+> `#include_next <stdlib.h>` — plus `SDL_UNIX_CONSOLE_BUILD=ON`,
+> `OPENGL_INCLUDE_DIR`, and `OpenGL_GL_PREFERENCE=LEGACY`.
+>
+> **The Deck binary was compiled on the Deck, against a reconstructed header
+> prefix, on a machine whose rootfs is damaged.** A performance figure measured
+> under those conditions describes those conditions. Corrected 2026-10-02: earlier
+> revisions of this file and of `scripts/perf-gate.sh` said the Deck *cannot*
+> build the project at all and that every Deck number was a copied binary. The
+> diagnosis (the missing headers) was right; the inference was not.
+
 `scripts/retracted-claims.tsv` rows R-012, R-021.
 
 `aes/tickets/T061`, `README.md:179`, `docs/ROADMAP.md:83` and
@@ -118,18 +140,37 @@ about the city.
 
 ---
 
-## 4. `scripts/cross-load-peer-save.sh` is a trap
+## 4. `scripts/cross-load-peer-save.sh` is a trap — **FIXED, 2026-09-30**
 
 The script is **known impossible**: the 32 KiB battery SRAM does not carry the
 city (32746 bytes of `0xFF` around `"SIM"`; identical md5 from a session at the
 naming screen and from one running JAN to MAR).
 
-The script has **no dead-end banner, no deprecation note, and no exit guard**.
-It is executable, well-written, plausible, and its header still argues the case
-for why the experiment *should* work. Nothing in it tells the next reader it
-cannot. The commit log shows the author already knew (`0c76a37 clock: the
-cross-load cannot work, and I designed it on an unchecked assumption`) — the
-knowledge went into a commit message instead of the artifact.
+**This section is out of date and so was review finding F-08, which repeated it.**
+Both said the script has *"no dead-end banner, no deprecation note, and no exit
+guard"* and a header that *"still argues the case for why the experiment should
+work"*. Measured 2026-10-02:
+
+```
+$ sed -n '1,8p' scripts/cross-load-peer-save.sh
+#!/usr/bin/env bash
+# ############################################################################
+# #  DEAD END - KNOWN IMPOSSIBLE. THIS SCRIPT CANNOT WORK. DO NOT RUN IT.   #
+# ############################################################################
+#
+# The disproof, measured 2026-09-30 and recorded in docs/CLAIMS_REGISTER.md §4
+```
+
+**The banner is there, dated, at the top of the file**, with the disproof and the
+reason the file was kept rather than deleted. It was fixed on 2026-09-30; this
+section and `docs/review/REVIEW-2026-10-02.md` F-08 were written afterwards and
+copied the stale description.
+
+The failure is worth naming because it has now happened **twice, to the same
+file**: a document described a script's state without reading the script, and a
+review then filed a finding from the document. Review 2026-10-02b retracted that
+finding on measurement (its R-10) — which is the only reason the error is visible
+here at all. **Read the artifact.**
 
 ---
 
@@ -193,6 +234,13 @@ We hold a private clone and `study/peer-linux/` links against their public API.
 
 ## 8. Address labels in the investigation are unverified — byte-pattern claims are safe
 
+> ⚠ **RETRACTED IN FULL 2026-10-02 by §14.** The ROM→CPU mapping **is** pinned:
+> HiROM `offset = bank*0x8000 + (addr & 0x7FFF)`, byte-verified on four
+> independent labels. The counter-evidence below is *true and irrelevant* —
+> `0x930D` is the naive offset that omits the mask. Added 2026-10-02: this
+> section carried no banner of its own, so its `exclude_range 0x930D 0x9318`
+> mention read as current to anyone who stopped here.
+
 This is a finding of this review, not a retraction, and it applies to *any*
 address the project has asserted from a ROM file offset.
 
@@ -203,6 +251,14 @@ checks contradict the obvious mapping:
   `22 11 a0 31 06 11 84 31 26 11 af 30 05 00 b0 31 …` — a dispatch table, not
   the `STZ $00B9 / INC / LDA / BEQ / RTS` spinlock that
   `recomp/bank00.cfg:44` describes at `exclude_range 0x930D 0x9318`.
+  **RETRACTED 2026-10-02 by §14 — and this is the sentence that motivated it.**
+  The measurement is *true and irrelevant*: `0x930D` is the naive file offset
+  that omits the HiROM `& 0x7FFF` mask, so the bytes really are something else.
+  The mapping is `bank*0x8000 + (addr & 0x7FFF)` and the config really has read
+  `0x130D 0x1318` since `afceeec`. A true observation carrying a false inference
+  is the most expensive kind of error in this project's record, and §14 already
+  says so; the marker is repeated here because **this is the bullet a reader
+  quotes.**
 - The byte sequence `02 00 28 6B` — the claim for `CODE_008206` — occurs exactly
   once, at **file offset `0x20C`**, not at any offset consistent with the
   `+0x10000` relationship that *does* hold for the `$03:8026` / `$03:C77E`
@@ -222,6 +278,17 @@ Consequences, and they are asymmetric:
 
 ## 9. Re-verified in this session (2026-10-01, at `ec4cabe`)
 
+> ⚠ **THIS TABLE IS A SUPERSEDED SNAPSHOT, dated 2026-10-01 at `ec4cabe`.** It is
+> kept verbatim because it is the record of what was checked then. **§14 corrects
+> it, and at least one row below is now false while still carrying a ✅** — the
+> `exclude_range 0x930D 0x1318` row, which has read `0x130D 0x1318` since
+> `afceeec`. Do not read this table as current; read §14 and
+> `docs/CAUSE_CLAIMS.md`. Left unedited on purpose: a snapshot that has been
+> quietly updated is no longer a snapshot, and the two states of this table are
+> both evidence. *(Corrected 2026-10-02 — review finding R-09, which is what a
+> 400-line self-contradiction with a tick next to the wrong row looks like from
+> the outside.)*
+
 Method: direct byte search over `SimCity (USA).sfc` (524,288 bytes) and direct
 reads of the working tree. No game run.
 
@@ -235,7 +302,7 @@ reads of the working tree. No game run.
 | `_canonical_wait_loop` is back to `LDA abs / BNE -5` (`AD … / D0 FB`) | ✅ the `LDA dp / BEQ -3` widening **was reverted** |
 | `src/game_rtl.c` contains only `interp_bridge_run_until_quiescent`; none of the 12 recent `clock:` commits touch it | ✅ **the reorder and both `interp_bridge_run_loop` attempts were reverted** |
 | `interp_bridge_run_scheduler` and `interp_bridge_run_loop` exist | ✅ in `snesrecomp/runner/src/snes/interp_bridge.h` — **T062's prescription is buildable**, and is *not* the same function as the two that livelocked |
-| `recomp/bank00.cfg:44` contains `exclude_range 0x930D 0x9318` | ✅ T062 AC #1 satisfied |
+| `recomp/bank00.cfg:44` contains `exclude_range 0x930D 0x9318` | ✅ T062 AC #1 satisfied — **❌ FALSE, see §14. The range has read `0x130D 0x1318` since `afceeec`; the `& 0x7FFF` mask was missing.** Fixed inline 2026-10-02, review finding R-09 |
 | peer public API carries no PC or block trace | ✅ **confirmed dead end**, §6 |
 | peer repository has no licence file | ✅ **confirmed**, §7 |
 | `aes/` and `.aes/` are in `.gitignore` | ⚠️ **the entire ticket queue is untracked and has never been committed** |
@@ -631,3 +698,51 @@ in this repository. That is the gap Phase 7 closes.
 
 `make test-rom` was run to resolve CONF-3 rather than argued about: **PASS, 257
 distinct crc32, peak luma 41.751**, 800 frames presented.
+
+## 22. Phase 7 — what was corrected, and what each correction cost
+
+Every row names the command that now shows the corrected state. The retraction
+count moved from 19 to **22** during this phase (rows R-028..R-030, the Deck
+premise) and is computed by `make retraction-count`, never written by hand.
+
+| # | was | now | verified by |
+|---|---|---|---|
+| README | "the bank-03 tick … still does not run" | retracted in place; the measured form (921 PCs / 515,043 steps to f3300, zero after) stated beside it | `make check-claims`, review validator R-03 |
+| README | "Therefore `INC.w $0B51` executes zero times — the tick routine is never reached" | **withdrawn, not replaced**; a table of what is measured, and `$03:8026`'s membership left **OPEN** | review validator R-02 |
+| README | Deck perf table `2.45` ms / `8.13` ms, "the 65816 is not the bottleneck" | all retracted with ledger references; measured Deck figures substituted; env-fidelity caveat added | `make check-claims` |
+| README | no pointer to the current-position files | a table listing all six, incl. the OPEN question | review validator R-07 |
+| README | "no script yet reaches a running city" | corrected; the 89% figure labelled as measured on attract, not the city | `make check-causes` |
+| `RE_SCENARIO_NAV.md:145` | `force_lle 0x009311` asserted present | dated retraction marker naming `436b25b`, mechanism replaced by `exclude_range 0x130D 0x1318` | review validator R-04 |
+| `scripts/perf-gate.sh` | "the Deck cannot build this project" | corrected, with the rootfs damage and the `-idirafter` prefix recorded | `make check-claims` (R-028..R-030) |
+| `scripts/verify-rom-render.sh` | "206 distinct crc32 when healthy" | 257, measured, with the floor-vs-headroom caveat | review validator R-05 |
+| `CLAIMS_REGISTER.md` §8, §9 | retracted sections with no banners; a ticked row its §14 calls false | banners added; the row's correction inline; the §8 bullet that a reader quotes now carries its refutation | review validator R-09 |
+| `CLAIMS_REGISTER.md` §4, `REVIEW-2026-10-02.md` F-08 | "the script has no dead-end banner" | corrected: the banner exists; the *documents* were the stale part | review validator R-10 |
+| `.opencode/agent/clock-hunter.md` | "`recomp/bank00.cfg` pins `force_lle 0x009311`" | retracted with the replacement named | `make check-claims` (derived scope) |
+| `.opencode/agent/question-manager.md` | heading "What is established" | renamed to "What is measured", with the reason | `make check-claims` (R-009) |
+| `tests/test_deterministic_replay.c` | SKIP returned 0; ctest rendered it **Passed** | returns 2, with the reason printed | review validator R-01 |
+| `tests/test_deterministic_replay.c` | relative ROM path; emulator chdir'd away from it | `absolutise()` resolves every branch | review validator R-12 |
+
+### Three defects in this phase's own new code, found by running it
+
+Recorded because a phase that reports only its successes is a phase nobody can
+trust, and because each of these was invisible to reading the code.
+
+1. **`make perf` died silently after run 1.** Under `set -euo pipefail`, a `grep`
+   that matches nothing exits 1, the command substitution inherits it, the
+   assignment fails, and the gate stops with no verdict and no error. It took
+   three invocations to notice. **`|| true` added, and the reason written down.**
+2. **`scripts/check-cause-claims.sh` cried wolf twice before it was right.**
+   `frame` matched inside "framework change", and the cue "turns out to be"
+   matched "if the containment turns out to be needed". Both patterns were
+   tightened, and both failures are named in the script.
+3. **Its self-test initially passed for the wrong reason** — it reported its own
+   *seed* as a failure of the current tree, because the seed and the live check
+   shared one counter. Found because the self-test failed when it should not
+   have, which is the only direction a self-test can be trusted in.
+
+**And one that was caught before it shipped:** the guard's first self-test
+**failed**, because it did not fire on the tree at `9624f0e` — it was checking
+README only, while all three of its hits were in `RE_CITY_FREEZE.md`. It now
+seeds three files from git history and asserts **both** directions: that it fires
+there, and that it is clean here. A guard that has never been seen to fail has
+not been tested, and neither has one that has never been seen to pass.

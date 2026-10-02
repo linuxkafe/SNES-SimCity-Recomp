@@ -22,7 +22,16 @@ loads and renders; the renderer is proven live; the simulation is frozen at
 `1900 JAN` forever. Do not let that change get described as progress until the
 gate is green.
 
-## What is established — do not re-derive
+## What is measured — do not re-derive
+
+<!-- RETRACTED 2026-10-02 (ledger R-009): this heading used to read "What is
+     established - do not re-derive". The heading itself is a retracted string:
+     `make clock` printed it while asserting a cause measurement refuted, and the
+     phrase is what a reader greps for when deciding whether to trust a section.
+     Everything listed below was measured and stands; what changed is that the
+     section no longer claims more than "measured", because "established" was
+     the word that carried the retractions. -->
+
 
 - The renderer is live: a WRAM poke moves the presented picture on the next present. `scripts/clock-gate.sh` samples passively, which is why "1 distinct crc32" was twice misread as a frozen renderer.
 - The guest is structurally healthy: NMI delivered and returned, spin entered and exited, one main-loop iteration per frame.

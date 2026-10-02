@@ -527,6 +527,14 @@ samples), and `recomp/bank00.cfg:32` already pins
 
 **The game is spinning in its VBlank wait loop.** `$9311` waits for a flag that
 something else is supposed to set, and the thing that sets it never runs. The
+<!-- RETRACTED 2026-10-02: the causal claim in the next sentence ("$0406 is
+     incremented by the NMI path, which is why it ticks") was asserted here
+     without a measurement, and README records that "$0406 is not +1 per frame"
+     was itself retracted. The whole entry is labelled RETRACTED in the index at
+     the top of this file; this line puts that label next to the claim rather
+     than 400 lines above it. What IS measured, elsewhere: $00C7 advances 5/5,
+     so the guest executes every frame. Why it never got past this wait is
+     entry (p), and it was not this. -->
 `$0406` counter is incremented by the NMI path, which is why it ticks — so the
 interrupt *is* being delivered — but the main loop never gets past the wait.
 
@@ -959,6 +967,12 @@ returned, spin entered and left, one main-loop iteration completed, frame
 counter ticking. And the game is **idle**. So the fault is in *what the main
 loop does*, not in the vblank handshake, and it is a game-semantics question
 this project has been reading as a timing one.
+<!-- RETRACTED 2026-10-02: "the fault is in what the main loop does" is a CAUSE
+     claim, asserted here from an observation, and it is wrong. The fault was in
+     the HOST's NMI ordering, not in the guest's main loop - entry (p), measured.
+     This entry is labelled RETRACTED in the index; the marker is repeated here
+     because the sentence is the one a reader would quote. -->
+
 
 The most concrete lead: the NMI handler's short/long path is selected by **bit
 7 of `$00B1`** (`$80B6` → `$80BA`). In our runs `$00B1` is `$81` at NMI time,

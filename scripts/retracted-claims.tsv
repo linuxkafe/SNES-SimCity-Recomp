@@ -54,6 +54,15 @@
 # claim identity, and inventing one to make the number prettier would be
 # judgement dressed as data.
 #
+# R-028..R-030 (2026-10-02) are the first rows added for a claim that no gate had
+# caught: "the Deck cannot build this project", false since 9624f0e. The rootfs
+# damage it rested on is REAL and still true - 503 of 504 glibc headers are absent
+# from disk while pacman reports the package installed. The headers came from
+# archive.archlinux.org into /home/deck/sysroot with -idirafter. So the diagnosis
+# was right and the inference drawn from it was wrong, which is the same shape as
+# the paired $0B51 retraction: a correct observation carrying an unsupported
+# conclusion. See docs/CONFLICTS.md CONF-2 and aes/decisions/D009.md.
+#
 # WHEN YOU RETRACT SOMETHING: append a row. Do not edit prose to remove the
 # claim, and do not weaken a pattern to make a check pass.
 
@@ -85,3 +94,6 @@ R-024	phrase	refuted	<-- THE GATE	README.md:70
 R-025	phrase	refuted	proven by pokefor	README.md:70
 R-026	phrase	refuted	demonstrably does not run	README.md:70
 R-027	phrase	refuted	AND #\$9000 gates INC	README.md:70
+R-028	phrase	refuted	the Deck cannot build this project	docs/CONFLICTS.md:41
+R-029	phrase	refuted	Deck cannot compile this	docs/CONFLICTS.md:41
+R-030	phrase	refuted	no glibc headers, so `make build` there fails	docs/CONFLICTS.md:41

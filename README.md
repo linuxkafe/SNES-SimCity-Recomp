@@ -53,7 +53,10 @@ were added. This port reproduces that SNES release.
 ✅ **Watchdog fixed**: VBlank wait loop at $00927C forced to interpreter  
 ✅ **NMI handler stabilized**: Forced to interpreter at $0080B2  
 ✅ **Deterministic replay**: Bit-identical state traces verified  
-✅ **Holds 60 fps**: 60.06 fps peak on an i5-8500T, 60.1 fps on a Steam Deck  
+✅ **Holds its frame rate**: 60.06 fps peak on an i5-8500T; 56.88 fps on a Steam
+   Deck, **frame-locked** (five runs identical to the millisecond, so that figure
+   cannot detect guest slowdown at all). Both are gross-regression floors, not
+   headroom figures — see the Performance section. 
 
 ![SimCity title screen](docs/screenshots/title.png)
 
@@ -67,11 +70,35 @@ very next frame.
 
 ![A city at 1900 JAN, frozen](docs/screenshots/city-frozen.png)
 
-**Where it is stuck: NOT KNOWN.** This is not a compilation problem — the
-bank-03 tick is compiled to native C and still does not run. But the *reason* is
-**not established**, and the chain below is the generation of hypotheses that was
-measured false on 2026-10-02. It is printed here as history, not as the answer,
-because it is what this file asserted until then:
+**Where it is stuck: NOT KNOWN, and here is what is actually measured.**
+
+> **RETRACTED 2026-10-02 (review finding R-03).** This file used to say, in the
+> present tense and two lines below the honest status above: *"This is not a
+> compilation problem — the bank-03 tick is compiled to native C and still does
+> not run."* **That is false as stated.** Measured on 2026-10-02 over frames
+> 0–3700, bank 03 executes **921 distinct PCs and 515,043 interpreted steps** —
+> it is not code this build never reaches. What is true is much narrower and much
+> more interesting:
+>
+> - bank 03 runs up to **f3300** (160,693 steps in f3100–f3300) and executes
+>   **zero** steps from f3301;
+> - the live-city window (f3381–f3700) is confined to **banks 00 and 01**;
+> - the city is on screen from ≈f3378, so bank 03 goes silent roughly **78 frames
+>   before** the city appears. That is a **correlation** and no cause is claimed
+>   for it anywhere in this repository.
+>
+> Instrument, raw counts and what the instrument cannot see:
+> [`docs/measurements/2026-10-02-deck-interp-histogram.md`](docs/measurements/2026-10-02-deck-interp-histogram.md).
+> Classification of every causal claim in this project:
+> [`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md).
+
+The chain below is the generation of hypotheses that was measured false on
+2026-10-02. It is printed here as history, not as the answer, because it is what
+this file asserted until then:
+
+**RETRACTED 2026-10-02 — every row of this table is history, not a diagnosis.**
+(The longer retraction is directly below the table; this line exists so that no
+row inside the block is more than a few lines from the word that refutes it.)
 
 ```
 $009311  the guest waits on $B9, set by the NMI handler   $B9 = 0, $C7 spinning
@@ -84,7 +111,8 @@ $038000  the task that increments the month                does not run
 $0B53/$0B55  the date                                       never leaves 0
 ```
 
-**RETRACTED 2026-10-02 — do not read the chain above as the diagnosis.** Its two
+**RETRACTED 2026-10-02 — the block above is a retracted chain, in full.**
+Do not read it as the diagnosis. Its two
 load-bearing claims are both measured false:
 
 - `$12` **is not 0**. It reads `0001` at 5 of 5 frame-boundary samples spanning
@@ -122,12 +150,29 @@ diffed, and it reduces to a single fact.
 `AND.w #$0003` is zero. In the peer it climbs `00 -> 006D`. In this build it is
 `0000` at every single sample from frame 3150 to 30000.
 
-That arithmetic has no escape: **with `$0B51` at zero, `AND #$0003` is zero, so
-the first execution would advance the month immediately.** It never does.
-Therefore `INC.w $0B51` executes zero times — the tick routine is never reached
-after the city loads. `$0DC7`, two instructions later, is dead too, which is
-independent corroboration of the same block. This build changes 53 WRAM
-addresses across 30,000 frames of a live city; the peer changes 102,158.
+> **RETRACTED 2026-10-02 (review finding R-02).** The paragraph above concluded:
+> *"Therefore `INC.w $0B51` executes zero times — the tick routine is never reached
+> after the city loads."* **That conclusion is withdrawn, not replaced.** Ledger
+> row **R-020** records the claim with status `invalidated-premise`: its premise
+> (`$0012 == 0`) is false, which voids the inference and establishes **nothing in
+> its place**. The arithmetic above is correct; the inference drawn from it is not
+> evidence.
+>
+> What is measured, stated without inference:
+>
+> | | |
+> |---|---|
+> | `$0B51` at f3600 | `0000` |
+> | `INC.w $0B51` = `EE 51 0B` at ROM offset | `0x18026`, occurring exactly once |
+> | **is `$03:8026` among the 921 bank-03 PCs that execute?** | **OPEN — unmeasured** |
+> | `$0DC7` at f3600 | `0000` |
+> | WRAM bytes changing across 2,599 frames of a live city | **34** (not 53 across 30,000 — ledger R-014) |
+>
+> The histogram that counted those 921 bank-03 PCs prints only the top 60 by
+> host-time, so **the run that produced the count cannot answer whether this
+> particular instruction is among them.** It stays open rather than being
+> resolved in the convenient direction. Ticket T087; the single cheapest
+> remaining measurement.
 
 **The open question — reopened, and the last answer was wrong.** For twelve
 commits this was framed as an unbounded static question — how does control reach
@@ -190,7 +235,26 @@ retractions with the evidence that overturned them, because this project has
 now published a wrong diagnosis twice and the corrections are worth more than
 the claims were.
 
-### Gates
+### Where the current position lives
+
+This file is the entry point, and it is **not** the maintained record. Four files
+are, and this section is the only place they are listed:
+
+| file | what it holds |
+|---|---|
+| [`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) | every causal claim in this project, classified MEASURED / INFERRED / RETRACTED / OPEN, with the instrument or the reason there is none |
+| [`docs/CONFLICTS.md`](docs/CONFLICTS.md) | every contradiction found between docs, code and git history, with the command that found it |
+| [`docs/RE_CITY_FREEZE.md`](docs/RE_CITY_FREEZE.md) | the chronology, with a 43-row index at the top and a per-entry state banner on each entry |
+| [`docs/measurements/`](docs/measurements/) | raw measurements, the exact commands, and **what each instrument cannot see** |
+| [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) | the index of what is retracted, superseded or unverified |
+| [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) | the standard of proof — **no acceptance criterion may be satisfied by a claim** |
+
+**The one question this repository has not answered:** why the city does not
+simulate. It is labelled **OPEN** everywhere it appears, it is the only row in
+`docs/CAUSE_CLAIMS.md` with no instrument, and no cause for it is asserted
+anywhere in this tree.
+
+## Gates
 
 Every figure below names the machine and the date it was measured on. A gate
 result without a machine is not a measurement — see
@@ -248,15 +312,43 @@ frames:
 
 | Machine | Build | fps | `guest` ms/frame | `upload-present` ms/frame |
 |---|---|---|---|---|
-| Steam Deck (Zen 2) | Release | 60.1 | **2.45** | 8.13 |
-| i5-8500T | Release | 59.5 | 4.97 | 7.84 |
-| i5-8500T | Debug (`-O0`) | 42.4 | 9.52 | 5.90 |
+| Steam Deck (Zen 2), **compiled on the Deck** | Release | 56.88 | **4.502** | **1.007** |
+| i5-8500T, cross-built binary | Release | 59.5 | 4.97 | 7.84 |
+| i5-8500T, cross-built binary | Debug (`-O0`) | 42.4 | 9.52 | 5.90 |
 
-Two things worth reading off that table. The emulated 65816 is **not** the
-bottleneck — on the Deck it uses about 15% of the 16.67 ms frame budget, while
-the host's SDL present path uses more than the guest. And the build type is not
-cosmetic: `-O0` cost 24% of the frame rate on the same machine and the same
-ROM, which is why `make build` ships Release.
+**Every figure in that table is retracted or superseded, and the reason is
+instructive.**
+
+- The Deck row's `2.45` ms was **never re-measured** and is ledger **R-012/R-021**.
+  The measured Deck figure is **4.502 ms**. The old row also claimed
+  `upload-present` **8.13 ms**, which on the Deck was measured at **1.007 ms** —
+  the opposite side of the guest by a factor of four and a half. Ledger R-012,
+  R-021.
+- **"The emulated 65816 is not the bottleneck" is RETRACTED** (ledger R-023,
+  R-025). It rested on `guest` being 2.45 ms against a large `upload-present`.
+  Measured on the Deck the picture is the reverse: guest 4.502, upload-present
+  1.007, and **deadline-wait 11.275** — pacing dominates, not the CPU.
+- The "upload-present costs 6.8× the guest" figure that replaced it was an
+  artifact of `SDL_VIDEODRIVER=dummy` **on the dev host**, not a property of the
+  code. Neither number survives.
+- The `-O0` row (42.4 fps, `-O0` costing 24% of the frame rate) is the one part
+  that still stands, and it is why `make build` ships Release.
+
+> ⚠ **ENVIRONMENT-FIDELITY CAVEAT on the Deck row.** The Deck's SteamOS rootfs is
+> **damaged in a way pacman does not report**: 503 of 504 glibc headers under
+> `/usr/include` are absent from disk while `base-devel` reports installed, and
+> `echo '#include <stdio.h>' | gcc -E -` fails with `No such file or directory`.
+> There is no sudo and no cached glibc, so it cannot be repaired. The Deck build
+> resolves libc headers from a hand-assembled prefix at `/home/deck/sysroot`
+> (headers from `archive.archlinux.org`) with **`-idirafter`** — deliberately
+> not `-isystem`, which sorts before `/usr/include` and breaks libstdc++'s
+> `#include_next <stdlib.h>`. It also needs `SDL_UNIX_CONSOLE_BUILD=ON`,
+> `OPENGL_INCLUDE_DIR`, and `OpenGL_GL_PREFERENCE=LEGACY`.
+>
+> **So: the Deck binary was compiled on the Deck, against a reconstructed header
+> prefix, on a machine whose rootfs is damaged.** A performance figure measured
+> under those conditions describes those conditions. This caveat travels with
+> every Deck number cited anywhere in this repository.
 
 The per-stage split comes from `SNESRECOMP_HOST_PROFILE=1`, which writes
 `video profile: stage=...` lines into `last_run_report.json`. `guest` is the
@@ -493,7 +585,12 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 
 The city view renders correctly and the frame loop runs once per frame
 throughout; the game state never leaves its initial values, so the date,
-population and treasury never change. See `aes/tickets/T058-city-clock-does-not-advance.md`.
+population and treasury never change. **The cause is OPEN** — see
+[`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) node C-006. (This line
+previously pointed at `aes/tickets/T058-city-clock-does-not-advance.md`. `aes/`
+is gitignored **permanently and by rule** — DoD D4.3 — so that path resolves in
+no fresh clone. Pointing a tracked file into an uncommittable directory is the
+same rule breaking itself; the pointer now names a tracked file.)
 
 ## License
 

@@ -47,7 +47,13 @@ words in bank `$00` and both are cheap to falsify.
 Known about the guest: NMI is delivered every frame and `pre-nmi`/`post-nmi`
 return with the same SP and same resume PC, so the interrupt path is clean.
 `$9311`–`$9315` dominates execution — the guest is *waiting for the next
-VBlank* there (`recomp/bank00.cfg` pins `force_lle 0x009311`, the vblank wait).
+VBlank* there. **RETRACTED 2026-10-02 (review finding R-04):** this file used to
+say "`recomp/bank00.cfg` pins `force_lle 0x009311`". It does not — that directive
+was **removed by `436b25b`**, and the vblank wait is now kept out of AOT by
+`exclude_range 0x130D 0x1318` at `recomp/bank00.cfg:44`. An agent told to look
+for a `force_lle` here would conclude the config is broken, or add one back and
+reintroduce a closed defect. The finding it was teaching is correct; the
+mechanism it named was removed.
 The resume PC oscillates through `$0084E1`–`$0084FA`, which is a jump table,
 not a loop.
 

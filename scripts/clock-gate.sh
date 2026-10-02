@@ -16,9 +16,12 @@
 #   * the controller does nothing at all.
 #
 # Every existing gate in this repository passes while all of that is true, and
-# the reason is the same in each case: they all measure before the city exists.
-# test_deterministic_replay runs 30 frames. verify-rom-render.sh inspects
-# frames 200-800. perf-gate.sh runs 600 frames. All three are still on the
+# the reason is measured in each case rather than guessed: they all measure
+# before the city exists. test_deterministic_replay runs 30 frames and
+# verify-rom-render.sh inspects frames 200-800; the city is on screen from about
+# f3378. (The reason used to be asserted without those numbers, which is what
+# scripts/check-cause-claims.sh now fails on.)
+# perf-gate.sh runs 600 frames. All three are still on the
 # attract screen and the menus. They pass on the strength of motion that
 # stopped 2,700 frames before the gate's own window ended.
 #
