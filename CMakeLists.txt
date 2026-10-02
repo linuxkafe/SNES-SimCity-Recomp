@@ -135,6 +135,30 @@ target_include_directories(test_display_aspect PRIVATE
 )
 add_test(NAME test_display_aspect COMMAND test_display_aspect)
 
+# The framework's TRACE tier, opt-in.
+#
+# Every AOT-side instrument in the framework - SNESRECOMP_AOTBLK, the
+# SNESRECOMP_CYC_WATCH complement, cpu_trace_block(), the mx_async tripwire -
+# lives behind SNESRECOMP_TRACE, and with TRACE=0 cpu_trace_block() is an
+# empty static inline (snesrecomp/runner/src/cpu_trace.h). So those knobs
+# silently accept their environment variable and print nothing at all.
+# Measured: SNESRECOMP_AOTBLK=0-3700 on a 4000-frame run produced ZERO
+# [aotblk] lines and no warning.
+#
+# Turning the tier on needs debug_server.c in the link (the generated code
+# emits calls into it), which runner.cmake does not add for a game project.
+# This option adds it. OFF by default: it drags in a socket server, and no
+# gate in this repository needs it.
+option(SNESRECOMP_TRACE_BUILD
+    "Compile the framework trace tier (needed for any AOT-side instrument)" OFF)
+if(SNESRECOMP_TRACE_BUILD)
+    target_sources(SimCitySNESRecomp PRIVATE
+        ${SNESRECOMP_ROOT}/runner/src/debug_server.c)
+    find_package(Threads REQUIRED)
+    target_link_libraries(SimCitySNESRecomp PRIVATE Threads::Threads)
+    target_compile_definitions(SimCitySNESRecomp PRIVATE SNESRECOMP_TRACE=1)
+endif()
+
 # Custom target to run regeneration
 add_custom_target(regen
     COMMAND bash ${CMAKE_SOURCE_DIR}/tools/regen.sh

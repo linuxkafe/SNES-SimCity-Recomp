@@ -145,16 +145,30 @@ rather than measured.** What is measured is much narrower and much more
 interesting:
 
 - **Bank 03 executes.** 921 distinct PCs and 515 043 interpreted steps over
-  frames 0–3700. **[MEASURED]**, Deck-native instrumented build. It is not code
-  this build never reaches.
-- **Bank 03 goes silent at f3301.** 160 693 steps in f3100–f3300 (≈803/frame);
-  **zero** in f3300–f3380 and zero in the live-city window. **[MEASURED]**.
-- **The live-city window is confined to banks 00 and 01** — 813 + 415 distinct
-  PCs, 2 308 599 steps, nothing in `$02`, `$03`, `$05`. **[MEASURED]**.
-- **The city appears at ≈f3378, i.e. ≈78 frames *after* bank 03 falls silent.**
-  This is a **correlation**, recorded as a correlation in three places on
-  purpose, because the next session will want to write it as a cause and the
-  number is sitting there looking like evidence. **No cause is claimed for it.**
+  frames 0–3700. **[MEASURED]**, on the Deck and on the dev host, to the unit.
+  It is not code this build never reaches.
+- **Bank 03 goes silent at f3271, not f3301.** The earlier boundary came from
+  100-frame brackets, which could only see that the f3100–3300 bracket was
+  non-empty. A per-frame stream puts the **last frame containing any bank-03
+  execution at f3271** — 16 interpreted steps — with none in f3272–f3700, and
+  the frame-for-frame pattern is identical on both machines. **[MEASURED]**.
+  `docs/CAUSE_CLAIMS.md` C-039 is retracted as stated; C-039b replaces it.
+- **Bank 03 only ever runs in `$03C63D`–`$03E57E`.** The whole `$038000`–`$03C63C`
+  region executes **nothing** — and that region contains the tick. **[MEASURED]**,
+  min/max of the full per-bank dump on both machines and in both instrument
+  configurations.
+- **`INC.w $0B51` at `$03:8026` executes zero times** — 0 hits in the 921-entry
+  dump, 0 AOT block entries, both machines, f0–f3700, with `$0B51 = 0000` at
+  f3600 in the same runs. **[MEASURED]**, C-041 answered. This is counted
+  execution, not inference from a WRAM sample.
+- **The AOT side is banks 00 and 01 too.** Whole-run AOT block log, first ever
+  taken: 1 430 539 entries over f0–f3700, of which bank `$03` has **18**, all in
+  f3270. In the live window f3400–f3700: `$00` and `$01` only. **[MEASURED,
+  host-only]** — the Deck figure is not in this tree.
+- **The city appears at ≈f3378, i.e. ≈107 frames *after* bank 03 falls silent.**
+  This is a **correlation**, recorded as a correlation on purpose, because the
+  next session will want to write it as a cause and the number is sitting there
+  looking like evidence. **No cause is claimed for it.**
 
 Whole-run per-bank histogram (Deck-native Release build with
 `-DSNESRECOMP_INTERP_PROFILE`, 4 000 frames, rc=0). Cells are
@@ -183,20 +197,41 @@ bounded by that window.
 > whose rootfs is damaged. A figure measured under those conditions describes
 > those conditions.** This caveat travels with every Deck number cited anywhere.
 
+Raw counts, both instruments, and what they cannot see:
+[`docs/measurements/2026-10-02-c041-bank03-pc-dump.md`](docs/measurements/2026-10-02-c041-bank03-pc-dump.md).
+
 ### The open question, and what it is not
 
 **Why does the city not simulate? [OPEN].** It is the only row in
 `docs/CAUSE_CLAIMS.md` with no instrument, and no cause for it is asserted
-anywhere in this tree. Specifically:
+anywhere in this tree.
+
+**The question has changed shape, and the change is the finding.** The code that
+was believed to advance the city clock is now *measured not to execute at all*.
+So the open question is no longer "why does bank 03 stop at f3301" — bank 03
+stops at f3271 and the reason is still unknown — but the sharper one:
+
+> **What advances `$0B51` in the reference build, if not `$03:8026`?**
+
+The premise underneath all of it, `$0B51` *is* the city tick, remains
+**[INFERRED]** from the peer and has never been measured here. The next
+measurement is therefore on the peer, not on this build: instrument
+`Junior-Jones/SimCity-SNES-Static-Recomp` for the PC that writes `$0B51`, since
+its API carries no PC or block trace today (C-032).
+
+The retracted claims, each marked where it was made:
 
 - **"The bank-03 tick is compiled to native C and still does not run"** —
   **RETRACTED 2026-10-02 (review finding R-03).** Bank 03 executed 515 043
   interpreted steps. The surviving, much narrower form is the f3301 boundary
   above, which is a location and not a cause.
-- **"Therefore `INC.w $0B51` executes zero times"** — **withdrawn, not
-  replaced** (review finding R-02; ledger R-020, `invalidated-premise`). Its
-  premise (`$0012 == 0`) is false, and a refuted premise voids an inference and
-  establishes **nothing in its place** — which is not a claim that it does run.
+- **"Therefore `INC.w $0B51` executes zero times"** — the *inference* was
+  **withdrawn, not replaced** (review finding R-02; ledger R-020,
+  `invalidated-premise`). Its premise (`$0012 == 0`) is false, and a refuted
+  premise voids an inference and establishes **nothing in its place** — which is
+  not a claim that it does run. The *conclusion* has since been reached by a
+  different route and now stands on its own: **MEASURED**, zero executions on
+  both tiers on both machines (C-041, C-008).
 - **"The main loop does not run at all in a city"** — **RETRACTED as stated**,
   same measurement as R-03.
 - **"The gate is `$0012`"** — **RETRACTED.** `$0012 = 0001` and `$0014 = 8000` at
@@ -205,8 +240,10 @@ anywhere in this tree. Specifically:
   claim used a deliberately truncated `save.srm` from `scripts/clock-gate.sh`.
 - **"Refusing to decode COP is the cause"** — **RETRACTED.** No word anywhere in
   the ROM points into `$038000–$038220`.
-- **`CODE_008061` "never runs"** — **OPEN, not established**, and *not*
-  retracted: its premise was false and its execution was never measured.
+- **`CODE_008061` "never runs"** — **RETRACTED as stated.** It runs, at
+  `$00:8061`, on both machines, immediately after bank 03's last `RTL`. It had
+  sat at OPEN with the note "execution never measured", which is a fact about the
+  instrument rather than about the world.
 
 A 9 000-frame settle protocol on the Deck (162.5 s wall, real save
 `24720bb57ff09426d588da564fea6c18`) read `1900/1` at **every** snapshot,
@@ -540,11 +577,29 @@ session does not pay for them again.
    and the leading sort slots are unused hash-table entries.
    **A section header with no rows under it is not a negative result.**
 
-The interpreted histogram itself is also **blind to AOT**: a bank-03 routine that
-runs as a compiled block contributes zero to every number it prints. There is
-still **no whole-run AOT histogram**, so "bank 03 executes no AOT blocks anywhere"
-is **[OPEN]**, not measured and not claimed. Complement it with
-`SNESRECOMP_AOTBLK="lo-hi"` (a **frame** window).
+4. **Every AOT-side instrument is unreachable from a default build.**
+   `SNESRECOMP_AOTBLK="lo-hi"` over 4 000 frames logged **zero** lines and no
+   warning: `cpu_trace_block()` is an empty `static inline` unless
+   `SNESRECOMP_TRACE=1`, and with that define the link fails on 24 undefined
+   references into `debug_server.c`, which no CMake option in this repository
+   added. A knob that accepts its variable and prints nothing is worse than one
+   that is absent. `-DSNESRECOMP_TRACE_BUILD=ON` (default **off**) now adds
+   `debug_server.c` and links pthreads, which is what makes trap 4 avoidable.
+
+Two knobs were added for this, dev-only behind `-DSNESRECOMP_INTERP_PROFILE`:
+`SNESRECOMP_INTERP_DUMP_BANK=03` prints **every** distinct PC in one bank with
+its step count (the top-60 list cannot answer "is this one address among
+them"), and `SNESRECOMP_INTERP_TRACE_FRAMES=lo-hi` prints every interpreted PC
+in a frame window, all banks, in execution order.
+
+**One caveat about the histogram itself, measured:** instrumentation overhead
+moves it. The same binary, ROM, script and window give bank 03 = 921 PCs /
+515 043 steps plain and 946 PCs / 515 337 steps with the trace compiled in — even
+with a window in which it prints nothing. **The PC histogram is a property of an
+instrumented build, not of the game** (C-048, cause OPEN). Distinct-PC counts are
+stable across machines and runs; *step* counts are not, in the spinlock-dominated
+banks: `$00` measured 26 856 340 and 28 769 361 steps across two runs of one
+binary (C-049).
 
 ## Architecture
 

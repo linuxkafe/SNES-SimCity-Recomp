@@ -126,14 +126,18 @@ counts do not sum and are not expected to — the sets overlap.
    page. The complement instrument is `SNESRECOMP_AOTBLK`, which takes a **frame**
    window, not a PC range. At `9624f0e` it was measured over f3400–f3600 only
    (206 806 block entries, 30 distinct PCs, banks 00 and 01, zero in `$03`).
-   **There is no whole-run AOT histogram**, so "bank 03 executes no AOT blocks
-   anywhere" is **NOT measured** and is not claimed here.
-2. **`$03:8026` specifically is not resolved.** `INC.w $0B51` is at ROM offset
-   `0x18026` (`EE 51 0B`) and `$0B51` reads `0000` at f3600 (§2), while bank 03
-   executed 515 043 steps before f3300. Whether `$03:8026` is among those 921 PCs
-   is **unknown**: the dump prints only the top 60 PCs by host-ms, and with
-   `SNESRECOMP_INTERP_MS_PROF` unset it prints **none of them** (see §6). Closing
-   this needs a full per-bank PC dump — an instrument change, not a longer run.
+   **There was no whole-run AOT histogram** when this page was written, so
+   "bank 03 executes no AOT blocks anywhere" was **NOT measured** and was not
+   claimed. **It is measured now** — 1,430,539 block entries over f0–f3700 of
+   which bank `$03` has 18, all in f3270 — see
+   `2026-10-02-c041-bank03-pc-dump.md` §5. Note that this took an instrument
+   *build* change as well as a run: `cpu_trace_block()` is a no-op without
+   `SNESRECOMP_TRACE=1`, so `AOTBLK` silently logged nothing at all.
+2. **`$03:8026` specifically was not resolved by this page.** RESOLVED, elsewhere:
+   **it does not execute** — 0 hits in the full per-bank dump on both machines,
+   and 0 AOT entries (`2026-10-02-c041-bank03-pc-dump.md`). What this page could
+   not do: the dump prints only the top 60 PCs by host-ms, and with
+   `SNESRECOMP_INTERP_MS_PROF` unset it prints **none of them** (see §6).
 3. **`INTERP_PROFILE` is dev-only.** No CMake option in this repository defines
    `-DSNESRECOMP_INTERP_PROFILE`; this build was configured with
    `-DCMAKE_C_FLAGS="-idirafter /home/deck/sysroot/usr/include -DSNESRECOMP_INTERP_PROFILE=1"`.
@@ -155,8 +159,10 @@ header with no rows under it is not a negative result.**
 
 ## 7. What this does NOT establish
 
-- **Why** bank 03 stops at f3301. Not measured. Any cause asserted from this page
-  would be the same error as the fifteen retracted claims.
+- **Why** bank 03 stops. Not measured — and the boundary this page reported,
+  f3301, was **too coarse**: the real one is f3271 (same page's successor). Any
+  cause asserted from this page would be the same error as the fifteen retracted
+  claims.
 - That the city tick lives in bank 03. That label comes from the reference
   implementation's trace, which is **inferred**, not measured here.
 - Anything about AOT execution outside f3400–f3600.

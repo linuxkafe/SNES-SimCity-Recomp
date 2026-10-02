@@ -1,6 +1,6 @@
 # T060 — the clock does not advance in a running city
 
-> ## ⚠ STATUS — measured 2026-10-02; newest entry **(s)**. Read this before anything below.
+> ## ⚠ STATUS — measured 2026-10-02; newest entry **(t)**. Read this before anything below.
 >
 > This file is an **append-only chronological log**, ~3,400 lines and 44 entries.
 > **98% of it predates its own newest entry** and 94% predates the root cause.
@@ -13,18 +13,23 @@
 > | Is the vblank deadlock fixed? | **Yes.** `$00B9 = 0001` at 5/5; `$00C7` advances 5/5. | same 5 samples; re-confirmed at **(s)** |
 > | Does the city simulate? | **No.** 34 WRAM bytes across 2,599 frames of a live city; the date never leaves `1900 JAN`. | byte diff f3400→f5999 |
 > | Does bank 03 execute at all? | **Yes — 921 distinct PCs, 515,043 interpreted steps over f0–f3700.** | interpreted histogram, Deck-native build, **(s)** |
-> | Where does it stop? | **At f3301.** 160,693 steps in f3100–f3300; **zero** in f3300–f3380 and zero in the live-city window f3381–f3700. | same, **(s)** |
+> | Where does it stop? | **At f3271.** 16 steps in f3271, none in f3272–f3700; frame-for-frame identical on Deck and host. **The f3301 in entry (s) is retracted as stated** — it was a 100-frame bracket. | per-frame stream, **(t)** |
+> | Does the tick instruction run? | **No.** `INC.w $0B51` at `$03:8026` = **0 executions**, both tiers, both machines, f0–f3700. Bank 03 only ever runs in `$03C63D`–`$03E57E`; `$038000`–`$03C63C` runs nothing. | full per-bank dump, **(t)** |
 > | **Why does the city not simulate?** | **NOT ESTABLISHED. OPEN.** `$0B51 = 0000` at 5/5, and `$0B51` is the peer-derived tick candidate — but that role is INFERRED, not measured here. | — |
 >
-> **The two open questions, in order of how much they would reduce uncertainty:**
+> **The open question, in order of how much it would reduce uncertainty:**
 >
-> 1. **Why does bank 03 go silent at f3301?** Unmeasured. No cause is asserted
->    anywhere in this file.
-> 2. **Is `$03:8026` (`INC.w $0B51`, ROM `0x18026`) among the 921 bank-03 PCs
->    that do execute?** Unmeasured, and it needs an instrument change — the
->    histogram prints only the top 60 PCs by host-ms. **This is the next
->    measurement.** See **(s)** and
->    `docs/measurements/2026-10-02-deck-interp-histogram.md`.
+> 1. **What advances `$0B51` in the peer build, if not `$03:8026`?** The code
+>    believed to advance the clock is now *measured not to execute at all*, so the
+>    question changed shape rather than being answered. It needs a PC trace of the
+>    reference build, whose API carries none (C-032).
+> 2. **Why does bank 03 go silent at f3271?** Still unmeasured. No cause is
+>    asserted anywhere in this file. Its last instruction is an `RTL` returning to
+>    a bank-00 loop that keeps running.
+>
+> Both were open at **(s)** and are answered at **(t)** — which is why this block
+> exists: an entry three hundred lines from the end was the only place the
+> boundary was written down.
 >
 > **Four claims below that are NOT established, and are asserted as if they were:**
 >
@@ -40,11 +45,18 @@
 > 4. **"The bank-03 tick is compiled to native C and still does not run"** (as
 >    `README.md` puts it) is **REFUTED as stated**: bank 03 runs 515,043
 >    interpreted steps before the city exists. The true statement is narrower —
->    it runs **until f3300** and not after. See **(s)**.
+>    it runs **until f3271** and not after. See **(s)** and **(t)**.
+>
+> And one this file has now fixed twice by measurement: **"the bank-03 tick runs"
+>    is false too, in a different way.** `$03:8026` executes **zero** times, and
+>    the whole `$038000`–`$03C63C` region executes nothing at all. The tick's
+>    *location* is INFERRED from the peer and remains so. See **(t)**.
 >
 > Entry index: the root cause of the vblank deadlock is **(p)**; the deadlock fix
 > is **(q)**; the Deck-native build and the live-window histogram are **(r)**;
-> **the whole-run histogram and the bank-03 boundary are (s)**. Entries (a)–(o)
+> the whole-run histogram is **(s)**; **C-041 answered, the f3271 boundary, the
+> byte-decoded last bank-03 instruction and the first whole-run AOT histogram are
+> (t)**. Entries (a)–(o)
 > are history and several of their conclusions are superseded. **`docs/CLAIMS_REGISTER.md`
 > is the index of what is retracted, and `docs/DEFINITION_OF_DONE.md` is the
 > standard of proof.**
@@ -3843,3 +3855,139 @@ que apareçam.
    longa.
 3. **Se a bank 03 executa blocos AOT** nalguma janela. O histograma é cego ao AOT
    (medido em (r)); não existe histograma AOT de run inteira. **Não é medido.**
+
+---
+
+## 2026-10-02 (t) — C-041 respondida: NÃO. E o limite era f3271, não f3301
+
+> **STATE (2026-10-02, from the index at the top of this file): CURRENT** — the
+> newest measurement. It supersedes entry (s)'s boundary claim (C-039, retracted
+> as stated) and answers C-041 and C-008.
+>
+> Full data, commands and byte-level decode:
+> `docs/measurements/2026-10-02-c041-bank03-pc-dump.md`.
+
+**As três perguntas que (s) deixou abertas, todas respondidas — uma por
+instrumento novo, duas por um instrumento que já estava à mão e não media o que
+se pensava que mediava.**
+
+**1. C-041: `$03:8026` NÃO está entre os 921.** Zero. Em duas máquinas.
+
+O histograma de (s) imprimia os top 60 PCs por host-ms, portanto **não podia**
+responder. Confirmado antes de recorrer: o log da run anterior em
+`/home/deck/prof-runs/whole/run.log` tem o cabeçalho `[interp_profile] 6055
+distinct PCs, top 60 by host-ms` e **zero linhas** — o mesmo alçapão de (s) §6. Os
+dados por PC nunca existiram; foram recolhidos.
+
+Novo, atrás do `#ifdef SNESRECOMP_INTERP_PROFILE` que já existia
+(`SNESRECOMP_INTERP_DUMP_BANK=03`): imprime **todos** os PCs do bank, com
+contagem de passos, ordenados por endereço. Verificado contra o instrumento que
+estende — na janela de boot (f0–200) reproduziu a linha do Deck de (s) exactamente
+(10 PCs / 10 passos, `$03D283`…`$03D2B8`).
+
+| run | máquina | bank `$03` | `$038026` no dump? | gama de PCs |
+|---|---|---|---|---|
+| simples | Deck | **921 / 515 043** | **não — 0** | `$03C63D` … `$03E57E` |
+| simples | host `seyon` | **921 / 515 043** | **não — 0** | — |
+| com trace | host `seyon` | 946 / 515 337 | **não — 0** | `$03C63D` … `$03E57E` |
+
+**A forma mais forte, que ninguém tinha medido:** *todos* os PCs de bank 03 que
+executam estão entre `$03C63D` e `$03E57E`. A região `$038000`–`$03C63C` — que é
+onde vive o tick — **não executa uma única instrução**, em nenhum dos dois tiers,
+em nenhuma das duas máquinas.
+
+Consequência: **C-008 passa de OPEN a MEASURED**, e é a primeira vez que esta
+prova é feita **contando execuções** em vez de raciocinando sobre `$0012`. A
+versão anterior foi retirada (R-020) porque a premissa era falsa; a nova não
+depende de premissa nenhuma. C-011 (`CODE_008061` "nunca corre") vai de OPEN a
+**RETRACTED as stated**: `$00:8061` aparece na stream de f3271, logo depois do
+`RTL` de bank 03. Passou semanas em OPEN com a nota "execução nunca medida", que
+é um facto sobre o instrumento, não sobre o mundo.
+
+**2. O limite era f3271, não f3301. C-039 retracted as stated.**
+
+Bracket de 100 frames só consegue ver que o intervalo f3100–3300 não está vazio.
+Uma stream por frame diz mais, e **o padrão é frame a frame idêntico no Deck e no
+host**, com os dois frames parciais:
+
+```
+12861 3269
+ 7341 3270
+   16 3271          <-- último frame com execução de bank 03
+```
+
+Bank 03 é **bursty**: nada em f3243–f3258, 12 861 passos/frame em f3259–f3269,
+frame parcial, 16 passos em f3271, e nada em f3272–f3700. A distância até o
+chegada da cidade (≈f3378) passa de 78 para **≈107 frames**, e continua a ser uma
+**correlação**, registada como correlação.
+
+**3. O que bank 03 executa por último: um RETORNO, não um salto.**
+
+```
+$03D299 LDA $14 / BPL / SEP #$20 / LDA $B3 / AND #$7F / STA $B1 / REP #$20
+LDA #$0001 / STA $12 / SEP #$20 / LDA #$FF / STA $0B2A / LDA #$00 / PHA /
+PLB / $03D2B7 = 6B = RTL
+```
+
+16 instruções, 16 PC seguintes previstos pelos comprimentos, 16 acertos — decode
+feito dos **bytes do ROM**, não de uma listagem (a desassemblagem automática já
+foi apanhada a inventar uma instrução). O `RTL` devolve a `$00:805A`
+(`80 F1` = `BRA $804D`), e a stream continua `$804D` (`LDA $12`), `$804F`
+(`BNE $805C`, tomado), `$805C` (`JSR $8061`), `$8061` (`JSR $8288`).
+
+**E `$03D2AA = STA $12` está nessa última execução.** O loop em bank 00 que
+recebe o retorno testa `$12` logo a seguir. É a terceira vez que um valor refuta a
+teoria do "gate é o `$0012`" — desta vez por uma stream de execução, e ainda
+**não** é causa.
+
+**[INFERRED]** A entrada em `$03D299` é feita por `RTI`, não por chamada:
+`$00:8222` = `40 0D 93` = `RTI` precede imediatamente `$03D299` na stream, e
+`$00:821E` = `FC 23 82` é um `JSR ($8223,X)` de tabela. Nenhuma stack foi dumpada
+neste trabalho, portanto é inferência e está marcada como tal (C-050).
+
+**4. O tier AOT, medido pela primeira vez em run inteira.**
+
+`SNESRECOMP_AOTBLK=0-3700` produziu **zero** linhas e nenhum aviso: `cpu_trace_block()`
+é `static inline` vazio sem `SNESRECOMP_TRACE=1`, e com essa define a link falha
+em 24 referências indefinidas a `debug_server.c`, que nenhuma opção de CMake deste
+repositório adicionava. **É o quarto alçapão de instrumento deste ficheiro**, e o
+mais perigoso: um botão que aceita a variável e não imprime nada.
+`CMakeLists.txt` ganhou `-DSNESRECOMP_TRACE_BUILD=ON` (default **off**) que adiciona
+`debug_server.c` e liga pthreads.
+
+Com o tier compilado (host, 4 000 frames, 4 m 33 s):
+
+| tier | janela | entradas | `$00` | `$01` | `$03` |
+|---|---|---|---|---|---|
+| AOT | f0–f3700 | **1 430 539** | 1 100 383 | 330 138 | **18** |
+
+As 18 são todas em **f3270**, a `$03B477`–`$03B4A9`. Na janela viva
+(f3400–f3700): `$00` e `$01` e nada mais. **A actividade de bank 03 morre nos
+dois tiers no mesmo sítio** (f3270 e f3271, frames adjacentes), e "a cidade
+simula por outro caminho em bank 03" fica excluído nos dois tiers em vez de um.
+**Este número é do host; o do Deck não está nesta árvore.**
+
+**5. Duas armadilhas que ninguém tinha visto, e que mudam como se leem os números
+antigos.**
+
+- **A sobrecarga do instrumento move o histograma.** Mesmo binário, ROM, script e
+  janela: bank 03 = 921 PCs / 515 043 passos sem nada extra; **946 / 515 337** com
+  o trace compilado — mesmo numa janela onde ele **não imprime nada**. O
+  histograma é uma propriedade de uma build instrumentada, não do jogo (C-048,
+  causa OPEN).
+- **Contagens de passos não são reprodutíveis; contagens de PCs distintos são.**
+  `$00`: 26 856 340 numa run e 28 769 361 noutra (+7%), mesmo binário. Os PCs
+  distintos não se mexeram: 1822 / 1814 / 542 / 921 / 956 em todas as runs, nas
+  duas máquinas (C-049).
+
+**6. O que isto NÃO estabelece.**
+
+- **Porquê** bank 03 pára. `$03D2B7` é um `RTL` para um loop de bank 00 que
+  continua a correr; nada aqui diz quem deveria chamar essa task de novo, nem se
+  esse chamador existe.
+- **Que o tick do cidade esteja em `$03:8026`.** Isso continua **[INFERRED]**, do
+  peer. Esta entrada mede que um sítio **não** executa; não mede que seja o sítio
+  certo. **E é por isso que a próxima medição mudou de alvo**: o peer sobe
+  `$0B51` até `006D`, e se `$03:8026` não corre em lado nenhum, a pergunta passa a
+  ser **o que é que faz `$0B51` subir no peer** — o que exige um PC trace do peer,
+  cuja API hoje não tem (C-032).

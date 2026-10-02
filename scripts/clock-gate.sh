@@ -342,9 +342,14 @@ if [ "$fail" -ne 0 ]; then
   printf "  section 2. A gate that teaches the wrong answer is worse than a gate\n"
   printf "  that reports none, because the wrong answer is what the next person\n"
   printf "  starts from.\n\n"
-  printf "  The cheapest next measurement is a PC/block histogram over\n"
-  printf "  f3400-f3600: which addresses execute in a live city, and whether\n"
-  printf "  the per-frame task block does. One 6000-frame headless run.\n"
+  printf "  The next measurement is on the REFERENCE build, not on this one.\n"
+  printf "  Measured here and now: \$03:8026 (INC.w \$0B51) executes ZERO times,\n"
+  printf "  on both the interpreter and the AOT tier, on two machines, over\n"
+  printf "  f0-f3700; and bank 03's last execution is f3271, not f3300. So the\n"
+  printf "  question is no longer 'why does bank 03 stop' but 'what advances\n"
+  printf "  \$0B51 in the reference build if not \$03:8026'. That needs a PC trace\n"
+  printf "  of the peer, whose API carries none today (C-032).\n"
+  printf "  See docs/measurements/2026-10-02-c041-bank03-pc-dump.md.\n"
   exit 1
 fi
 

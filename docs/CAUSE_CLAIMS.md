@@ -37,10 +37,10 @@ another of opposite sign is the mechanism behind the paired `$0B51` retraction.
 | C-005 | The `exclude_range` mask (`& 0x7FFF`) was missing, so the spinlock never yielded to the interpreter | **MEASURED** | config diff + ROM offset arithmetic, byte-verified | entry (p) |
 | **C-006** | **Why does the city not simulate?** | **OPEN** | — | T086 |
 | C-007 | `$0B51` is the 16-bit master city tick | **INFERRED** | deduced from the peer's trace, never measured here | register §13 |
-| **C-008** | **`INC.w $0B51` executes zero times in a live city** | **OPEN** | premise (`$0012 == 0`) refuted; execution never counted with an AOT-capable instrument | ledger R-020 |
+| **C-008** | **`INC.w $0B51` executes zero times** | **MEASURED** | 0 hits in the full 921-entry bank-03 dump **and** 0 AOT entries, both machines, f0-f3700. Reached by counting execution, not by inferring from `$0012` — the inference that previously stood here had a refuted premise (ledger R-020) and was withdrawn | measurement `2026-10-02-c041`, entry (t) |
 | C-009 | The gate is `$0012`; `$0012` waits on `CODE_03D287` exiting, which needs bit 7 of `$0014` | **RETRACTED** | its own stated evidence: `$0012 = 0001` 5/5, `$0014 = 8000` 5/5 | ledger R-005..R-008 |
 | C-010 | `$0012 = 0001`, `$0014 = 8000` at every sampled boundary | **MEASURED** | 5 WRAM samples | D003 |
-| **C-011** | **`CODE_008061` never runs in a live city** | **OPEN** | premise refuted; execution never measured. **Not** retracted | ledger R-019 |
+| **C-011** | **`CODE_008061` never runs in a live city** | **RETRACTED as stated** | it runs: `$00:8061` is in the f3271 stream on both machines, after bank 03's `RTL`. It had never been measured; its premise was false | ledger R-019; entry (t) |
 | C-012 | The vblank handshake is the cause of the city freeze | **RETRACTED** | fixing it left the city still not simulating | entry (q) |
 | C-013 | Refusing to decode COP is the cause | **RETRACTED** | no word anywhere in the ROM points into `$038000–$038220` | entry 2026-09-30 (a terceira refutação) |
 | C-014 | A missing mouse click is the cause | **RETRACTED** | the city starts from a script with synthetic input | entry (f) |
@@ -54,9 +54,11 @@ another of opposite sign is the mechanism behind the paired `$0B51` retraction.
 | C-022 | The main loop does not run at all in a city | **RETRACTED as stated** | bank 03 executed 515,043 interpreted steps before f3300. The surviving, much narrower form is C-039 | C-038 |
 | C-023 | The guest parks in the vblank spinlock | **RETRACTED** | `$00C7` advances 5/5 | D004 |
 | **C-038** | **Bank 03 executes: 921 PCs, 515,043 interpreted steps over f0–f3700** | **MEASURED** | Deck-native instrumented build, `[coverage] per-bank LLE` | entry (s) |
-| **C-039** | **Bank 03 executes to f3300 and zero steps from f3301** | **MEASURED** | per-phase brackets; they partition exactly | entry (s) |
+| **C-039** | **Bank 03 executes to f3300 and zero steps from f3301** | **RETRACTED as stated** | the boundary was a 100-frame bracket. Frame-resolved: the **last frame with any bank-03 execution is f3271** (16 steps), identical on Deck and host, frame for frame | entry (t) |
+| **C-039b** | **The last frame containing any bank-03 execution is f3271; none in f3272–f3700** | **MEASURED** | per-frame interpreted stream + whole-run AOT block log (bank `$03`: 18 entries, all f3270) | entry (t) |
+| **C-039c** | **Bank 03 executes only in `$03C63D`–`$03E57E`; `$038000`–`$03C63C` executes nothing** | **MEASURED** | min and max of the full dump, both machines, both instrument configurations | entry (t) |
 | **C-040** | **The live window is confined to banks 00 and 01** | **MEASURED** | same run; reproduces entry (r)'s 813/415 | entry (s) |
-| **C-041** | **Is `$03:8026` among the 921?** | **OPEN** | the dump prints 60 of 921 — **the instrument cannot answer it** | T087 |
+| **C-041** | **Is `$03:8026` among the 921?** | **MEASURED — NO** | 0 matches in the 921-entry dump on the Deck and on the host, and 0 AOT entries at that PC. `$0B51 = 0000` at f3600 in the same runs | entry (t) |
 | C-042 | Bank 02 executes only during attract | **MEASURED** | per-phase brackets | entry (s) |
 | C-043 | Banks 04, 06, 07 execute zero steps over f0–f3700 | **MEASURED** (bounded) | same run; the bound is in the claim | entry (s) |
 | C-044 | `[interp_profile]`'s top-60 list prints nothing without `SNESRECOMP_INTERP_MS_PROF=1` | **MEASURED** | observed directly: "6055 distinct PCs" then zero lines | register §17 |
@@ -69,8 +71,17 @@ another of opposite sign is the mechanism behind the paired `$0B51` retraction.
 | C-035 | `make test-rom` gives 254 distinct crc32 | **RETRACTED** | 257 measured | ledger R-013, R-022 |
 | C-036 | 53 WRAM addresses change across 30,000 frames | **RETRACTED** | 34 bytes across 2,599 frames; different window | ledger R-014 |
 | C-037 | `make perf` is machine-dependent | **MEASURED** | 48.38 FAIL / 51.52 PASS / 46.99 FAIL against 50, one binary | T088 |
+| **C-046** | **A whole-run AOT histogram: 1,430,539 block entries f0–f3700, of which `$03` = 18, all in f3270** | **MEASURED (host only)** | `SNESRECOMP_AOTBLK=0-3700` on a trace-tier build; per-100-frame buckets in the measurement | entry (t) |
+| **C-047** | **Every AOT-side instrument in the framework is unreachable from this repository** | **MEASURED** | `AOTBLK=0-3700` logged **0** lines and no warning: `cpu_trace_block()` is a no-op without `SNESRECOMP_TRACE=1`, and with it the link failed on 24 undefined references into `debug_server.c` | entry (t) |
+| **C-048** | **Instrumentation overhead changes the histogram**: 921 PCs / 515,043 steps plain, 946 / 515,337 with the trace compiled in, same binary, same script | **MEASURED** | three plain runs on two machines give 921/515,043; two traced runs give 946/515,337. Cause **OPEN** | entry (t) |
+| **C-049** | **Step counts are wall-clock dependent; distinct-PC counts are not** | **MEASURED** | `$00` steps 26,856,340 vs 28,769,361 across runs of one binary (+7%), while every distinct-PC count stayed 1822/1814/542/921/956 | entry (t) |
+| **C-050** | **The bank-03 task region is entered by `RTI`, not by a call** | **INFERRED** | `$00:8222` = `40 0D 93` = `RTI` immediately precedes `$03D299` in the stream, and `$00:821E` = `FC 23 82` is a dispatch-table `JSR ($8223,X)`; **no stack was dumped** | entry (t) |
 
 ## Demotions applied in this phase
+
+*(The three rows below are the Phase-4 record and are kept as written, including
+the C-008 row that the 2026-10-02 measurement has since **promoted** — see
+"C-008" under "The one that remains open". The demotions were correct when made.)*
 
 **Three, and each one moved down rather than sideways.**
 
@@ -84,11 +95,13 @@ another of opposite sign is the mechanism behind the paired `$0B51` retraction.
    never MEASURED here and is not promoted by Phase 0, even though Phase 0 makes
    it more interesting: `$0B51` reads `0000` at f3600 *while* bank 03 ran 515,043
    steps. That is a reason to measure C-041, not a licence to assert C-007.
-3. **C-008, "`INC.w $0B51` executes zero times"** — remains **OPEN**, and is
-   **not** promoted to RETRACTED. Its premise is void, which establishes nothing.
-   Phase 0 adds the one thing that makes it answerable: bank 03 demonstrably runs,
-   so "it never runs" can no longer be true as a whole-build statement, and the
-   only question left is whether *this particular instruction* is among the 921.
+3. **C-008, "`INC.w $0B51` executes zero times"** — remained **OPEN** here, and
+   was **not** promoted to RETRACTED: its premise is void, which establishes
+   nothing. **SUPERSEDED 2026-10-02, correctly and for a different reason.** The
+   claim is now **MEASURED** — 0 hits in the full bank-03 dump and 0 AOT entries,
+   both machines — but it was settled by counting execution, not by reasoning
+   from `$0012`. The row below is kept because the difference between the two
+   routes is the whole point of this file.
 
 ## What is deliberately NOT done
 
@@ -107,9 +120,31 @@ another of opposite sign is the mechanism behind the paired `$0B51` retraction.
 
 ## The one that remains open, and it is the whole investigation
 
-**C-006.** Why the city does not simulate. **C-039** says where bank 03's
-execution stops and **C-041** says one instruction is unresolved. Neither is a
-cause. The 78-frame gap between C-039's boundary (f3301) and the city's arrival
-(≈f3378) is a **correlation**, and this file records it as one in three places
-on purpose, because the next session will want to write it as a cause and the
-number is sitting right there looking like evidence.
+**C-006.** Why the city does not simulate. **C-039b** says where bank 03's
+execution stops — f3271 — and **C-041** says the tick instruction never executes
+at all. Neither is a cause, and together they make the old question sharper
+rather than answering it: the code that was believed to advance the clock is
+provably not running, so the open question is no longer "why does bank 03 stop"
+but **"what advances `$0B51` in the reference build, if not `$03:8026`"** — and
+C-007, the premise that `$0B51` is the tick at all, remains **INFERRED**.
+
+The gap between bank 03's last execution (f3271) and the city's arrival (≈f3378)
+is now **≈107 frames**, and it is a **correlation**, recorded as one in three
+places on purpose, because the next session will want to write it as a cause and
+the number is sitting right there looking like evidence.
+
+**Three demotions and one promotion in this phase**, each with the reason:
+
+- **C-008, `INC.w $0B51` executes zero times: OPEN → MEASURED.** Not by
+  inference from a WRAM sample this time, which is what the invalidated-premise
+  row got wrong, but by counting executions in a dump that can see every PC in
+  the bank plus a whole-run AOT block log. Zero on both tiers, both machines.
+- **C-011, `CODE_008061` never runs: OPEN → RETRACTED as stated.** It runs, at
+  `$00:8061`, immediately after bank 03's `RTL`. This claim had sat at OPEN for
+  weeks with the note "execution never measured" — which is a statement about
+  the state of the instrument, not about the state of the world.
+- **C-039, bank 03 executes to f3300: MEASURED → RETRACTED as stated.** The
+  bracket was too coarse; the boundary is f3271 and C-039b replaces it.
+- **C-050, the task region is entered by `RTI`: new, and INFERRED.** It is the
+  one new causal-shaped claim here and it is labelled inferred because the stack
+  was never dumped.
