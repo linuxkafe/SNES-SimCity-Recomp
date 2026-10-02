@@ -2633,3 +2633,71 @@ Causa mecânica do AOTBLK estar morto em produção: `cpu_trace.c:5` abre
 `#if SNESRECOMP_TRACE`, fecha em `:2679`, e `cpu_trace_block` está em `:1233`,
 dentro. O `CMakeLists.txt` de topo nunca define a macro, por defeito 0 — mas o
 emissor chama-a sem guarda nenhuma (`emit_function.py:533, 586, 2123`).
+
+---
+
+## 2026-10-01 (l) — quem põe o bit 7: o próprio jogo, num protocolo de dois lados
+
+`/tmp/opencode` foi limpo e a descompilação desapareceu com ele. Não faz falta:
+a pergunta responde-se nos bytes do ROM, e melhor — a descompilação já nos
+enganou duas vezes.
+
+### Os oito escritores de `$00B1`, todos no bank 03
+
+```
+8D B1 00   STA $00B1   ->  8 sitios, TODOS no bank 03
+```
+
+E vêm em **quatro pares adjacentes**, com dois formatos:
+
+```
+AD B3 00 / 29 7F / 8D B1 00     LDA $00B3 / AND #$007F / STA $00B1   -> bit 7 LIMPO
+AD B3 00 / 09 80 / 8D B1 00     LDA $00B3 / ORA #$0080 / STA $00B1   -> bit 7 POSTO
+```
+
+| hold (ORA #$80) | release (AND #$7F) |
+|---|---|
+| `0x1C8D7`  `$03:C8D7` | `0x1C8AA`  `$03:C8AA` |
+| `0x1CB4D`  `$03:CB4D` | `0x1CB06`  `$03:CB06` |
+| `0x1CBEB`  `$03:CBEB` | `0x1CB60`  `$03:CB60` |
+| `0x1CE6C`  `$03:CE6C` | `0x1CE39`  `$03:CE39` |
+
+O contexto de `$03:C8AA` é `60 / 20 A1 C8 / 6B / E2 20 / E2 20 / AD B3 00 / 29 7F
+/ 8D B1 00` — o `PLP` antes da stores diz-nos que **somos epílogos de handlers de
+interrupção**. Isto é o jogo a gerir o seu próprio "não me dê um token de vblank".
+
+**O valor observado, `$B1 = $81`, é exactamente `$B3 = $01` com bit 7 forçado.**
+
+### O handler de NMI está correcto — e é por isso que isto é uma pista e não um bug
+
+Rever o que escrevi há uma entrada: eu disse que o handler de NMI "faz a coisa
+errada". **Não faz.** Ele faz exactamente o que o ROM lhe manda — e o ROM diz
+que, com o bit 7 posto, não se põe `$B9`. O **jogo é que se pôs num estado em que
+recusa o seu próprio token de vblank, e nunca de lá saiu.**
+
+Isto reposiciona a causa mais acima do que eu disse. E reposiciona-a para o lado
+certo:
+
+- `$B1 = $81` é posto por `CODE_008061` (`LDA.b #$81 / STA.b $B1 / STA.b $B3`),
+  **perto do fim** dessa rotina — logo depois de `JSR CODE_00825F`, de
+  `JSR CODE_0096BE`, de `JSL CODE_01C6C8` e de `JSR CODE_00961C`.
+- A seguir vêm **mais dois `COP`** e um `JSL CODE_018907`, e só depois `RTS`.
+- `$1F7D = 00 80 03` está posto nos frames 4000 e 6000 — ou seja
+  **`CODE_00825F` correu**, portanto o `COP` do meio de `CODE_008061` **devolveu**.
+  Isto refuta a hipótese de stall no `COP` que o agente tinha em primeiro lugar.
+- Portanto: o corpo de vblank entra, passa o `COP`, instala o hook, e **trava-se
+  algures entre a flag e o `RTS`** — ou entra em algo que não devolve.
+
+### O que isto fecha, e o que abre
+
+Fecha a pergunta "quem põe o bit 7": **o próprio jogo, em quatro rotinas
+diferentes**, e há quatro simétricas que o limpam. O jogo entrou e não saiu.
+
+Abre uma mais precisa, e é uma medição de uma run: **qual dos quatro `ORA #$80`
+executou por último, e qual dos quatro `AND #$7F` devia tê-lo seguido.** Isso
+nomeia a rotina exacta em vez de dizer "o scheduler não avança".
+
+Caveat de honestidade: há **194** ocorrências de `85 B1` (`STA $B1` dp-relative)
+no ROM. Não as conto porque DP varia e não posso saber o DP de cada sítio — com
+DP=$0000 todas as aliasariam para `$00B1`. Os oito `8D B1 00` são absolutos e
+independentes de mapeamento, por isso são o conjunto em que confio.
