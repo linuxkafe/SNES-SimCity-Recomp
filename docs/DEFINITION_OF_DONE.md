@@ -89,19 +89,59 @@ see the margin.
 
 These are the criteria that would have caught the eleven retractions.
 
-| # | Criterion | Command | Pass |
-|---|---|---|---|
-| D3.1 | No gate failure text asserts a retracted or unmeasured cause | `scripts/check-retracted-claims.sh` | exit 0 |
-| D3.2 | Every retracted claim is visible **at the point it was made**, not only in a changelog | same script, second pass | exit 0 |
-| D3.3 | Numeric claims in `README.md` match a committed measurement | `scripts/check-numbers.sh` | exit 0 |
-| D3.4 | A claim marked MEASURED in the claims register names the command that produces it | `scripts/check-numbers.sh` | exit 0 |
-| D3.5 | Every load-bearing open question is labelled **open** in every file that mentions it | `scripts/check-retracted-claims.sh --open-labels` | exit 0 |
+**Each row now states whether its command exists.** Rule 0 applied to this table
+retired two rows on 2026-10-02; their original text is kept under
+`RETIRED — D3.3, D3.4` below, and the reason is stated rather than left implicit.
+
+| # | Criterion | Command | Pass | Command exists? |
+|---|---|---|---|---|
+| D3.1 | No gate failure text asserts a retracted or unmeasured cause | `scripts/check-retracted-claims.sh` | exit 0 | **yes** — exit 0 at `0b8927d` |
+| D3.2 | Every retracted claim is visible **at the point it was made**, not only in a changelog | same script, second pass | exit 0 | **yes** — the ledger's `where` column is checked to resolve to a real file |
+| ~~D3.3~~ | ~~Numeric claims in `README.md` match a committed measurement~~ | ~~`scripts/check-numbers.sh`~~ | — | **NO — retired 2026-10-02** |
+| ~~D3.4~~ | ~~A claim marked MEASURED in the claims register names the command that produces it~~ | ~~`scripts/check-numbers.sh`~~ | — | **NO — retired 2026-10-02** |
+| D3.5 | Every load-bearing open question is labelled **open** in every file that mentions it | `scripts/check-retracted-claims.sh --open-labels` | exit 0 | **yes, but see below** |
 
 D3.1 and D3.2 are the guard whose absence produced this session's work. The
 gate's failure text asserted `$0012` was clear; `$0012` measured `0001` in 5/5
 samples (`aes/decisions/D003.md`). A gate that teaches the wrong answer is
 worse than a gate that reports none, because the wrong answer is what the next
 session starts from.
+
+**D3.5 is implemented and still inadequate, and both halves of that are load
+bearing.** Its check is: if a file matches `why (does|did) the cit(y|ies) not
+simulate|not simulate`, the *same file* must contain `OPEN` or `not established`
+somewhere. A single occurrence anywhere in a 3,400-line document satisfies it.
+**It would have passed on all fifteen retracted claims**, every one of which
+lived in a file that also contained the words "not established" somewhere else.
+It is a floor, not a check. It is listed as a criterion because it is a real
+command that exits 0, not because it does what its sentence says.
+
+### RETIRED — D3.3, D3.4 (2026-10-02, at `0b8927d`)
+
+Retired for the reason this document specifies for a criterion with no command:
+**`scripts/check-numbers.sh` does not exist.** Measured:
+
+```
+$ ls scripts/check-numbers.sh
+ls: cannot access 'scripts/check-numbers.sh': No such file or directory
+$ grep -n "check-numbers" Makefile
+(no output)
+```
+
+Original text, kept verbatim:
+
+> | D3.3 | Numeric claims in `README.md` match a committed measurement | `scripts/check-numbers.sh` | exit 0 |
+> | D3.4 | A claim marked MEASURED in the claims register names the command that produces it | `scripts/check-numbers.sh` | exit 0 |
+
+**What was given up:** nothing was verified by this retirement. Two criteria
+that were never satisfiable are now named as such, which is strictly more honest
+than a green-looking table. **What it costs:** rubric criterion **E-04** ("numeric
+claims are current") is **UNVERIFIED, not passing**, and stays that way until
+the script exists. Writing it is ticket T091. Until then, the numbers in
+`README.md` are maintained by hand and by `docs/measurements/`, and a reader who
+wants them checked has no command to run — which is the same position this
+project was in before `check-retracted-claims.sh` existed, and the reason it took
+fifteen retractions to build the guard.
 
 ## D4 — Legal
 
