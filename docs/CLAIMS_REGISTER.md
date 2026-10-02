@@ -424,3 +424,66 @@ Third instance of the same class after (r)'s two (`CYC_WATCH` blind to AOT;
 `AOTBLK` taking a frame window, not a PC range). **The rule this earns: a
 measurement section header with no rows under it is not evidence of absence, and
 must not be cited as one.**
+
+## 18. THE RETRACTION COUNT, reconciled to one number and one source (2026-10-02)
+
+This file was found carrying **four different prose counts of its own
+retractions**, none of them equal and none of them computed:
+
+| where | what it said |
+|---|---|
+| `docs/RE_CITY_FREEZE.md` | "doze retractações" <!-- count-quote --> |
+| `docs/DEFINITION_OF_DONE.md` | "eleven retractions", in four places <!-- count-quote --> |
+| `scripts/check-retracted-claims.sh` | "eleven retractions", in its own header <!-- count-quote --> |
+| `docs/CLAIMS_REGISTER.md` §1 | "These eight are the user's own retractions" <!-- count-quote --> |
+| the same header | "git log greps 13 commits" <!-- count-quote --> |
+
+All five were wrong the same way: each was a human tally of a moving target, so
+each drifted the moment a row was appended, and none of them was checkable.
+
+**The definition, fixed once, in `scripts/retracted-claims.tsv`:**
+
+> **The retraction count is the number of ledger rows whose status is `refuted`.**
+
+`superseded` is excluded — the ledger defines it as "the claim was true and has
+been replaced by a later measurement. It is not wrong, it is old."
+`invalidated-premise` is excluded — the ledger says in terms that it "IS NOT a
+retraction, and a checker that treats it as one will replace an unmeasured
+assertion with an unmeasured assertion of the opposite sign."
+
+Measured at this commit:
+
+```
+$ make retraction-count
+ledger rows      : 27
+refuted          : 19   <- THIS is the retraction count
+superseded       : 6   (true but old; not a retraction)
+invalidated-prem.: 2   (evidence refuted, truth unknown; explicitly NOT a retraction)
+```
+
+**Ceiling on the number, stated rather than left to be discovered:** two `refuted`
+rows retract the *same* claim in two languages — R-005/R-006 (English /
+Portuguese) and R-007/R-008 likewise — so **19 is an upper bound on the number of
+*distinct* retracted claims.** The ledger records no claim identity, and
+inventing one to make the number smaller would be judgement dressed as data.
+
+**All five prose counts are removed** — the only surviving mentions are the five
+lines of the table above, each carrying an explicit `<!-- count-quote -->`
+marker, which the checker counts and prints so the exemption is auditable with
+`grep -rn count-quote` rather than hidden. What replaces them is a citation, never a
+number: prose that states *no* count is always acceptable, so appending a
+retraction never breaks a document and no reader has to keep a tally in sync.
+`scripts/check-retracted-claims.sh` grew a section that **fails** when any prose
+count disagrees with the computed figure (DoD **D3.6**), and its self-test seeds
+a wrong count in both languages to prove the section can fail.
+
+**How the section was built, because the process is the finding.** The first
+version matched a number *either side* of the word "retract" and reported 13
+violations per run, of which 11 were false positives: `RETRACTED 2026-10-02`
+read as "2026 retractions", `436b25b` as "371 retractions", and `§8 is RETRACTED`
+as a count of eight. Three further rounds of tightening were needed, and each round's
+false positive is named in the script's comment. **The pattern is now
+forward-only and adjacent-only, and it reports zero false positives on this
+corpus** — at the cost of missing a count separated from the keyword by an
+intervening word, which is stated in the script as a known limitation rather than
+left to be discovered by the next reader.

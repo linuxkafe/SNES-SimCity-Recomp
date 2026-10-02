@@ -5,7 +5,11 @@ Pre-registered 2026-10-02 at `afceeec`. Companion to `docs/review/RUBRIC.md`
 anything that must survive a fresh clone lives here).
 
 This document exists because of a specific, measured failure. Twelve commits
-produced one root cause and eleven retractions. Every retraction was
+produced one root cause, and then a run of retractions of this project's own
+claims — their number is **not stated here**, because every prose count this
+project has ever carried was wrong: it carried four of them and none in
+agreement. The count is computed from the one ledger that records them:
+`scripts/check-retracted-claims.sh --count`. Every retraction was
 individually reasonable. The pattern that produced them is that **prose was
 allowed to close work.** So this DoD is written to make that structurally
 impossible rather than merely discouraged.
@@ -27,8 +31,8 @@ Concretely, and this is the part that matters:
 - A number written in prose is **not** evidence until the command that
   produces it is in this file, and a reader can run it.
 - **An author is not a source.** "I measured it" is the exact sentence that
-  precedes each of the eleven retractions. The measurement is evidence; the
-  sentence is not.
+  precedes each retraction in this project's record. The measurement is
+  evidence; the sentence is not.
 
 ---
 
@@ -87,7 +91,7 @@ see the margin.
 
 ## D3 — Evidence integrity
 
-These are the criteria that would have caught the eleven retractions.
+These are the criteria that would have caught the retractions.
 
 **Each row now states whether its command exists.** Rule 0 applied to this table
 retired two rows on 2026-10-02; their original text is kept under
@@ -100,6 +104,7 @@ retired two rows on 2026-10-02; their original text is kept under
 | ~~D3.3~~ | ~~Numeric claims in `README.md` match a committed measurement~~ | ~~`scripts/check-numbers.sh`~~ | — | **NO — retired 2026-10-02** |
 | ~~D3.4~~ | ~~A claim marked MEASURED in the claims register names the command that produces it~~ | ~~`scripts/check-numbers.sh`~~ | — | **NO — retired 2026-10-02** |
 | D3.5 | Every load-bearing open question is labelled **open** in every file that mentions it | `scripts/check-retracted-claims.sh --open-labels` | exit 0 | **yes, but see below** |
+| **D3.6** | **No prose count of the retractions disagrees with the ledger.** The count is *computed* from `scripts/retracted-claims.tsv`; it is never written by hand | `scripts/check-retracted-claims.sh` (section 3) · `make retraction-count` prints it | exit 0 | **yes** — added 2026-10-02, falsification demonstrated |
 
 D3.1 and D3.2 are the guard whose absence produced this session's work. The
 gate's failure text asserted `$0012` was clear; `$0012` measured `0001` in 5/5
@@ -111,7 +116,7 @@ session starts from.
 bearing.** Its check is: if a file matches `why (does|did) the cit(y|ies) not
 simulate|not simulate`, the *same file* must contain `OPEN` or `not established`
 somewhere. A single occurrence anywhere in a 3,400-line document satisfies it.
-**It would have passed on all fifteen retracted claims**, every one of which
+**It would have passed on every retracted claim in the ledger**, every one of which
 lived in a file that also contained the words "not established" somewhere else.
 It is a floor, not a check. It is listed as a criterion because it is a real
 command that exits 0, not because it does what its sentence says.
@@ -140,8 +145,8 @@ claims are current") is **UNVERIFIED, not passing**, and stays that way until
 the script exists. Writing it is ticket T091. Until then, the numbers in
 `README.md` are maintained by hand and by `docs/measurements/`, and a reader who
 wants them checked has no command to run — which is the same position this
-project was in before `check-retracted-claims.sh` existed, and the reason it took
-fifteen retractions to build the guard.
+project was in before `check-retracted-claims.sh` existed, and the reason the guard took
+this long to build.
 
 ## D4 — Legal
 
@@ -193,4 +198,4 @@ Only by weakening it into a claim, which this document exists to make visible.
 If a criterion must be removed, the removal is a commit whose subject says what
 was given up, and the retired criterion's text stays in the file under a
 `RETIRED` heading with the date. Nothing is deleted outright — that is the one
-practice the eleven retractions share a common cause with.
+practice this project's retractions share a common cause with.

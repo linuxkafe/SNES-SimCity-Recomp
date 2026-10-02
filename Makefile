@@ -1,5 +1,5 @@
 .PHONY: build debug test test-rom perf clock clock-self-test check-claims \
-        check-claims-self-test review-check clean doctor
+        check-claims-self-test retraction-count review-check clean doctor
 
 BUILD_DIR := build
 
@@ -73,6 +73,13 @@ clock-self-test: build
 # guard that has never been seen to fail has not been tested.
 check-claims: build
 	scripts/check-retracted-claims.sh
+
+# The retraction count, computed. Not prose, not a git-log grep, not a tally:
+# the number of ledger rows whose status is `refuted`. Added 2026-10-02 after
+# this project was found carrying four prose counts of its own retractions,
+# none in agreement. See scripts/retracted-claims.tsv for the definition.
+retraction-count:
+	scripts/check-retracted-claims.sh --count
 
 check-claims-self-test:
 	scripts/check-retracted-claims.sh --self-test --open-labels

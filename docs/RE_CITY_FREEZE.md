@@ -2270,7 +2270,7 @@ tabela anterior, que foi inferida de um nome que eu próprio escrevi.
 
 ---
 
-## 2026-10-01 (g) — a verdade de terreno, e duas retractações
+## 2026-10-01 (g) — a verdade de terreno, e retractações em sentido oposto
 
 O Deck produziu o traço de WRAM do peer com uma cidade viva ao longo de 33.700
 frames e 23 meses, e o mesmo traço do nosso build. A comparação fecha a cadeia
@@ -2913,7 +2913,7 @@ Não é a janela, não é o parse, e não é a flag. `cpu_trace.c:5` abre
 dentro. O código gerado chama-o sem guarda (`emit_function.py:533, 586, 2123`) e
 `src/gen/bank04_v2.c:40` mostra a chamada a `cpu_trace_func_entry` presente. **Não
 estabeleço porque é que não dispara** — e não vou adivinhar, que é a lição de
-doze retractações.
+retractações repetidas do mesmo endereço, em direcções opostas.
 
 Registado como ticket, não como conclusão. A alternativa que o agente proposeu
 continua por testar: `SNESRECOMP_CYC_WATCH` vê opcodes interpretados e está em
