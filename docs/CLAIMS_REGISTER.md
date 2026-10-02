@@ -565,3 +565,41 @@ $ ./scripts/check-retracted-claims.sh          # in this tree
 
 **One violation seeded, one raised, zero false positives.** The guard works on the
 shipped text of the failure it was written for.
+
+## 20. The durable claim classification now lives in `docs/CAUSE_CLAIMS.md`
+
+Phase 4 (`aes-epistemics`). The machine-readable graph is
+`aes/graph/island-clock.yaml`, extended this phase from 30 to **39 nodes**, 19
+edges and **6 invariants** (INV-6 added: *no node may be MEASURED on the
+strength of a bounded instrument unless the bound is written into the node*).
+
+**`aes/` is gitignored permanently, so the graph cannot be the only place a claim
+lives** — it is absent from a fresh clone. `docs/CAUSE_CLAIMS.md` is the durable
+copy: all 39 claims classified MEASURED / INFERRED / RETRACTED / OPEN, each with
+the instrument that produced it or the reason there is none.
+
+**Three demotions, each moved *down* rather than sideways:**
+
+- **C-022 "the main loop does not run at all in a city"** — was live in
+  `README.md:71` as *"the bank-03 tick is compiled to native C and still does not
+  run"*. 515,043 interpreted steps in that bank say otherwise. **RETRACTED as
+  stated**, with the narrow surviving form (C-039, *silent from f3301*) written
+  beside it so the demotion does not become a claim in the opposite direction.
+- **C-007 "`$0B51` is the master city tick"** — stays **INFERRED**. Phase 0 makes
+  it more interesting, not more established.
+- **C-008 "`INC.w $0B51` executes zero times"** — stays **OPEN**, and is **not**
+  promoted to RETRACTED. A void premise establishes nothing; that is the whole
+  point of the `invalidated-premise` status.
+
+**Two things deliberately not done, and they are the discipline of this phase:**
+
+- **No `gmif-check` target was wired.** The skill directory ships `SKILL.md` only
+  — no `gmif-check.sh`, no `install-z3.sh`, no `templates/island.yaml` — and `z3`
+  is not installed on either machine. Wiring a Makefile target at a script that
+  does not exist is exactly the error the CI workflow carried and had removed in
+  `d816afc`, whose own commit message says *"YAML parses it fine, which is why it
+  looked valid."*
+- **No SAT result is claimed.** `sat_run_performed: false` stands. The
+  `logical_form` fields are unwritten fragments prepared for a future run, and
+  the graph says so in its own metadata so the next reader does not have to
+  rediscover it.
