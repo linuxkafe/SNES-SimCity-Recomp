@@ -2543,3 +2543,93 @@ de a trancar.
 
 **A correcção é no `recompiler`, não no `src/`.** É a primeira vez que a causa é
 nossa e é nossa de uma forma que se pode ler no código.
+
+---
+
+## 2026-10-01 (k) — é o byte `$00B1`, e o Deck estava desligado
+
+O Deck não respondeu — ARP `FAILED`, sem rota, host ausente da rede. O agente
+não ligou ao IP público a que `deck.linuxkafe.com` resolve, e está bem: aquilo
+não é a máquina. Ficou a metade de leitura, e essa metade valeu.
+
+### Onde o guest pára
+
+`SNESRECOMP_FRAME_SLOG=1` no binário de produção, sem build:
+
+```
+[fslog] f=3197 slice0  enter  S=1FF3 resume=009311
+[fslog] f=3197 slice0  exit   S=1FF3 resume=009313
+[fslog] f=3197 frame-end S=1FF3 PB=00 DP=0000 resume=009313
+```
+
+**`resume=009311` / `009313`, um único slice por frame.** O guest está
+estacionado no spin de vblank, e a alternância entre `9311` e `9313` é
+`INC $C7` / `LDA $B9` a dar duas voltas. Verificado nos bytes:
+
+```
+$00:930F  64 B9   STZ  $B9
+$00:9311  E6 C7   INC  $C7
+$00:9313  A5 B9   LDA  $B9
+$00:9315  F0 FA   BEQ  $9311
+$00:9317  60      RTS
+```
+
+Isto mata a hipótese da função de quiescência morta: se houvesse slices extra,
+veríamos vários. Há **um**. E mata a do caller: `$00:9313` é bank 00, não tem
+aritmética que forme `$03:8000` e não tem transferência indirecta nenhuma.
+
+### O byte
+
+```
+$00:80B6  AF B1 00 00  LDA $00B1    (long)
+$00:80BA  30 04        BMI  $80C0    <-- DECISAO
+$00:80BC  E6 B9        INC  $B9      <-- o unico posto
+$00:80C0  68 C2 30 0B 8B 48 = PLA / REP #$30 / TCD #$0B / PHB / PHA
+         -> NAO tem "INC $B9"
+```
+
+**`$B9` é posto só no caminho não-negativo.** Se o bit 7 de `$00B1` estiver
+posto, o handler toma `$80C0`, faz um `RTI` normal, **entrega uma interrupção de
+vblank perfeitamente sã a cada frame — e nunca põe `$B9`.** O spin em `$00:9313`
+gira para sempre enquanto o emulador parece perfeitamente saudável por fora.
+
+Isto separa o que era indistinguível em todos os nossos sintomas: "a NMI nunca
+chegou" de "a NMI chegou e fez a coisa errada". Framebuffer advance, zero tier-
+downs, CPU viva, sem falha — os dois indistinguíveis.
+
+### E está medido
+
+```
+frame   $00B1  bit7  $00B9  $00C7  $0B51  $0B53  $0B55
+  3100     00     0     06     8F    0000    076C    01
+  3200     81     1     00     7A    0000    076C    01
+  4000     81     1     00     73    0000    076C    01
+  6000     81     1     00     C4    0000    076C    01
+```
+
+**No frame 3100, `$B1 = $00` e `$B9 = $06` — o spin estava a ser satisfeito. No
+frame 3200, `$B1 = $81` (bit 7 posto) e `$B9 = $00` — e nunca mais volta a ser
+posto.** A cidade congela exactamente quando `$00B1` adquire o bit 7.
+
+Este é o primeiro momento de toda a investigação em que temos uma **causa com um
+byte, um handler verificado nos bytes do ROM, e uma correlação medida** que muda
+de lado entre o frame 3100 e o 3200. Onze retractações depois, e é a primeira
+coisa que não é inferência.
+
+**Ainda não é uma causa.** `$00B1` é posto por alguém, e "por quem" é a
+pergunta seguinte. Mas é a primeira que não é "o guest nunca faz X" — é "o
+guest faz uma coisa que parece innocent e não é".
+
+### Ferramentas, verificadas contra o fonte
+
+| método | onde | estado |
+|---|---|---|
+| `SNESRECOMP_FRAME_SLOG=1` | `game_rtl.c:112-120` | **funciona em produção**, grátis. Já deu o resultado acima. |
+| `SNESRECOMP_AOTBLK=3140-3150` | `cpu_trace.c:1243` | precisa de build com `SNESRECOMP_TRACE`. **`build-tr/` já existe no repo.** Formato é janela de *frames*, não de PC. |
+| `SNESRECOMP_CYC_WATCH=<pc>-<pc>` | `interp_bridge.c:2034` | em produção; só vê opcodes interpretados. |
+| `SNESRECOMP_YIELD_DIAG` | `interp_bridge.c:223-227` | existe em todos os binários mas **não serve**: só dispara no loop LLE (o spin é AOT bank 00), e é limitado aos **primeiros** 64 acentos, nunca aos últimos. |
+
+Causa mecânica do AOTBLK estar morto em produção: `cpu_trace.c:5` abre
+`#if SNESRECOMP_TRACE`, fecha em `:2679`, e `cpu_trace_block` está em `:1233`,
+dentro. O `CMakeLists.txt` de topo nunca define a macro, por defeito 0 — mas o
+emissor chama-a sem guarda nenhuma (`emit_function.py:533, 586, 2123`).
