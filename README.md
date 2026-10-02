@@ -19,9 +19,11 @@ supply; the ROM and any ripped assets are never included. Built on the
 > 0 is that **no criterion may be satisfied by a claim — only by a command that
 > exits 0**.
 >
-> This project has retracted **22** claims (computed, `make retraction-count` —
-> never a hand-written number). Where an old claim is quoted below it is
-> labelled **RETRACTED** and is printed as history, not as the answer.
+> This project has retracted **26** claims out of **34** ledger rows (computed,
+> `make retraction-count` — never a hand-written number; the other 8 rows are 6
+> `superseded` and 2 `invalidated-premise`, which is not a retraction). Where an
+> old claim is quoted below it is labelled **RETRACTED** and is printed as
+> history, not as the answer.
 
 ### How much of it is actually native
 
@@ -82,7 +84,7 @@ red.** One paragraph, because the rest of this section is the evidence:
 | ROM boots to attract, menus, naming | **working** [MEASURED] |
 | A live city loads and is presented | **working** [MEASURED] — `$0B53 = 0x076C` (year 1900), `$0B55 = 1`, `$0B9D = 20000` |
 | The vblank token handshake (a former deadlock) | **fixed** [MEASURED] |
-| Date, population, treasury advance | **they do not** [MEASURED] — 34 WRAM bytes change across 2 599 frames of a live city |
+| Date, population, treasury advance | **they do not** [MEASURED] — a byte diff over f3400→f5999 of a live city moves **34** WRAM bytes, and a 9 000-frame settle protocol with a *real* save reads `1900/1` at **every** snapshot, `$0BA5` = 0, `$0B9D` = 20 000, with 19–34 bytes changing per snapshot (0.02%) |
 | **Why the simulation does not advance** | **OPEN** — no cause is asserted anywhere in this repository |
 
 ![SimCity title screen](docs/screenshots/title.png)
@@ -137,34 +139,66 @@ simulating, so "the vblank handshake causes the freeze" is **RETRACTED**
 
 ### What is not fixed, and what is actually measured about it
 
-`$0B51` is the 16-bit master city tick counter (**[INFERRED]** — the role comes
-from the reference implementation's trace, never measured here). `INC.w $0B51`
-lives in bank 03 at ROM offset `0x18026` (`EE 51 0B`, SNES `$03:8026`).
-**Bank 03 is where the tick is *believed* to live, and that belief is inferred
-rather than measured.** What is measured is much narrower and much more
-interesting:
+`$0B51` is the 16-bit master city tick counter — **[INFERRED]**, and weaker than
+it was a day ago. The role comes from the reference implementation's trace, never
+measured here, and the one place it could have been corroborated is
+**counterevidence**: in a 9 000-frame Deck-native run of the *reference* build,
+`$0B51` climbs `0000 -> 001B` — **27 executions of `INC.w $0B51`, first at
+f3857**, cadence +152/+253/+140/+243 = 197 frames per tick — **and the year
+still never leaves 1900**, population 0, funds 20 000. **[MEASURED, Deck + host]**.
+A counter that rises and a city that does not simulate are the same observation,
+so "rising is not simulating" is now the load-bearing fact, and every story of
+the shape *"make `$03:8026` run and the clock advances"* is refuted by it.
+
+`INC.w $0B51` lives in bank 03 at ROM offset `0x18026` (`EE 51 0B`, SNES
+`$03:8026`). What is measured about bank 03 in **our** build is much narrower
+than that premise deserves:
 
 - **Bank 03 executes.** 921 distinct PCs and 515 043 interpreted steps over
   frames 0–3700. **[MEASURED]**, on the Deck and on the dev host, to the unit.
-  It is not code this build never reaches.
+  It is not code this build never reaches — it runs in boot, in attract and
+  through the menus, and it is bank `$03` that **closes its own gate** (below).
 - **Bank 03 goes silent at f3271, not f3301.** The earlier boundary came from
   100-frame brackets, which could only see that the f3100–3300 bracket was
   non-empty. A per-frame stream puts the **last frame containing any bank-03
   execution at f3271** — 16 interpreted steps — with none in f3272–f3700, and
   the frame-for-frame pattern is identical on both machines. **[MEASURED]**.
   `docs/CAUSE_CLAIMS.md` C-039 is retracted as stated; C-039b replaces it.
-- **Bank 03 only ever runs in `$03C63D`–`$03E57E`.** The whole `$038000`–`$03C63C`
-  region executes **nothing** — and that region contains the tick. **[MEASURED]**,
-  min/max of the full per-bank dump on both machines and in both instrument
-  configurations.
-- **`INC.w $0B51` at `$03:8026` executes zero times** — 0 hits in the 921-entry
-  dump, 0 AOT block entries, both machines, f0–f3700, with `$0B51 = 0000` at
-  f3600 in the same runs. **[MEASURED]**, C-041 answered. This is counted
-  execution, not inference from a WRAM sample.
-- **The AOT side is banks 00 and 01 too.** Whole-run AOT block log, first ever
-  taken: 1 430 539 entries over f0–f3700, of which bank `$03` has **18**, all in
-  f3270. In the live window f3400–f3700: `$00` and `$01` only. **[MEASURED,
-  host-only]** — the Deck figure is not in this tree.
+- **Bank 03's execution is bounded, and the bound has two tiers.** The
+  interpreted PCs all lie in `$03C63D`–`$03E57E`; the AOT block entries all lie
+  in `$03B477`–`$03C463`. Union: bank 03 executes in `$03B477`–`$03E57E` and
+  **nothing** in `$038000`–`$03B46C` or `$03C464`–`$03C63C`. **[MEASURED, Deck +
+  host, both tiers.]** The earlier, broader form — *"bank 03 executes only in
+  `$03C63D`–`$03E57E`"* — is **RETRACTED** (ledger **R-033**): it was derived
+  from "min and max of **the full dump**", and the full dump was the
+  *interpreted* one. `CYC_WATCH` is blind to AOT, and all 18 bank-`$03` AOT
+  entries lie **below** its own claimed `$03C63D` floor — the retracted sentence
+  contradicted a figure printed a few lines away from it in the same document.
+  Measured on one tier, stated about both: that is the failure, and it is why
+  every row above names its tier.
+- **`INC.w $0B51` at `$03:8026` executes zero times in f0–f3700** — 0 hits in
+  the 921-entry dump, 0 AOT block entries, both machines, both tiers, with
+  `$0B51 = 0000` at f3600 in the same runs. **[MEASURED]** as a count of
+  execution, not an inference from a WRAM sample.
+  **And that count does not license "the tick never executes here".** The
+  reference build's first `$03:8026` execution is at **f3857** — 157 frames
+  *after* the window C-041 used. **C-041's window contains no frame in which the
+  reference build would have executed the tick even once, so it could not have
+  found it.** This is **exactly the shape of the already-retracted f3301
+  bracket** (C-039 → C-039b), one tier up. Whether `$03:8026` runs in ours at
+  f ≥ 3857 is **OPEN and unmeasured**; `docs/CAUSE_CLAIMS.md` C-041b carries the
+  caveat.
+- **The AOT side is banks 00 and 01 too.** Whole-run AOT block log: **1 430 540**
+  entries over f0–f3700, of which bank `$03` has **18** — **15 in f3270 and 3 in
+  f3259** (`$03C42A`, `$03C430`, `$03C463`). In the live window f3400–f3700:
+  `$00` and `$01` only. **[MEASURED, Deck-native and host, identical to the
+  entry]** — 84 distinct PCs, the same per-100-frame buckets to the digit. Banks
+  02, 04, 05, 06 and 07: **zero** AOT entries on both machines.
+  An earlier version of this file said *1 430 539* and *"all 18 in f3270"*, and
+  its PC list **summed to 14 against its own stated 18** — self-inconsistent
+  before any re-run, and not reproducible on either machine since. Both are
+  **RETRACTED**; the Deck-native re-run is
+  [`2026-10-02-deck-aot-histogram.md`](docs/measurements/2026-10-02-deck-aot-histogram.md).
 - **The city appears at ≈f3378, i.e. ≈107 frames *after* bank 03 falls silent.**
   This is a **correlation**, recorded as a correlation on purpose, because the
   next session will want to write it as a cause and the number is sitting there
@@ -197,8 +231,57 @@ bounded by that window.
 > whose rootfs is damaged. A figure measured under those conditions describes
 > those conditions.** This caveat travels with every Deck number cited anywhere.
 
-Raw counts, both instruments, and what they cannot see:
-[`docs/measurements/2026-10-02-c041-bank03-pc-dump.md`](docs/measurements/2026-10-02-c041-bank03-pc-dump.md).
+Raw counts and what each instrument cannot see:
+[`2026-10-02-c041-bank03-pc-dump.md`](docs/measurements/2026-10-02-c041-bank03-pc-dump.md)
+(interpreter, both machines) ·
+[`2026-10-02-deck-aot-histogram.md`](docs/measurements/2026-10-02-deck-aot-histogram.md)
+(AOT, Deck-native) ·
+[`2026-10-02-f3271-entry-gate.md`](docs/measurements/2026-10-02-f3271-entry-gate.md)
+(the `$0012` gate and the `RTI` return) ·
+[`2026-10-02-t093-peer-0B51-writer-deck.md`](docs/measurements/2026-10-02-t093-peer-0B51-writer-deck.md)
+(the reference build, Deck-native).
+
+#### Why bank 03 stops: it closes its own gate (MEASURED, Deck-native)
+
+This is the most important structural finding in the project and it is not a
+cause. The gate is **`$0012`**, read at `$00:804D`:
+
+```
+$00:804D  A5 12     LDA $0012        <-- loop head, THE GATE (read twice in 3700 frames)
+$00:804F  D0 0B     BNE $805C        <-- $0012 != 0  ->  bank 03 skipped
+$00:8056  22 83 D2 03   JSL $03D283  <-- BANK $03 ENTRY (taken exactly once)
+
+$03:D2A7  A9 01 00   LDA #$0001
+$03:D2AA  85 12      STA $0012       <-- 15th of 16 instructions bank 03 runs in f3271
+$03:D2B7  6B         RTL             <-- the last
+```
+
+`$0012` has exactly **three** writes in 3700 frames (`WLOG`), and the third is
+the one: **f3271, from `$03:D2AA`, inside bank `$03`**, one instruction before
+its final `RTL`. In f3271, in this order: bank 03 sets `$0012 = 1` → `RTL` to
+bank 00 → `$00:804D` reads 1 → `BNE` → `$00:8061` instead of `$00:8056` →
+`$00:804D` **is never executed again in the run**. **The gate was closed before
+its only two readings were resolved, and the reader never came back.**
+**[MEASURED, Deck-native]** — and *where control goes*, not *why the city does
+not simulate*: the reference build also stops ticking productively, and the same
+`$0012` mechanism is **OPEN** there.
+
+Also **MEASURED, Deck-native**: **bank `$03` is resumed by `RTI`, not called.**
+`$00:8211`–`$00:8223` is a dispatcher that ends `PLB` / `RTI`, and its handler
+table at `$00:8223` holds `$930D` — the NMI handler — twice. So IRQ and NMI run
+through one entry, and control returns to bank 03 by restoring an interrupted
+context. **"What calls into bank 03" is therefore the wrong question**: a
+caller/callee census cannot see a return, and no stack dump was needed to see
+this. It also leaves the bank-`$03` entry graph **OPEN**: `$03:D287`–`$03:D29B`
+ran 2 311 times while `$00:8056` ran **once**.
+
+One thing is **not** reconciled and is recorded rather than smoothed over: the
+instruction at **`$03:DBB3`**, which the trace shows transferring control to
+`$00:8211`, reads as `02 00 60` = `JMP $036000`, and `$03:6000` **never
+executes**. Either the ROM read at that address, the `[itb]` PC attribution for
+that one step, or an interrupt taken between two logged steps is wrong. **OPEN**,
+and no claim above depends on it.
+
 
 ### The open question, and what it is not
 
@@ -206,18 +289,47 @@ Raw counts, both instruments, and what they cannot see:
 `docs/CAUSE_CLAIMS.md` with no instrument, and no cause for it is asserted
 anywhere in this tree.
 
-**The question has changed shape, and the change is the finding.** The code that
-was believed to advance the city clock is now *measured not to execute at all*.
-So the open question is no longer "why does bank 03 stop at f3301" — bank 03
-stops at f3271 and the reason is still unknown — but the sharper one:
+**The question has changed shape twice, and the second change is the finding.**
 
-> **What advances `$0B51` in the reference build, if not `$03:8026`?**
+First: the code believed to advance the city clock was measured not to execute
+inside f0–f3700, so "why does bank 03 stop at f3301" gave way to "bank 03 stops
+at f3271, and it closed its own gate on the way out" — **where control goes**,
+still not a cause.
 
-The premise underneath all of it, `$0B51` *is* the city tick, remains
-**[INFERRED]** from the peer and has never been measured here. The next
-measurement is therefore on the peer, not on this build: instrument
-`Junior-Jones/SimCity-SNES-Static-Recomp` for the PC that writes `$0B51`, since
-its API carries no PC or block trace today (C-032).
+Second, and harder: **the question "what advances `$0B51` in the reference build,
+if not `$03:8026`?" is now ANSWERED and it does not help.** The answer is
+`$03:8026` — 27 executions, first at f3857, measured Deck-native and reproduced
+on the host. And in that same run **the date never moved.** So the framing
+"our tick does not run, the reference's does, therefore that is the difference"
+is **refuted by the reference build itself**: the reference reaches the city
+through the keyboard route, ticks 27 times, and simulates nothing.
+
+> **REFUTED, not merely unproven: the premise that `$03:8026` running would fix
+> the clock has counterevidence.** Any fix of that shape would be aimed at a
+> target that the one build which reaches the target does not pass through.
+
+Two peer runs disagree about whether the reference simulates at all, and **both
+are measured, on the same ROM**:
+
+| peer run | script | window | `$0B51` | date | population |
+|---|---|---|---|---|---|
+| older WRAM trace | a live city reached by that route | f30000 | `0000 -> 006D` | `076C -> 076E`, **23 months** | changing |
+| T093 write-watch | `scripts/d_city_kbd.script`, 41 presses | f9000 | `0000 -> 001B`, 27 ticks | **`076C` never moves** | **0** |
+
+**[MEASURED]** — and **unreconciled**, which is a finding, not a nuisance. The
+route differs and the window differs; the arithmetic in the routine
+(`AND #$0003` gates the month on every 4th tick, 197 frames per tick) predicts
+roughly **6 month advances inside 9 000 frames**, which the T093 run does not
+show. **At least one of these two rows is explained by something neither row
+measured, and which one is OPEN.** Until it is settled, "the reference simulates
+and we do not" is **not** available as a premise — which removes the single
+comparison this project was leaning on.
+
+The next measurement is therefore **on our build, past the window that made the
+question look sharp**: does `$03:8026` execute here at any frame ≥ 3857, when the
+reference's first execution is at 3857 and C-041's window stopped at 3700? That
+is cheap, it is on the Deck, and **no result from it has been recorded** —
+including the result "no", which would only relocate the question.
 
 The retracted claims, each marked where it was made:
 
@@ -230,8 +342,28 @@ The retracted claims, each marked where it was made:
   `invalidated-premise`). Its premise (`$0012 == 0`) is false, and a refuted
   premise voids an inference and establishes **nothing in its place** — which is
   not a claim that it does run. The *conclusion* has since been reached by a
-  different route and now stands on its own: **MEASURED**, zero executions on
-  both tiers on both machines (C-041, C-008).
+  different route and now stands on its own: **MEASURED**, zero executions in
+  f0–f3700 on both tiers on both machines (C-041, C-008) — **with C-041b's
+  caveat that the window stops 157 frames short of the reference's first tick.**
+- **"Bank 03 executes only in `$03C63D`–`$03E57E`; `$038000`–`$03C63C` executes
+  nothing"** — **RETRACTED** (ledger **R-033**). Derived from the interpreted
+  dump alone; all 18 bank-`$03` AOT entries lie in `$03B477`–`$03C463`, below
+  its own claimed floor. The narrow two-tier form (C-039d) replaces it.
+- **"The whole-run AOT histogram is 1 430 539 entries and bank `$03`'s 18 are all
+  in f3270"** — **RETRACTED**. The Deck-native re-run gives **1 430 540** on both
+  machines, **15 in f3270 + 3 in f3259**, and the original's own PC list summed
+  to 14 against a stated 18. Self-inconsistent before any re-run, and
+  unreproducible on either machine since.
+- **"`$00:8023` = `95 00` = `STA dp,x` is a fourth writer of `$0B51`"** —
+  **RETRACTED** (ledger **R-034**), on three independent grounds: `95 00` is at
+  `$00:8024`, not `$00:8023`; the logged next-PC `$00:8025` matches neither a 2-
+  byte instruction at `$00:8024` (whose next PC is `$00:8026`) nor anything at
+  `$00:8023` (a `BRA`); and decisively **frame-0 writes == watched span exactly**
+  (1→1, 4→4, 64→64, 256→256 — **no 65816 instruction writes 256 consecutive
+  bytes**). The frame-0 hits are a **block memory initialisation sweep**, not an
+  instruction. The methodological half — that an operand-byte census is
+  structurally blind to a `dp,x` store — remains true but is **now unevidenced
+  here**, and is recorded as such.
 - **"The main loop does not run at all in a city"** — **RETRACTED as stated**,
   same measurement as R-03.
 - **"The gate is `$0012`"** — **RETRACTED.** `$0012 = 0001` and `$0014 = 8000` at
@@ -274,29 +406,38 @@ are:
 without a machine is not a measurement — see `docs/DEFINITION_OF_DONE.md` Rule 0.
 
 Measured on the dev host `seyon` (i5-8500T, 6 threads, Ubuntu 24.04, gcc 13.3.0,
-cmake 3.28.3) on 2026-10-02:
+cmake 3.28.3) on 2026-10-02, **re-run in full at `be23ec3`** — every row below
+is that re-run, not a carry-over:
 
-- Rows marked **8a7340f** were measured on that tree, before the README rewrite.
-- Rows marked **4ba14c7** were re-measured after it. Two rows differ between the
-  two trees and the difference is load, not code: `make perf` read median
-  **54.50 fps, spread 9.6%** at `8a7340f` (load average 7.55 on 6 threads) and
-  **53.68 fps, spread 5.6%** at `4ba14c7`. Every other row is identical, which is
-  the useful part: the rewrite moved no number that a gate recomputes.
+- `make perf` is the only row that has ever moved between trees, and it moves
+  with load, not code: median **54.50 fps / spread 9.6%** at `8a7340f` (load
+  average 7.55 on 6 threads), **53.68 / 5.6%** at `4ba14c7`, **53.30 / 2.9%**
+  at `be23ec3` (load average 7.81 on 6 threads when the gate started). Every
+  other row is byte-identical across all three trees, which is the useful part.
 
 | command | what it proves | result | exit |
 |---|---|---|---|
 | `make build` | Release build | ok | 0 |
-| `make test` | deterministic replay (ctest) | **2/2 passed** | 0 |
-| `make test-rom` | the picture moves (frames 200–800) | **PASS, 257 distinct crc32** | 0 |
-| `make perf` | gross frame-rate floor (5 × 600 frames) | **PASS, median 53.68 fps, spread 5.6%** (4ba14c7); 54.50 / 9.6% at 8a7340f | 0 |
-| `make clock` | **the city actually simulates** | **FAIL — `1 distinct date images after f3600` (last change f3378 of 6000)**, `$0B53 = 076C` → year 1900 | **1** |
+| `make test` | deterministic replay (ctest) | **2/2 passed** (`test_deterministic_replay` 1.32 s, `test_display_aspect` 0.00 s) | 0 |
+| `make test-rom` | the picture moves (frames 200–800) | **PASS, 800 frames presented, 257 distinct crc32, peak luma 41.751** | 0 |
+| `make perf` | gross frame-rate floor (5 × 600 frames) | **PASS, median 53.30 fps, spread 2.9%** (52.03 … 53.59) | 0 |
+| `make clock` | **the city actually simulates** | **FAIL — `1 distinct date images after f3600 (last change f3378 of 6000)`**, `$0B53 = 076C` → year 1900 | **1** |
 | `make check-claims` | no retracted claim asserted without a marker | PASS | 0 |
-| `make check-causes` | every causal assertion carries provenance | **PASS** — after the fix at `HEAD`; it was **FAIL, exit 1**, from `8a7340f` until this commit, because the guard fired on the word "candi**date**" in its own header | 0 |
-| `make check-causes-self-test` | the guard still fires on the tree it was written for | **PASS** — seeded against `9624f0e`, **3** unlabelled assertions | 0 |
-| `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded)** — counts printed by the gate itself; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
-| `make check-claims-self-test` | the ledger guard has been seen to fail | PASS | 0 |
-| `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames | 0 |
-| `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS** — 17 confirmed, 0 refuted; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
+| `make check-causes` | every causal assertion carries provenance | PASS | 0 |
+| `make check-causes-self-test` | the guard still fires on the tree it was written for | PASS | 0 |
+| `make check-claims-self-test` | the ledger guard has been seen to fail | PASS — both seeded violations confirmed detected | 0 |
+| `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
+| `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
+| `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
+| `make retraction-count` | the retraction count, computed | **34 rows = 26 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+
+**`make clock` exits 1, not 2**, and the distinction is load-bearing: the gate
+uses exit 1 for "a city is loaded and its date did not advance" and a *different*
+exit-1 verdict with its own message for "no city was loaded at all". There is no
+exit-2 path in `scripts/clock-gate.sh` — exit 2 belongs to `make perf`'s
+`INCONCLUSIVE` and to `clock-gate.sh --help` on an unknown flag. **Red is red;
+the exact code is recorded here so nobody has to guess which failure they are
+looking at.**
 
 **`make check-causes` was red for four commits and said so nowhere.** It fired on
 the bare word `date` inside "candi**date**" on line 30 of its own header, so it
@@ -429,6 +570,21 @@ caveat.**
 > so every `.c` unit built and the first `.cc` unit did not. If you see a Deck
 > build fail in a C++ file only, diff the two flag variables before you blame the
 > rootfs. The measured recipe is `scripts/deck-trace-build.sh`.
+
+**Both tiers build natively on the Deck, and the trace tier is not optional.**
+`scripts/deck-trace-build.sh` configures the instrumented tier
+(`-DSNESRECOMP_TRACE_BUILD=ON -DSNESRECOMP_INTERP_PROFILE=1 -DSNESRECOMP_TRACE=1`
+on **both** `-DCMAKE_C_FLAGS` and `-DCMAKE_CXX_FLAGS`, plus the header prefix on
+both) and ends in a **guard that refuses a mute build as success**: it counts the
+`[aotblk]` lines the link produced and fails if that count is zero. Measured
+`[aotblk] lines in f1-f50 = 9771` → `OK, trace tier links and emits on this
+machine`. **[MEASURED, Deck]**
+
+**Project policy: every heavy run and every trace/instrumented build happens on
+the Deck.** A host build of an instrumented tier is labelled `HOST-ONLY` and
+closes nothing. That label is not a formality — the AOT histogram carried it for
+a day and a half, and a host-only T093 answer turned out to contain a wrong
+writer that only a second, Deck-native run could expose (R-034).
 
 ### macOS / Windows
 
@@ -727,12 +883,22 @@ the naming screen's cursor walks on the d-pad and **B** confirms from a characte
 key. See `study/peer-linux/README.md`.
 
 **What comparing against it proved, and what it did not.** The peer recompiles
-the same ROM and its clock runs — 23 months across 33 700 frames. Both cores were
-traced at 100-frame intervals and diffed. The arithmetic on our side is
-measured (`$0B51 = 0000` at every sample from f3150 to f30000); the *role* of
-`$0B51` is **[INFERRED]** from the peer and has never been measured here; and the
-comparison has **not** established where control fails to reach the tick routine.
-Do not read the peer's working clock as a measurement of ours.
+the same ROM. **In one measured run its clock ran — `$0B53` `076C -> 076E`, 23
+months across 33 700 frames, `$0B51` `0000 -> 006D`.** **[MEASURED, Deck]** In
+a *second, later* measured run — a different route, `scripts/d_city_kbd.script`,
+9 000 frames — **it does not**: `$0B51` climbed 27 times and the year stayed
+1900 with the population at 0. **[MEASURED, Deck + host].** Both rows are in the
+table under *The open question* above; they are not reconciled and **the
+disagreement is itself the finding**, because the older row is the only
+"reference simulates, we do not" premise this project ever had.
+
+The arithmetic on our side is measured (`$0B51 = 0000` at every sample from
+f3150 to f30000); the *role* of `$0B51` is **[INFERRED]** from the peer and has
+never been measured here, and it now has counterevidence — in the reference
+build it rises without the date moving. **Do not read the peer's working clock
+as a measurement of ours, and do not read the peer's non-working clock as an
+excuse.** Either way, the comparison has **not** established where control fails
+to reach the tick routine.
 
 ## Development
 
@@ -764,7 +930,7 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | SNES Mouse on player 2 (`SNESRECOMP_MOUSE=1`, bsnes-exact protocol) | ✅ Device-level done (T042, ROM-free verified) |
 | Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
 | Quick save/load (10 slots), save-state menu, rewind, turbo | ✅ Working |
-| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red; the city view loads and then zero simulation ticks run — cause [OPEN]** |
+| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red; the city view loads and no simulation tick is observed anywhere in f0–f3700 — cause [OPEN], and the tick's fate at f ≥ 3857 is itself [OPEN]** |
 | Scenarios (all 5 US) | ⏳ T011 — confirm ENT step is the gate (see `docs/RE_SCENARIO_NAV.md` step 10) |
 | Building/visual verification (headless capture) | 🔄 T033 — unblocked by T039 |
 
