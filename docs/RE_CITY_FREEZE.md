@@ -2701,3 +2701,72 @@ Caveat de honestidade: há **194** ocorrências de `85 B1` (`STA $B1` dp-relativ
 no ROM. Não as conto porque DP varia e não posso saber o DP de cada sítio — com
 DP=$0000 todas as aliasariam para `$00B1`. Os oito `8D B1 00` são absolutos e
 independentes de mapeamento, por isso são o conjunto em que confio.
+
+---
+
+## 2026-10-01 (m) — "aumentar fps muda o tempo de jogo?" A resposta é não, e já é architectural
+
+Pergunta razoável, e a resposta é melhor do que "é simples": **já são
+desacoplados, por construção.**
+
+O guest não é conduzido pelo relógio de parede. `GameRunOneFrame` calcula
+
+```c
+const uint64_t frame_end = g_cpu.master_cycles + GAME_MASTER_CYCLES_PER_FRAME;
+```
+
+357.366 ciclos de master por frame. A noção de tempo do jogo é **inteiramente em
+ciclos de master**, e o host só decide *quando* injectar o NMI de vblank em
+relação a esse contador. Acelerar o guest não pode mudar o tempo de jogo: só
+diminui quanto tempo passamos parados à espera do deadline. `test_deterministic_replay` é
+exactamente a garantia disto, e passa.
+
+### E eu estava errado sobre a folga
+
+No commit anterior escrevi: *"4.511 + 6.540 + 5.916 = 16.97 ms contra um
+orçamento de 16.67 ms. O frame está oversubscribed."* **Isso é um erro de
+aritmética meu: somei trabalho com a espera.** A espera de deadline é a *folga
+gasta*, não trabalho somado ao orçamento.
+
+Medido agora no host de desenvolvimento, 1200 frames, `SNESRECOMP_HOST_PROFILE=1`:
+
+```
+  guest                9.579 ms
+  raster-capture       2.297 ms
+  upload-present       3.165 ms
+  compose              0.121 ms
+  event-pump           0.017 ms
+  surface-acquire      0.004 ms
+  ------------------------------------------
+  TRABALHO real       15.183 ms
+  ORCAMENTO (60 fps)  16.667 ms
+  FOLGA                1.484 ms   (8.9%)
+```
+
+E a folga confirma-se pelo outro lado: a espera de deadline disparou em **895 dos
+1200 frames**, 2102 ms no total, ou seja **1.752 ms por frame** de média — que é
+a nossa folga, gasta a dormir. 1200 frames em 20.350515 s = 58.97 fps.
+
+**Portanto: temos ~1.5 ms de folga, não um déficit.** É estreita — 9% — mas é
+folga. E o número que eu publiquei estava errado por uma soma dupla.
+
+### O risco real é o oposto do que se teme
+
+Não é "acelerar demais estraga o jogo". É: **se a máquina for lenta demais, a
+emulação continua correcta?**
+
+A resposta é quase. `interp_bridge.c:1169` devolve ao host no deadline de master
+com o PC de resume registado — **o guest não é truncado a meio**, só rende o
+controle e retoma no frame seguinte no mesmo sítio. Uma máquina lenta produz a
+mesma emulação, só mais lenta em tempo de parede.
+
+**Há um único sítio onde a lentidão se torna incorrectness**, e vale a pena
+escrever: `GAME_MAX_SLICES_PER_FRAME = 64` em `game_rtl.c:236`. Se um frame
+precisar de mais de 64 slices, o trabalho é abandonado. Aí a emulação passa a
+depender da velocidade da máquina — e como o `make clock` é o gate de entrega,
+isso seria um bug de *correcção*, não de performance.
+
+**Próximo passo, se mexermos nisso:** instrumentar quantos slices um frame usa
+de facto. Se o máximo observado for, digamos, 4, o limite de 64 tem uma margem
+de 16× e ninguém precisa de lhe tocar. Se estiver perto de 64, é um cliff real
+e tem de ser tratado antes de qualquer optimização.
