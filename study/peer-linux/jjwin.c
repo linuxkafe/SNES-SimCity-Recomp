@@ -481,17 +481,40 @@ int main(int argc, char **argv) {
 
         /* The date, read straight out of WRAM. $0B53 is the year and $0B55 the
          * month, both little-endian, and 0/0 is the encoding for 1900 January -
-         * not "unset". $0B51 is a free-running counter modulo 4 and reads 0 one
-         * frame in four by design, so it is printed but must never be read as
-         * evidence of a frozen clock.
+         * not "unset".
+         *
+         * RETRACTED, and the retraction is load-bearing here: this comment used
+         * to say "$0B51 is a free-running counter modulo 4 and reads 0 one
+         * frame in four by design". That is R-031, refuted. $0B51 climbs
+         * MONOTONICALLY 0000 -> 001B at +1 per ~197 frames, written by
+         * `INC.w $0B51` at $03:8026. It is not mod-4 and it does not "read 0
+         * one frame in four by design".
+         *
+         * $0BA5 (population) and $0B9D (funds) are printed alongside the date
+         * because a frozen date is not by itself evidence of a frozen city. If
+         * the month stops but the population and the treasury keep moving, the
+         * city is simulating and only the calendar is stuck - the opposite
+         * finding, and one a date-only readout cannot distinguish. Reading
+         * $0BA5/$0B9D is what turns "does the reference simulate" into a
+         * question with an answer. Measured on the Deck; see
+         * docs/measurements/2026-10-02-t101-reference-simulates.md.
          *
          * Do NOT confuse $0B4D with a year. It is a word, not a byte, and
          * printing its low byte alone turns a date into nonsense. */
         if (wram_at) {
             uint8_t d[4] = {0};
+            uint8_t city[8] = {0};
             if (simcity_recomp_read_wram(inst, 0x0B53u, d, 3u)) {
                 unsigned year = (unsigned)(d[0] | (d[1] << 8));
                 unsigned mon  = d[2];
+                /* $0BA5 population and $0B9D funds are both WORDS. Printing
+                 * one byte of either produces a plausible-looking number that
+                 * is simply wrong, which is the same trap as $0B4D below. */
+                unsigned pop = 0, funds = 0;
+                if (simcity_recomp_read_wram(inst, 0x0BA5u, city, 2u))
+                    pop = (unsigned)(city[0] | (city[1] << 8));
+                if (simcity_recomp_read_wram(inst, 0x0B9Du, city + 2, 2u))
+                    funds = (unsigned)(city[2] | (city[3] << 8));
                 /* 1-based, and measured against a rendered HUD rather than
                  * assumed: our own city shows "1900 JAN" on screen while
                  * $0B55 = $01. So $01 is JAN, not FEB. I had this table
@@ -506,12 +529,22 @@ int main(int argc, char **argv) {
                  * the title screen shows. I had this backwards and it was
                  * printed as "0 JAN", a reading that looks like a date and is
                  * not one. */
+                /* The frame number is printed because "the date never moved"
+                 * is only a claim about a window, and a window needs two ends.
+                 * Without it a truncated run and a frozen run print the same
+                 * last line - which is exactly how a 9000-frame run came to be
+                 * compared against a 33700-frame one without the mismatch
+                 * being visible. */
                 if (year == 0)
-                    fprintf(stderr, "[date] no city yet  (raw $0B53=%04X $0B55=%02X)\n",
-                            year, mon);
+                    fprintf(stderr, "[date] f%-7llu no city yet  (raw $0B53=%04X $0B55=%02X "
+                            "$0BA5=%04X $0B9D=%04X)\n",
+                            (unsigned long long)frames, year, mon, pop, funds);
                 else
-                    fprintf(stderr, "[date] %u %s  (raw $0B53=%04X $0B55=%02X)\n",
-                            year, (mon >= 1 && mon <= 12) ? MN[mon] : "???", year, mon);
+                    fprintf(stderr, "[date] f%-7llu %u %s  (raw $0B53=%04X $0B55=%02X "
+                            "$0BA5=%04X $0B9D=%04X)\n",
+                            (unsigned long long)frames, year,
+                            (mon >= 1 && mon <= 12) ? MN[mon] : "???",
+                            year, mon, pop, funds);
             }
         }
 

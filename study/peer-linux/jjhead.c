@@ -111,7 +111,11 @@ int main(int argc, char **argv) {
 
     snprintf(path, sizeof path, "%s/timeline.log", dumpdir);
     log = fopen(path, "w");
-    fprintf(log, "frame master_clock insns z12 zB9 zC7 d0B51 d0B53 d0B55 d0B5C raw55\n");
+    /* Column `d0B55` is the month and column `d0B53lo` is the low byte of the
+     * year. The latter was called `raw55` for the whole life of this log while
+     * printing $0B53's low byte, not $0B55's - see the clobber note below.
+     * `d0B55` likewise printed the year until this revision. */
+    fprintf(log, "frame master_clock insns z12 zB9 zC7 d0B51 d0B53 d0B55 d0B5C d0B53lo d0BA5 d0B9D\n");
 
     uint32_t script_end = done;
     int failed = 0;
@@ -140,24 +144,58 @@ int main(int argc, char **argv) {
             } else { fprintf(stderr, "RENDER FAILED f%u: %s\n", done, err); }
         }
         if (done % dump_every == 0u || done == script_end || done == total_frames) {
-            uint8_t zp[3]; uint8_t b5[0x10];
+            uint8_t zp[3]; uint8_t b5[0x10]; uint8_t mon = 0;
+            /* $0BA5 (population) and $0B9D (funds) are added because a frozen
+             * DATE is not the same finding as a frozen CITY, and a log that
+             * carries only the date cannot tell the two apart. Both are WORDS;
+             * reading one byte of either yields a plausible wrong number. */
+            uint8_t city[4];
+            unsigned pop = 0, funds = 0;
             simcity_recomp_read_wram(inst, 0x0012u, &zp[0], 1u);
             simcity_recomp_read_wram(inst, 0x00B9u, &zp[1], 1u);
             simcity_recomp_read_wram(inst, 0x00C7u, &zp[2], 1u);
             simcity_recomp_read_wram(inst, 0x0B51u, b5, sizeof b5);
             /* The date fields, by the disassembly's own names: $0B53
              * CurrentYear, $0B55 CurrentMonth, $0B4D season. These are the
-             * numbers that decide whether the peer actually simulates. */
-            simcity_recomp_read_wram(inst, 0x0B53u, b5 + 4, 4);
-            fprintf(log, "%u %llu %llu %02X %02X %02X %04X %04X %04X %04X %04X\n", done,
+             * numbers that decide whether the peer actually simulates.
+             *
+             * BUG FIXED HERE, and it was in OUR instrument, not the peer.
+             * The line used to read:
+             *
+             *     simcity_recomp_read_wram(inst, 0x0B53u, b5 + 4, 4);
+             *
+             * which is correct for $0B53 but CLOBBERS b5[4..7] - and b5[4] is
+             * $0B55 in the 16-byte read from $0B51 above. So the column this
+             * log has always labelled `d0B55` was printing $0B53's value a
+             * second time, and `raw55` (meant to be the month byte) printed
+             * $0B53's LOW byte. A city sitting at year 1900 ($0B53 = $076C)
+             * therefore logged `d0B55=076C raw55=006C`: a "month" of $6C and
+             * a raw month byte of $6C, neither of which is a month.
+             *
+             * Why it went unnoticed for so long: $0B53 = $076C is a value that
+             * *looks* like data, and every claim of the form "the year stays
+             * 1900" read the `d0B53` column, which was never wrong. The
+             * broken column was the month - the one field whose value would
+             * have shown the month advancing. $0B55 now gets its own read, and
+             * the old raw byte is kept and relabelled for what it always was:
+             * the low byte of $0B53. */
+            simcity_recomp_read_wram(inst, 0x0B53u, b5 + 4, 2);
+            if (simcity_recomp_read_wram(inst, 0x0B55u, &mon, 1u))
+                ; /* mon is $0B55, the month, 1-based: $01 = JAN */
+            if (simcity_recomp_read_wram(inst, 0x0BA5u, city, 2u))
+                pop = (unsigned)(city[0] | (city[1] << 8));
+            if (simcity_recomp_read_wram(inst, 0x0B9Du, city + 2, 2u))
+                funds = (unsigned)(city[2] | (city[3] << 8));
+            fprintf(log, "%u %llu %llu %02X %02X %02X %04X %04X %04X %04X %04X %04X %04X\n", done,
                     (unsigned long long)simcity_recomp_master_clock(inst),
                     (unsigned long long)simcity_recomp_instruction_count(inst),
                     zp[0], zp[1], zp[2],
                     (unsigned)(b5[0] | (b5[1] << 8)),
                     (unsigned)(b5[2] | (b5[3] << 8)),
-                    (unsigned)(b5[4] | (b5[5] << 8)),
+                    (unsigned)mon,
                     (unsigned)(b5[11] | (b5[12] << 8)),
-                    b5[4]);
+                    b5[4],
+                    pop, funds);
             fflush(log);
             /* full WRAM snapshot every 600 frames */
             if (done % 120u == 0u || done == total_frames) {
