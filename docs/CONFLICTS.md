@@ -298,7 +298,9 @@ $ bash scripts/verify-implementation.sh T999
 **A ticked box is a pass with no check at all** (`:88`, `case "x" in "x") pass
 "(already checked)"`), and it is counted in the passed total. The file it claims
 does not exist. That is prose closing work — the mechanism this project has
-retracted twenty-two times — implemented as a gate.
+retracted repeatedly — implemented as a gate. (The exact number is deliberately
+not written here: `make retraction-count` computes it, and a hand-typed count is
+what four earlier counts of this same number got wrong.)
 
 Two further properties, both read from the source:
 

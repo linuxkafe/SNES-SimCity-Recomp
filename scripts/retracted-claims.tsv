@@ -97,3 +97,4 @@ R-027	phrase	refuted	AND #\$9000 gates INC	README.md:70
 R-028	phrase	refuted	the Deck cannot build this project	docs/CONFLICTS.md:41
 R-029	phrase	refuted	Deck cannot compile this	docs/CONFLICTS.md:41
 R-030	phrase	refuted	no glibc headers, so `make build` there fails	docs/CONFLICTS.md:41
+R-031	phrase	refuted	free-running counter modulo 4	study/peer-linux/README.md:154

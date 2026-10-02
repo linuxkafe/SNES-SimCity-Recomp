@@ -151,9 +151,20 @@ video_standard=NTSC nominal_fps=60.098814 avg_master_clocks_per_frame=357366
 "unset". A city that is actually simulating moves month to month roughly every
 1900 frames.
 
-**`$0B51` is a red herring.** It is a free-running counter modulo 4
-(`INC $0B51` … `AND #$0003` … `INC month`), so it reads 0 one frame in four by
-design. "It stays 0" is not evidence of a frozen clock. Use `$0B53`/`$0B55`.
+**RETRACTED (2026-10-02): "`$0B51` is a free-running counter modulo 4."** That
+was asserted here and it is refuted. A 9000-frame headless run measured `$0B51`
+climbing `0000 -> 001B` **monotonically**, +1 every ~197 frames
+(`INC.w $0B51` at `$03:8026`, 27 executions, first at frame 3857). It is not
+mod-4 and it does not "read 0 one frame in four by design". Ledger row R-031.
+
+What survives is only the weak half: `"$0B51 stays 0" is not by itself proof of
+a frozen clock`, since the counter starts at 0. Use `$0B53`/`$0B55` for the
+date.
+
+And the stronger point, measured at the same time: **in that run `$0B51`
+incremented 27 times and the date still never left 1900 January.** So the
+counter moving is not evidence of a simulating city either. Full data:
+`docs/measurements/2026-10-02-t093-peer-0B51-writer.md`.
 
 For how these fields were found, and for the full chain from the stalled
 scheduler to the frozen date, see `docs/RE_CITY_FREEZE.md`.

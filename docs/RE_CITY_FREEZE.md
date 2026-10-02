@@ -1,6 +1,6 @@
 # T060 — the clock does not advance in a running city
 
-> ## ⚠ STATUS — measured 2026-10-02; newest entry **(t)**. Read this before anything below.
+> ## ⚠ STATUS — measured 2026-10-02; newest entry **(u)**. Read this before anything below.
 >
 > This file is an **append-only chronological log**, ~3,990 lines and 45 dated
 > entries (35 carry a `## 20…` heading; the rest are undated sub-entries).
@@ -15,22 +15,26 @@
 > | Does the city simulate? | **No.** 34 WRAM bytes across 2,599 frames of a live city; the date never leaves `1900 JAN`. | byte diff f3400→f5999 |
 > | Does bank 03 execute at all? | **Yes — 921 distinct PCs, 515,043 interpreted steps over f0–f3700.** | interpreted histogram, Deck-native build, **(s)** |
 > | Where does it stop? | **At f3271.** 16 steps in f3271, none in f3272–f3700; frame-for-frame identical on Deck and host. **The f3301 in entry (s) is retracted as stated** — it was a 100-frame bracket. | per-frame stream, **(t)** |
-> | Does the tick instruction run? | **No.** `INC.w $0B51` at `$03:8026` = **0 executions**, both tiers, both machines, f0–f3700. Bank 03 only ever runs in `$03C63D`–`$03E57E`; `$038000`–`$03C63C` runs nothing. | full per-bank dump, **(t)** |
-> | **Why does the city not simulate?** | **NOT ESTABLISHED. OPEN.** `$0B51 = 0000` at 5/5, and `$0B51` is the peer-derived tick candidate — but that role is INFERRED, not measured here. | — |
+> | Does the tick instruction run — **in the peer?** | **YES.** `INC.w $0B51` at `$03:8026` (`EE 51 0B`, file `0x18026`) = **27 executions in 9000 frames**, first at **f3857**, then +152/+253/+140/+243 (197 frames/tick). Host-only. | WRAM write-watch on the reference core, **(u)** |
+> | Does the tick instruction run — **in ours?** | **NOT ESTABLISHED, and C-041's window cannot answer it.** 0 executions f0–f3700 is true, but the peer's tick **also never fires inside f0–f3700**. The windows do not overlap. | **(u)** §4 |
+> | Does the peer's clock advance? | **No.** `$0B51` climbs `0000->001B` while year stays 1900, population stays 0, funds stay 20000, 50–500 WRAM bytes move per 120 frames. **27 tick increments bought nothing.** | **(u)** §2 |
+> | Does the keyboard route reach a *running* city? | **No — in either project.** The peer loads the city at ~f2985 and does not simulate; ours reaches the same loaded state and does not simulate. | **(u)** §3 |
+> | Who writes `$0B51`? | **`$03:8026` `INC.w $0B51`**, cross-checked against ROM bytes. Plus `$03:C77E` `STZ.w`, `$03:C9E3` `STA.w`, and **`$00:8023` `STA dp,x`** (`95 00`, one-byte operand — invisible to an operand scan). | **(u)** §5 |
+> | **Why does the city not simulate?** | **NOT ESTABLISHED. OPEN.** `$0B51`'s role is now MEASURED in the peer *for the counter* and OPEN *for the date*, since it increments there without the date moving. | **(u)** |
 >
 > **The open question, in order of how much it would reduce uncertainty:**
 >
-> 1. **What advances `$0B51` in the peer build, if not `$03:8026`?** The code
->    believed to advance the clock is now *measured not to execute at all*, so the
->    question changed shape rather than being answered. It needs a PC trace of the
->    reference build, whose API carries none (C-032).
+> 1. **Does `$03:8026` execute in OUR build at any frame >= 3857?** Unmeasured,
+>    and cheap. C-041 stops at f3700; the peer's first tick is f3857, so **the
+>    reference build would not have executed the tick once inside the window
+>    C-041 used.** This is the single next measurement. **(u)**
 > 2. **Why does bank 03 go silent at f3271?** Still unmeasured. No cause is
 >    asserted anywhere in this file. Its last instruction is an `RTL` returning to
 >    a bank-00 loop that keeps running.
 >
-> Both were open at **(s)** and are answered at **(t)** — which is why this block
-> exists: an entry three hundred lines from the end was the only place the
-> boundary was written down.
+> Question 1 was open at **(s)**, answered at **(t)** as a census, and finally
+> MEASURED at **(u)** — which is why this block exists: an entry three hundred
+> lines from the end was the only place the boundary was written down.
 >
 > **Four claims below that are NOT established, and are asserted as if they were:**
 >
@@ -3992,3 +3996,93 @@ antigos.**
   `$0B51` até `006D`, e se `$03:8026` não corre em lado nenhum, a pergunta passa a
   ser **o que é que faz `$0B51` subir no peer** — o que exige um PC trace do peer,
   cuja API hoje não tem (C-032).
+
+---
+
+## 2026-10-02 (u) — T093: quem escreve `$0B51`, medido no peer. E a janela do C-041 não chega
+
+> **STATE (2026-10-02, from the index at the top of this file): CURRENT** — the
+> newest measurement. It answers the index's open question 1, and it opens a
+> window problem with C-041 that is now the single next measurement.
+>
+> Full data, hook, and the two corrections the hook needed before it told the
+> truth: `docs/measurements/2026-10-02-t093-peer-0B51-writer.md`.
+>
+> **Host-only.** O peer foi compilado e corrido na dev box. Nenhum número desta
+> entrada tem suporte do Deck.
+
+**1. O escritor é `$03:8026` = `INC.w $0B51`. E no peer ELE CORRE.**
+
+27 execuções em 9000 frames. A primeira em **f3857**. Depois, um ciclo estrito de
++152/+253/+140/+243 frames — 788 frames por 4 ticks, **197 frames por tick**. Os
+bytes do ROM, lidos do ficheiro e não de uma descompilação: `EE 51 0B` no offset
+`0x18026` = `$03:8026`.
+
+Confirma também o `#9` de `$03:C77E` (`9C 51 0B`, `STZ.w $0B51`) a zeroar o
+contador em **f2985**, o momento da criação da cidade.
+
+**Não é o `$0B51` do README do peer.** Esse ficheiro diz que o `$0B51` é um
+contador mod-4 livre que lê 0 um frame em quatro por desenho. Medido: sobe
+`0000 -> 001B` de forma monótona, `+1` por ~197 frames, e nunca chega a 4. A
+afirmação do README está **REFUTADA** e registada em
+`scripts/retracted-claims.tsv` (R-031).
+
+**2. E subir não é simular. Esta é a frase que mais pesa nesta entrada.**
+
+No mesmo run, `$0B51` sobe 27 vezes enquanto nada mais se mexe:
+
+| campo | f3000–f9000 |
+|---|---|
+| ano `$0B53` | `1900`, parado |
+| população `$0BA5` | `0`, parada |
+| fundos `$0B9D` | `20000`, parados |
+| bytes de WRAM que mexem | 50–500 por 120 frames |
+
+**27 execuções do incrementador do tick não compraram nada.** Qualquer história
+causal da forma "fazer `$03:8026` correr e o relógio avança" está refutada por
+esta run. O papel de `$0B51` fica corroborado **para o contador** e **OPEN para
+a data**.
+
+**3. A rota de teclado não chega a uma cidade a correr — em NENHUM dos dois
+projectos.**
+
+O peer carrega a cidade em ~f2985 e depois não simula. O nosso build chega ao
+*mesmo* estado carregado (`$0B53 = 0x076C`, fundos 20000, pop 0) e também não
+simula. `scripts/d_city_kbd.script` é uma rota para "cidade carregada", não para
+"cidade a correr". **O peer deixou de ser referência para "uma build onde o
+relógio avança demonstravelmente"** — por este script. O que o peer é, medido:
+alcaça o estado carregado **e executa o tick 27 vezes**, que é exactamente o que
+o nosso não faz.
+
+**4. As janelas não se sobrepõem. E isso é uma arma contra o C-041.**
+
+| | 1ª execução de `$03:8026` | janela medida |
+|---|---|---|
+| peer | **f3857** | 9000 |
+| nosso (C-041) | **nunca observada** | **f0–f3700** |
+
+O tick do peer **também não corre uma única vez dentro de f0–f3700.** Portanto
+C-041 mediu "0 execuções em f0–f3700" — o que é verdade — e isso **não**
+autoriza "o tick nunca executa", porque a janela não contém nenhum frame em que
+a build de referência o executasse uma vez. É a mesma forma do artefacto de
+bracket de 100 frames do f3301/f3271, já retractado uma vez. **A próxima
+medição é barata:** refazer o dump per-bank por PC até f4000+.
+
+**5. Um quarto escritor que um censo por bytes de operando não podia ver.**
+
+`$00:8023` = `95 00` = `STA dp,x` — uma escrita de **índice directo na página**,
+com operando de **um byte**. O watch apanhou-a com `D = $0000`, `X = $0B51`, logo
+`dp + D + X = $0B51`. Um censo que procura os bytes `51 0B` é estruturalmente
+cego para `STA dp,x`: o operando é `00` e o endereço efectivo não existe sem D e
+X em run-time. É a mesma forma do erro do `JSL (abs)` (casou o operando `7A 1F`
+sem ver o opcode `$FC`). **"Exactamente um escritor" não se estabelece com um
+scan de operandos.**
+
+**6. O que isto NÃO estabelece.**
+
+- **Que `$03:8026` corra no NOSSO build.** Nada nesta entrada diz isso. C-041
+  continua a dizer "0 execuções em f0–f3700" e a janela é o problema.
+- **Que o tick do cidade esteja em `$03:8026`.** Passa de [INFERRED] para
+  **[MEASURED] no peer, para o contador**; continua **[OPEN] para a data**,
+  porque no peer ele corre e a data não se mexe.
+- **Porque é que a bank 03 se cala em f3271.** Esta entrada não toca nisso.

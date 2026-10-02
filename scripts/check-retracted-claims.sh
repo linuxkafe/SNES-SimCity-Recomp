@@ -180,6 +180,12 @@ SCOPE_FILES=(
 	docs/CLAIMS_REGISTER.md
 	docs/ROADMAP.md
 	docs/DEFINITION_OF_DONE.md
+	# Added 2026-10-02 with ledger row R-031. The peer's study README asserted
+	# "$0B51 is a free-running counter modulo 4", which a 9000-frame run in the
+	# reference core refuted. A ledger row whose target file is outside the
+	# scanned scope is a row that can never fire, which is a decoration, not a
+	# guard - the exact shape CONF-1 and CONF-2 describe.
+	study/peer-linux/README.md
 )
 # Derived scope, added to the hand list above rather than replacing it.
 #
