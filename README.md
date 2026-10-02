@@ -139,16 +139,41 @@ simulating, so "the vblank handshake causes the freeze" is **RETRACTED**
 
 ### What is not fixed, and what is actually measured about it
 
-`$0B51` is the 16-bit master city tick counter — **[INFERRED]**, and weaker than
-it was a day ago. The role comes from the reference implementation's trace, never
-measured here, and the one place it could have been corroborated is
-**counterevidence**: in a 9 000-frame Deck-native run of the *reference* build,
-`$0B51` climbs `0000 -> 001B` — **27 executions of `INC.w $0B51`, first at
-f3857**, cadence +152/+253/+140/+243 = 197 frames per tick — **and the year
-still never leaves 1900**, population 0, funds 20 000. **[MEASURED, Deck + host]**.
-A counter that rises and a city that does not simulate are the same observation,
-so "rising is not simulating" is now the load-bearing fact, and every story of
-the shape *"make `$03:8026` run and the clock advances"* is refuted by it.
+`$0B51` is the 16-bit master city tick counter — **[INFERRED]**, and its
+reference-side behaviour is now **decoded** rather than merely observed.
+
+**The reference's clock runs.** Measured Deck-native to **f30 000** from a cold
+SRAM: the city appears at **f3000** (1900 January), the month rolls every
+**~780 frames** — **28 rolls** — the year turns over at **f13080** and **f24600**,
+and f30 000 reads **1902 MAY**, `$0B51 = $0071`. **[MEASURED, Deck-native]**
+(`docs/measurements/2026-10-02-t101-reference-simulates.md`).
+
+The relationship holds across **1 344 city samples in three independent runs**
+with **zero** violations:
+
+> **`$0B51` = 4 × (months elapsed since the city was created) + (0…3)**
+
+so `AND #$0003` extracts **the quarter within the current month**, and the 27
+ticks counted in the old 9 000-frame reference run are `6 × 4 + 3` — six whole
+months and three quarters. Population (`$0BA5`) stays **0** and funds (`$0B9D`)
+stay **20 000** in every reference sample, so "the reference simulates" means
+*the tick runs*, not *an economy grows*.
+
+**RETRACTED (R-035, R-036).** This section previously carried two claims that
+measurement has now refuted, and both were load-bearing:
+
+- *"the reference build also stops ticking productively"* — it does not.
+- *"a counter that rises and a city that does not simulate are the same
+  observation, so 'rising is not simulating' is the load-bearing fact, and every
+  story of the shape 'make `$03:8026` run and the clock advances' is refuted by
+  it"* — **refuted.** The month *did* advance six times inside the very 9 000-frame
+  window that claim cites. It appeared not to because **our own driver** printed
+  `$0B53` under the label `$0B55` (`c4923de`); the arithmetic was right and the
+  instrument could not read it.
+
+The consequence is the opposite of what the retraction was used for: **the story
+of the shape "make `$03:8026` run and the clock advances" is no longer refuted.**
+It is the shape the evidence now points at.
 
 `INC.w $0B51` lives in bank 03 at ROM offset `0x18026` (`EE 51 0B`, SNES
 `$03:8026`). What is measured about bank 03 in **our** build is much narrower
@@ -299,8 +324,12 @@ bank 00 → `$00:804D` reads 1 → `BNE` → `$00:8061` instead of `$00:8056` �
 `$00:804D` **is never executed again in the run**. **The gate was closed before
 its only two readings were resolved, and the reader never came back.**
 **[MEASURED, Deck-native]** — and *where control goes*, not *why the city does
-not simulate*: the reference build also stops ticking productively, and the same
-`$0012` mechanism is **OPEN** there.
+not simulate*. **The older sentence here said the reference build also stops
+ticking productively and that the same `$0012` mechanism is OPEN there. That is
+RETRACTED (R-035): the reference build's clock runs to f30 000 and beyond — 28
+month rolls, two year rollovers, `$0DC7` accumulated 128 times — and whether
+`$0012` gates anything in the reference is still **OPEN**, but "it stops
+ticking" was never measured and is now refuted.**
 
 Also **MEASURED, Deck-native**: **bank `$03` is resumed by `RTI`, not called.**
 `$00:8211`–`$00:8223` is a dispatcher that ends `PLB` / `RTI`, and its handler

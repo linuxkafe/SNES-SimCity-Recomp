@@ -111,3 +111,5 @@ R-031	phrase	refuted	free-running counter modulo 4	study/peer-linux/README.md:15
 R-032	phrase	refuted	it does not satisfy a translation unit that includes	docs/measurements/2026-10-02-c041-bank03-pc-dump.md:292
 R-033	phrase	refuted	Bank 03 executes only in	docs/CAUSE_CLAIMS.md:63
 R-034	phrase	refuted	STA dp,x	docs/measurements/2026-10-02-t093-peer-0B51-writer.md:143
+R-035	phrase	refuted	the reference build also stops ticking productively	docs/measurements/2026-10-02-t101-reference-simulates.md
+R-036	phrase	refuted	rising is not simulating	docs/measurements/2026-10-02-t101-reference-simulates.md

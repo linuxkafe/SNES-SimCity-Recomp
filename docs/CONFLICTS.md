@@ -455,3 +455,84 @@ gate. This is the same class as CONF-1 — a guard whose scope did not include t
 file carrying the falsified claim — and the scope was wrong in both cases. In
 CONF-1's case it is still wrong: `docs/RE_SCENARIO_NAV.md` remains outside
 `SCOPE_FILES`.
+
+---
+
+**CONF-12 · severity MEDIUM · `scripts/check-retracted-claims.sh`, `docs/review/validate-findings.sh`**
+
+**The evidence gate is intermittently red on a line that is not a violation,
+and the review validator reports the flake as a completely unrelated finding.**
+
+Found while taking T101, and **not** caused by anything T101 changed — the same
+flake was observed before and after the ledger grew by two rows.
+
+### What was measured
+
+`scripts/check-retracted-claims.sh` exits **1** intermittently with a single
+false positive:
+
+```
+-- 1. no script or doc asserts a refuted cause --
+  VIOLATION docs/CAUSE_CLAIMS.md:83  R-033 (refuted) asserted without a retraction marker
+```
+
+Observed **3 times in ~110 invocations** (runs 38 and others of a 60-iteration
+loop; `make review-check` **2 failures in 8**). `make review-check` and
+`make check-claims` are both green on every other run.
+
+**The flagged line is not a violation.** `docs/CAUSE_CLAIMS.md:83` is the C-039c
+row, and it carries `**RETRACTED as stated**` **on the line itself**, plus
+`ledger **R-033**` two columns further right. The guard's own rule is "a
+correction marker within ±6 lines", and that window holds **12** matches of its
+`NEG` pattern.
+
+### The isolation that clears the logic and does not explain the flake
+
+| experiment | repetitions | violations |
+|---|---|---|
+| the exact ±6-line `ctx` test for line 83 | **200** | **0** |
+| the complete section-1 loop for `CAUSE_CLAIMS.md`, all **36** ledger patterns | **12 full iterations** | **0** |
+| `scripts/check-retracted-claims.sh` direct | **10 consecutive** | **0** |
+
+So the guard's arithmetic is right every time it is evaluated in isolation, and
+it is nonetheless wrong about one run in roughly thirty. **The cause is OPEN and
+none is asserted.** The candidates were not separated: a transient read of the
+working tree, the scope list being rebuilt by `git ls-files -co` while the tree
+is being written, or something in the subshell/`$( )` plumbing further down the
+script. Nothing here measured which.
+
+### The second defect, which is deterministic and is the more harmful one
+
+`docs/review/validate-findings.sh` F-13 and F-14 **delegate the entire decision
+to that script's exit code**:
+
+```sh
+if scripts/check-retracted-claims.sh >/dev/null 2>&1; then
+  ok "F-13 every 'force_lle 0x009311' mention carries a retraction marker"
+else
+  bad "F-13 an unmarked 'force_lle 0x009311' quote remains (run check-retracted-claims.sh)"
+fi
+```
+
+Any nonzero exit is therefore reported as *"an unmarked `force_lle 0x009311`
+quote remains"* — a claim about a specific deleted config directive that has
+nothing to do with whatever actually failed. A reviewer reading that line is told
+to go and look for a quote that does not exist. **A gate that names the wrong
+cause is worse than one that names none**, which is the same principle the
+`make clock` verdict text already states about itself.
+
+### What is deliberately NOT done about it
+
+`validate-findings.sh` is **not** modified. It is the thing that checks the
+reviews, it is deliberately conservative, and changing a validator while its own
+correctness is in question is how a gate gets weakened by accident. The fix is
+to make F-13/F-14 name the failing section instead of a phrase — a change that
+can only make the check *stricter* and more honest — but it is **OPEN** and
+belongs to whoever can falsify it properly.
+
+### Until then: how to read a red `make review-check`
+
+A `REFUTED F-13` or `REFUTED F-14` line accompanied by
+`make check-claims → RESULT: PASS` is **this flake, not a finding**. Re-run
+before believing it. Do not "fix" the doc it names; the doc it names is not the
+problem.
