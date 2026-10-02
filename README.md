@@ -176,18 +176,43 @@ than that premise deserves:
   contradicted a figure printed a few lines away from it in the same document.
   Measured on one tier, stated about both: that is the failure, and it is why
   every row above names its tier.
-- **`INC.w $0B51` at `$03:8026` executes zero times in f0–f3700** — 0 hits in
+- **`INC.w $0B51` at `$03:8026` executes zero times in f0–f6000** — 0 hits in
   the 921-entry dump, 0 AOT block entries, both machines, both tiers, with
   `$0B51 = 0000` at f3600 in the same runs. **[MEASURED]** as a count of
   execution, not an inference from a WRAM sample.
-  **And that count does not license "the tick never executes here".** The
-  reference build's first `$03:8026` execution is at **f3857** — 157 frames
-  *after* the window C-041 used. **C-041's window contains no frame in which the
-  reference build would have executed the tick even once, so it could not have
-  found it.** This is **exactly the shape of the already-retracted f3301
-  bracket** (C-039 → C-039b), one tier up. Whether `$03:8026` runs in ours at
-  f ≥ 3857 is **OPEN and unmeasured**; `docs/CAUSE_CLAIMS.md` C-041b carries the
-  caveat.
+  **C-041b's objection to that window is now answered.** C-041 measured over
+  f0–f3700, and the reference build's first tick is at **f3857** — 157 frames
+  past the end of it — so the old window contained **no frame in which the
+  reference would have executed the tick even once**. That is exactly the shape
+  of the already-retracted f3301 bracket (C-039 → C-039b), one tier up. Re-run
+  on the Deck over **6 000 frames** — a window that contains **12** of the
+  reference's own ticks — the answer is again **zero**, and this time it is a
+  statement about a window in which the tick could have appeared. **[MEASURED,
+  Deck-native]** — `[count] pc watched: 0 executions over 6000 frames`,
+  `exit: RUN_FRAMES reached`. See
+  [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md).
+- **The date is frozen because *nothing writes it*.** A 16-bit bus write watch
+  on the whole clock block `$0B51`–`$0B5F`, 6 000 frames, Deck-native: **66
+  byte-writes in 8 events, and not one after f3259** — 0 writes in the 2 741
+  frames that follow. That is strictly stronger than "34 WRAM bytes change across
+  2 599 frames", which is a statement about a *diff*; this is a statement about
+  the **writer**. It is the first mechanism-level measurement of the freeze in
+  this project and it still names **no cause**. **[MEASURED, Deck-native]**
+- **`1900 / January` is *written*, once, at f3259.** `$03:C63F` `LDA #$076C` /
+  `STA $0B53`, `$03:C646` `LDA #$0001` / `STA $0B55`, and then `$03:C77E`
+  `STZ.w $0B51` — a straight-line 16-instruction clear of the city-state block.
+  The logged `A` values match the ROM literals exactly. So the date is not a
+  default nobody overwrote; the city setup writes it once and nothing ever
+  writes it again. **`$03:C77E` is the same instruction and the same register
+  state (`A=0007 X=003C S=1FF6`) the reference build logged when it zeroed
+  `$0B51`** — our build reaches the writer neighbourhood the reference reaches.
+  It reaches the `STZ` and not the `INC`. **[MEASURED, Deck-native]**
+- **A second silent boundary nobody was watching: a 96-frame periodic updater
+  in bank `$03` runs six times and stops.** `$03:D947` `STA $0B5C,X` +
+  `$03:D94B` `STY $0B5B`, at f1205, 1301, 1397, 1493, 1589, 1685 — **exactly
+  +96** — with `$0B5B` counting 1→6, then nothing. 1 586 frames before the
+  f3271 gate. **OPEN, cause not claimed**: two boundaries are not a causal
+  chain, and this is not offered as one. **[boundary MEASURED, Deck-native]**
 - **The AOT side is banks 00 and 01 too.** Whole-run AOT block log: **1 430 540**
   entries over f0–f3700, of which bank `$03` has **18** — **15 in f3270 and 3 in
   f3259** (`$03C42A`, `$03C430`, `$03C463`). In the live window f3400–f3700:
@@ -325,11 +350,9 @@ measured, and which one is OPEN.** Until it is settled, "the reference simulates
 and we do not" is **not** available as a premise — which removes the single
 comparison this project was leaning on.
 
-The next measurement is therefore **on our build, past the window that made the
-question look sharp**: does `$03:8026` execute here at any frame ≥ 3857, when the
-reference's first execution is at 3857 and C-041's window stopped at 3700? That
-is cheap, it is on the Deck, and **no result from it has been recorded** —
-including the result "no", which would only relocate the question.
+**And that next measurement has now been made — [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md), Deck-native.** Over 6 000 frames, a window containing **12** of the reference's own ticks, `$03:8026` executes **zero** times. So the tick genuinely does not run here — that part is now a measurement rather than a window artefact — and **the fix-shaped story is correspondingly weaker, not stronger**: making it run is a necessary-looking change whose sufficiency has counterevidence in the reference build.
+
+What the same run established instead is a mechanism the project had never seen: **the date field takes 66 byte-writes in 6 000 frames and none after f3259.** Nothing rewrites it with the same value; nothing writes it at all. That is a measurement of *where* the freeze lives and **still not a cause** — a write census cannot see the code that would have written.
 
 The retracted claims, each marked where it was made:
 
@@ -930,7 +953,7 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | SNES Mouse on player 2 (`SNESRECOMP_MOUSE=1`, bsnes-exact protocol) | ✅ Device-level done (T042, ROM-free verified) |
 | Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
 | Quick save/load (10 slots), save-state menu, rewind, turbo | ✅ Working |
-| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red; the city view loads and no simulation tick is observed anywhere in f0–f3700 — cause [OPEN], and the tick's fate at f ≥ 3857 is itself [OPEN]** |
+| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red. Measured over 6 000 frames on the Deck: the tick instruction executes 0 times, and the date field is written 0 times after f3259. Cause [OPEN]** |
 | Scenarios (all 5 US) | ⏳ T011 — confirm ENT step is the gate (see `docs/RE_SCENARIO_NAV.md` step 10) |
 | Building/visual verification (headless capture) | 🔄 T033 — unblocked by T039 |
 
