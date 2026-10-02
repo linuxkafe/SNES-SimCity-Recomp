@@ -47,6 +47,16 @@
 #                        unmeasured assertion of the opposite sign. That is
 #                        exactly how the paired $0B51 retraction happened.
 #
+# R-034 (2026-10-02) is the second claim retracted in two languages (R-005..R-008
+# was the first). The English original was in
+# docs/measurements/2026-10-02-t093-peer-0B51-writer.md and the Portuguese mirror
+# in docs/RE_CITY_FREEZE.md section 5. The checker caught the mirror on its own:
+# seeding R-034 turned check-claims red at RE_CITY_FREEZE.md:4076 while the
+# English page already carried a marker. That is the guard working, and it is the
+# argument for keeping the ledger over hand-editing each document - the same
+# retraction had to be written twice by hand and the ledger made the second write
+# a gate failure rather than a silent divergence.
+#
 # KNOWN CEILING ON THE COUNT, stated rather than left to be discovered:
 # two `refuted` rows retract the SAME claim in two languages (R-005/R-006
 # English/Portuguese, R-007/R-008 likewise), so the refuted row count is an
@@ -100,3 +110,4 @@ R-030	phrase	refuted	no glibc headers, so `make build` there fails	docs/CONFLICT
 R-031	phrase	refuted	free-running counter modulo 4	study/peer-linux/README.md:154
 R-032	phrase	refuted	it does not satisfy a translation unit that includes	docs/measurements/2026-10-02-c041-bank03-pc-dump.md:292
 R-033	phrase	refuted	Bank 03 executes only in	docs/CAUSE_CLAIMS.md:63
+R-034	phrase	refuted	STA dp,x	docs/measurements/2026-10-02-t093-peer-0B51-writer.md:143

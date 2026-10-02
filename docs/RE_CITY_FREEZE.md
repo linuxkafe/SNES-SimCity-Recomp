@@ -4068,15 +4068,31 @@ a build de referência o executasse uma vez. É a mesma forma do artefacto de
 bracket de 100 frames do f3301/f3271, já retractado uma vez. **A próxima
 medição é barata:** refazer o dump per-bank por PC até f4000+.
 
-**5. Um quarto escritor que um censo por bytes de operando não podia ver.**
+**5. ~~Um quarto escritor que um censo por bytes de operando não podia ver.~~ —
+RETRACTADO (linha R-034).**
 
-`$00:8023` = `95 00` = `STA dp,x` — uma escrita de **índice directo na página**,
-com operando de **um byte**. O watch apanhou-a com `D = $0000`, `X = $0B51`, logo
-`dp + D + X = $0B51`. Um censo que procura os bytes `51 0B` é estruturalmente
-cego para `STA dp,x`: o operando é `00` e o endereço efectivo não existe sem D e
-X em run-time. É a mesma forma do erro do `JSL (abs)` (casou o operando `7A 1F`
-sem ver o opcode `$FC`). **"Exactamente um escritor" não se estabelece com um
-scan de operandos.**
+> ⚠️ **RETRACTADO 2026-10-02.** "`$00:8023` = `95 00` = `STA dp,x`" **não é um
+> escritor**: é uma **inicialização de bloco de memória** no frame 0. Três razões
+> independentes, todas medidas no Deck:
+>
+> 1. `95 00` está em **`$00:8024`**, não em `$00:8023` — `$00:8023` é o byte de
+>    operando `00` do `LDA #$0000` que o precede. O endereço estava errado por um.
+> 2. O watch registou next-PC `$00:8025`. Um `95 00` em `$00:8024` tem
+>    comprimento 2 e portanto next-PC `$00:8026`. **A identificação nunca foi
+>    consistente consigo própria**: "o log disse `$00:8025`" e "`95 00` tem um
+>    operando de um byte" eram cada uma verdade de *endereços diferentes*.
+> 3. **A razão decisiva:** um único PC escreve exactamente tantos bytes quantos a
+>    extensão da faixa vigiada. Frame 0: 1 byte→1 escrita, 4→4, 64→64, 256→256,
+>    sempre em `$00:8025`. **Nenhuma instrução 65816 escreve 256 bytes
+>    consecutivos.** `$0B51` foi coberto por uma varredura, não escrito por uma
+>    instrução.
+>
+> O ponto **metodológico** — que um censo por operandos é cego para um `STA
+> dp,x`, porque o endereço efectivo só existe com D e X em run-time — continua
+> verdadeiro pela sua própria lógica, e é sustentado à parte pelo erro do
+> `JSL (abs)`. Mas fica **sem evidência aqui**: nenhum escritor `dp,x` de
+> `$0B51` foi observado. Evidência completa em
+> `docs/measurements/2026-10-02-t093-peer-0B51-writer-deck.md` §2.
 
 **6. O que isto NÃO estabelece.**
 
