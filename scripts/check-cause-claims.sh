@@ -85,7 +85,13 @@ done < <(git ls-files '*.md' 'scripts/*.sh' 2>/dev/null)
 #   * "turns out to be" matched "if the containment turns out to be needed",
 #     which asserts nothing about the clock at all                  -> cue removed
 CAUSE_CUE='root cause|the cause is|cause of|caused by|it is because|the reason (is|it is)|therefore|which is why|because of|proves? (that|the)|is what (stops|blocks|prevents)|the fault is'
-CLOCK_NOUN='clock|cit(y|ies)|simulat|vblank|nmi|token|freez|deadlock|frame (boundary|counter|rate)|per frame|each frame|month|date|tick|gate'
+# \b on every bare alternative. Without it this guard fired on its OWN header:
+# line 30 contains "candiDATE" and the bare `date` matched it, so check-causes
+# exited 1 and check-causes-self-test failed direction (b) from the moment the
+# guard was added (8a7340f) - while that commit's message and DoD D3.7 both said
+# it was green. Found by running the guard, not by reading it.
+# A boundary cannot lose a real match: "the date never changes" still matches.
+CLOCK_NOUN='\bclock\b|\bcit(y|ies)\b|\bsimulat|\bvblank\b|\bnmi\b|\btoken\b|\bfreez|\bdeadlock\b|frame (boundary|counter|rate)|per frame|each frame|\bmonth\b|\bdate\b|\btick|\bgate\b'
 MARKER='RETRACT|retract|OPEN|open question|NOT ESTABLISHED|not established|INFERRED|inferred|MEASURED|measured|hypothesis|HYPOTHESIS|unverified|CLAIMED|superseded|SUPERSEDED|correlat|no cause|does not (establish|prove)|void'
 
 viol=0

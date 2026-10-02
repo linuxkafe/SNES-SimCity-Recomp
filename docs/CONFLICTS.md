@@ -207,10 +207,12 @@ the over-exclusion. **Closed, verified against the ROM bytes.**
 
 ## 8. `docs ↔ ROM bytes` — the mapper is named wrong in four tracked files
 
-**CONF-7 · severity MEDIUM · `docs/CLAIMS_REGISTER.md:238,409`, `docs/CAUSE_CLAIMS.md:37`, `docs/review/RUBRIC.md:32`**
+**CONF-7 · severity MEDIUM · `docs/CLAIMS_REGISTER.md:238,409`, `docs/review/RUBRIC.md:32`**
 
 Every tracked document that states the ROM→file offset rule calls the mapping
-**HiROM**. The ROM's own header says otherwise:
+**HiROM**. (`README.md` and `docs/CAUSE_CLAIMS.md` said it too and were corrected
+at `4ba14c7`; `CLAIMS_REGISTER.md` and the hash-pinned `RUBRIC.md` still carry
+the old wording, so the count of affected files is **2**, not 4.) The ROM's own header says otherwise:
 
 ```
 $ python3 -c "
@@ -271,7 +273,53 @@ and name this conflict; the rubric keeps the historical wording.
 | CONF-4 | MEDIUM | docs↔docs | `CLAIMS_REGISTER.md` §9 ticks a row its own §14 calls false |
 | CONF-5 | MEDIUM | tracked↔gitignored | eleven tracked references into `aes/`, which is uncommittable by rule |
 | CONF-6 | LOW | aes↔docs | seven stale `docs/*.md` references from local artefacts |
-| CONF-7 | MEDIUM | docs↔ROM bytes | the mapper is **LoROM** (header at `0x7FC0`); four tracked files call it HiROM. The **formula** is right — it is the LoROM rule |
+| CONF-7 | MEDIUM | docs↔ROM bytes | the mapper is **LoROM** (header at `0x7FC0`); 2 tracked files still call it HiROM. The **formula** is right — it is the LoROM rule |
+
+## 9. `code ↔ code` — a tracked script named "Verification Gate" reports ✅ without checking
+
+**CONF-8 · severity HIGH · `scripts/verify-implementation.sh:88`**
+
+Found by running it against a ticket written to be false. Not introduced by this
+phase; found by it, and it is the most dangerous artefact in the tree for the
+reason DoD Rule 0 exists.
+
+```
+$ cat aes/tickets/T999-probe.md        ## Acceptance Criteria
+  - [x] this criterion is a lie: `scripts/definitely-not-here.sh` does not exist
+  - [ ] this criterion is also a lie: `scripts/definitely-not-here.sh` exits 0
+  - [ ] the moon is made of green cheese
+$ bash scripts/verify-implementation.sh T999
+  ✅ (already checked) this criterion is a lie: `scripts/definitely-not-here.sh` does not exist
+  ❌ this criterion is also a lie — 'scripts/definitely-not-here.sh' FAILED
+  ⏭️  Cannot auto-verify: the moon is made of green cheese
+  Result: 2 passed, 1 failed, 3 total
+```
+
+**A ticked box is a pass with no check at all** (`:88`, `case "x" in "x") pass
+"(already checked)"`), and it is counted in the passed total. The file it claims
+does not exist. That is prose closing work — the mechanism this project has
+retracted twenty-two times — implemented as a gate.
+
+Two further properties, both read from the source:
+
+- It reads its subject from `aes/tickets/`, which is **gitignored**, so in a
+  fresh clone it can only ever bail (`Ticket file not found for … in
+  aes/tickets/`). A gate that cannot run in a clean clone is not a gate, and the
+  D4.3 rule and the DoD's own "no criterion is satisfied by a claim" cannot both
+  hold while it is called a Verification Gate.
+- Its criterion checker **executes a command extracted from prose**: `:150`
+  `bash -c "$file"` where `$file` is the first backticked token of the criterion
+  text. An acceptance criterion is therefore able to run whatever its own wording
+  names.
+
+**Not fixed here, and deliberately.** Wiring a guard that reads `aes/` into the
+Makefile would point a committed gate at an uncommittable path — the same rule
+breaking as D4.3 and as the `aes/tickets/T058` pointer that `README.md` used to
+carry. The honest dispositions are: **delete the script**, or **rename it so it
+cannot be mistaken for a gate** and record that it verifies nothing. Both are
+edits to a tracked file that a reader may be relying on, so the choice goes in a
+ticket (**T096**) rather than into a commit whose message says "docs".
+
 | — | verified | docs↔code | `CODE_009311` = `$03:7649`, a real trap, not a contradiction; F-12 closed |
 
 **Not a conflict, and deliberately not filed as one:** the 78 frames between bank

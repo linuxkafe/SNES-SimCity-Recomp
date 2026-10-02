@@ -2,7 +2,8 @@
 
 > ## ⚠ STATUS — measured 2026-10-02; newest entry **(t)**. Read this before anything below.
 >
-> This file is an **append-only chronological log**, ~3,400 lines and 44 entries.
+> This file is an **append-only chronological log**, ~3,990 lines and 45 dated
+> entries (35 carry a `## 20…` heading; the rest are undated sub-entries).
 > **98% of it predates its own newest entry** and 94% predates the root cause.
 > There is no other way to find the current position, so here it is. This block
 > is the only part of the file that is maintained as current; nothing below it is.
@@ -72,7 +73,7 @@ table is. Where an entry below contradicts this table, **this table is right and
 the entry is wrong**, and the entry carries a banner saying so at its own header.
 
 This index was added 2026-10-02 at Phase 3 of the aes chain, after the file was
-found to be ~3,400 lines with the newest entry 98% of the way down and **no
+found to be ~3,400 lines (now ~3,990) with the newest entry 98% of the way down and **no
 per-entry state label anywhere**. The disease is not that the old entries are
 wrong — retracting them in place is correct practice, and this file does it well.
 The disease is that a reader arriving at any entry other than the last one had no

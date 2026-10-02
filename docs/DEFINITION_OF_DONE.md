@@ -105,7 +105,7 @@ retired two rows on 2026-10-02; their original text is kept under
 | ~~D3.4~~ | ~~A claim marked MEASURED in the claims register names the command that produces it~~ | ~~`scripts/check-numbers.sh`~~ | — | **NO — retired 2026-10-02** |
 | D3.5 | Every load-bearing open question is labelled **open** in every file that mentions it | `scripts/check-retracted-claims.sh --open-labels` | exit 0 | **yes, but see below** |
 | **D3.6** | **No prose count of the retractions disagrees with the ledger.** The count is *computed* from `scripts/retracted-claims.tsv`; it is never written by hand | `scripts/check-retracted-claims.sh` (section 3) · `make retraction-count` prints it | exit 0 | **yes** — added 2026-10-02, falsification demonstrated |
-| **D3.7** | **Every causal assertion in a tracked file carries provenance** — a measurement, a retraction, an `OPEN` label, or an explicit "inferred" — within five lines. Applies to claims **no ledger row knows about yet** | `make check-causes` · `make check-causes-self-test` | exit 0 | **yes** — added 2026-10-02, falsification demonstrated against the tree at `9624f0e` |
+| **D3.7** | **Every causal assertion in a tracked file carries provenance** — a measurement, a retraction, an `OPEN` label, or an explicit "inferred" — within five lines. Applies to claims **no ledger row knows about yet** | `make check-causes` · `make check-causes-self-test` | exit 0 | **yes** — added 2026-10-02 at `8a7340f`, and **RED from the moment it was added until this commit**; see the correction below. Seeded direction still fires (3 assertions at `9624f0e`) |
 
 **D3.6 and D3.7 exist because D3.1/D3.2 are lexical and therefore partial.**
 `check-retracted-claims.sh` holds strings that have *already been refuted*. A
@@ -116,6 +116,46 @@ assert a cause, and does it say where the cause came from — so it needs no led
 row to catch a new false claim. It normalises shell escapes, markdown emphasis
 and Unicode punctuation first, because the earlier guard missed
 `printf "the gate is \$0012"` for exactly that reason.
+
+### CORRECTED 2026-10-02 — D3.7's "exit 0" was a claim, and it was false for four commits
+
+This row said *"falsification demonstrated"* and the commit that added the guard
+(`8a7340f`) said the same in its message. Measured on this tree:
+
+```
+$ make check-causes; echo $?
+  VIOLATION scripts/check-cause-claims.sh:30
+            # A line is a candidate if it contains a CAUSE cue ("the cause is"...
+  RESULT: FAIL
+1
+$ make check-causes-self-test 2>&1 | tail -2
+  SELFTEST FAIL: the guard fires on the CURRENT tree as well as the old one
+1
+```
+
+Cause, measured: `CLOCK_NOUN` contains the bare alternation `date`, and line 30 of
+the guard's own header contains `candiDATE`, so the guard fires on its own
+documentation. **It has been red since the commit that introduced it.**
+
+**This is Rule 0 applied to the DoD itself**, and it is the reason the row is
+corrected here rather than left with a ticket reference: a criterion table that
+asserts a green gate which is red is a claim, and this document exists to make
+that structurally impossible.
+
+**Closed in this commit, by fixing the guard and not by weakening anything.** The
+fix is `\b` on the bare alternatives in `CLOCK_NOUN`; no scope exclusion, no
+marker word near the offending line, no deleted header. Falsified three ways
+before it was committed (T094): reverting the boundary alone turns the guard red
+again, a synthetic unlabelled causal sentence still fires, and the same sentence
+labelled `HYPOTHESIS` does not. `make check-causes` and its self-test both exit
+0, and the self-test still reports **3** seeded assertions against `9624f0e` — so
+the false positive went and no detection power went with it.
+
+`docs/review/validate-findings-c041.sh` now checks this class of claim directly:
+it compares the README's stated verdict for each cheap gate against that gate's
+real exit code, and **fails when they disagree**. That check has already earned
+its place — it reported REFUTED the first time it ran against a fixed guard and
+un-updated prose.
 
 **D3.7's known limit, stated so it is not oversold:** it checks *labelling*, not
 *truth*. A confidently wrong cause that carries the word "measured" passes it. No

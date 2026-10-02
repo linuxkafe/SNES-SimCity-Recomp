@@ -1,6 +1,6 @@
 .PHONY: build debug test test-rom perf clock clock-self-test check-claims \
         check-claims-self-test check-causes check-causes-self-test \
-        retraction-count review-check clean doctor
+        retraction-count review-check review-check-c041 clean doctor
 
 BUILD_DIR := build
 
@@ -106,6 +106,21 @@ check-claims-self-test:
 # to be run by someone other than the author of the review.
 review-check:
 	docs/review/validate-findings.sh
+
+# The validator for docs/review/REVIEW-2026-10-02c.md. Separate from the one
+# above because it checks two things the older script never did: it re-reads the
+# ROM-byte claims out of the ROM rather than out of a document, and it fails if
+# any tracked file asserts a green gate while that gate is red -- the shape that
+# shipped at 8a7340f, where DoD D3.7 said "exit 0" and `make check-causes` exited
+# 1. It reads only tracked files, so it works in a fresh clone, unlike the
+# checks that reach into aes/.
+#
+# Falsified before wiring: three mutations (a flipped verdict in README's gate
+# table, a dropped link, and the review's own independence declaration removed)
+# each turned it red, and the restored tree is green. It also refuted two claims
+# in the review it validates, on its first run.
+review-check-c041:
+	docs/review/validate-findings-c041.sh
 
 clean:
 	rm -rf $(BUILD_DIR)

@@ -260,10 +260,13 @@ are:
 | [`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) | every causal claim in this project, classified MEASURED / INFERRED / RETRACTED / OPEN, with the instrument or the reason there is none |
 | [`docs/CONFLICTS.md`](docs/CONFLICTS.md) | every contradiction found between docs, code and git history, with the command that found it |
 | [`docs/RE_CITY_FREEZE.md`](docs/RE_CITY_FREEZE.md) | the chronology — 44 entries, each with a state banner, and a maintained index at the top |
+| [`docs/measurements/2026-10-02-deck-interp-histogram.md`](docs/measurements/2026-10-02-deck-interp-histogram.md) | the whole-run histogram this file's table reproduces, and the three instrument limits it established |
 | [`docs/measurements/`](docs/measurements/) | raw measurements, the exact commands, and **what each instrument cannot see** |
 | [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) | the index of what is retracted, superseded or unverified |
 | [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) | the standard of proof — **no acceptance criterion may be satisfied by a claim** |
 | [`docs/review/RUBRIC.md`](docs/review/RUBRIC.md) | the pre-registered review rubric (hash-pinned in `RUBRIC.sha256`) |
+| [`docs/review/REVIEW-2026-10-02b.md`](docs/review/REVIEW-2026-10-02b.md) | the last full review — **REJECT, 3 BLOCKERs**, all since closed |
+| [`docs/review/REVIEW-2026-10-02c.md`](docs/review/REVIEW-2026-10-02c.md) | the review of the C-041 work, and of this file's own gates |
 
 ## Gates
 
@@ -271,21 +274,40 @@ are:
 without a machine is not a measurement — see `docs/DEFINITION_OF_DONE.md` Rule 0.
 
 Measured on the dev host `seyon` (i5-8500T, 6 threads, Ubuntu 24.04, gcc 13.3.0,
-cmake 3.28.3) on 2026-10-02, on the tree at `8a7340f` — this README change is
-documentation only and touches no source, script or generated file:
+cmake 3.28.3) on 2026-10-02:
+
+- Rows marked **8a7340f** were measured on that tree, before the README rewrite.
+- Rows marked **4ba14c7** were re-measured after it. Two rows differ between the
+  two trees and the difference is load, not code: `make perf` read median
+  **54.50 fps, spread 9.6%** at `8a7340f` (load average 7.55 on 6 threads) and
+  **53.68 fps, spread 5.6%** at `4ba14c7`. Every other row is identical, which is
+  the useful part: the rewrite moved no number that a gate recomputes.
 
 | command | what it proves | result | exit |
 |---|---|---|---|
 | `make build` | Release build | ok | 0 |
 | `make test` | deterministic replay (ctest) | **2/2 passed** | 0 |
 | `make test-rom` | the picture moves (frames 200–800) | **PASS, 257 distinct crc32** | 0 |
-| `make perf` | gross frame-rate floor (5 × 600 frames) | **PASS, median 54.50 fps, spread 9.6%** | 0 |
+| `make perf` | gross frame-rate floor (5 × 600 frames) | **PASS, median 53.68 fps, spread 5.6%** (4ba14c7); 54.50 / 9.6% at 8a7340f | 0 |
 | `make clock` | **the city actually simulates** | **FAIL — `1 distinct date images after f3600` (last change f3378 of 6000)**, `$0B53 = 076C` → year 1900 | **1** |
 | `make check-claims` | no retracted claim asserted without a marker | PASS | 0 |
-| `make check-causes` | every causal assertion carries provenance | **FAIL — 1 unlabelled assertion, in the guard's own header** (see below) | 1 |
+| `make check-causes` | every causal assertion carries provenance | **PASS** — after the fix at `HEAD`; it was **FAIL, exit 1**, from `8a7340f` until this commit, because the guard fired on the word "candi**date**" in its own header | 0 |
+| `make check-causes-self-test` | the guard still fires on the tree it was written for | **PASS** — seeded against `9624f0e`, **3** unlabelled assertions | 0 |
+| `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded)** — counts printed by the gate itself; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make check-claims-self-test` | the ledger guard has been seen to fail | PASS | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames | 0 |
-| `make review-check` | the review's BLOCKERs are closed | **17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
+| `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS** — 17 confirmed, 0 refuted; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
+
+**`make check-causes` was red for four commits and said so nowhere.** It fired on
+the bare word `date` inside "candi**date**" on line 30 of its own header, so it
+could never be green while that header stood — and the commit that added it
+(`8a7340f`) said in its message and in DoD D3.7 that it was green. The fix is a
+word boundary, which cannot lose a real match, and it was falsified three ways
+before it was committed (revert the boundary → red again; a synthetic unlabelled
+causal sentence still fires; the same sentence labelled `HYPOTHESIS` does not).
+T094 carries the transcript. **The lesson is not the regex**: it is that a gate
+added in the same commit as the claim it guards, and never run, shipped broken
+and reported green.
 
 **`make clock` is the one that matters and the one that is red.** It fails
 identically on the Deck. It prints the guest's own year word as proof that a city
@@ -447,7 +469,7 @@ missing, add:
 -DSDL_X11=OFF \            # no X11 headers/libs: no window on this machine
 -DSDL_WAYLAND=OFF \        # no wayland-protocols / wayland-scanner
 -DSDL_UNIX_CONSOLE_BUILD=ON # console (not launcherd) SDL backend on Unix
--DOPENGL_INCLUDE_DIR=/home/deck/sysroot/usr/include \  # where GL/gl.h actually is
+-DOPENGL_INCLUDE_DIR=/path/to/your/reconstructed/usr/include \  # e.g. /home/deck/sysroot/usr/include
 -DOpenGL_GL_PREFERENCE=LEGACY  # GL headers shipped for this box, not the newest profile
 ```
 
