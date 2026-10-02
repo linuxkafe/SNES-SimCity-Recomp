@@ -603,3 +603,31 @@ the instrument that produced it or the reason there is none.
   `logical_form` fields are unwritten fragments prepared for a future run, and
   the graph says so in its own metadata so the next reader does not have to
   rediscover it.
+
+## 21. Conflicts — the durable list is `docs/CONFLICTS.md`
+
+Phase 5 (`aes-conflict`), 2026-10-02 at `166c82b`. `make conflict-check` does
+not exist here: it is `/opt/aes/Makefile:1153`, and the target body is
+`@./scripts/conflict-detection.py || true` — **`|| true`, so the upstream gate
+cannot fail even where it runs.** It prints `GATE: BLOCKED` and exits 0. Three of
+its five classes also need `aes/shadow/access.log`, which this project has not
+got, so orphan-access, causality and session-conflict detection are structurally
+unmeasurable here. Everything below is hand-measured, each item with its command.
+
+| # | severity | axis | one line |
+|---|---|---|---|
+| CONF-1 | HIGH | docs↔git | `RE_SCENARIO_NAV.md:145` asserts `force_lle 0x009311` in the present tense; `436b25b` removed it — **and that file is outside the guard's `SCOPE_FILES`**, so a falsified claim sits where the guard never looks |
+| CONF-2 | HIGH | docs↔git | `perf-gate.sh:68-71` says the Deck cannot build this project; it can, since `9624f0e` — **and no ledger row covers it**, so the guard cannot catch it anywhere |
+| CONF-3 | MEDIUM | docs↔docs | three figures for a healthy `test-rom`; **`make test-rom` measured 257**, `verify-rom-render.sh` still says 206 in its header *and in its FAIL text* |
+| CONF-4 | MEDIUM | docs↔docs | this file's §9 ticks `exclude_range 0x930D 0x9318 ✅` 400 lines above §14 saying it is false |
+| CONF-5 | MEDIUM | tracked↔gitignored | **eleven** tracked references into `aes/`, which D4.3 makes uncommittable by rule |
+| CONF-6 | LOW | aes↔docs | seven stale `docs/*.md` references from local artefacts |
+| — | verified | docs↔code | `CODE_009311` is `$03:7649` (`bank00.cfg:344`, `funcs.h:1665`) — a real trap, not a contradiction; review F-12 verified closed against the ROM bytes |
+
+**CONF-1 and CONF-2 are the two that matter**, and they fail the same way: the
+guard only guards what the ledger names, and only in the files its scope lists.
+A claim that is false, unlisted, and in an unread file is invisible to every gate
+in this repository. That is the gap Phase 7 closes.
+
+`make test-rom` was run to resolve CONF-3 rather than argued about: **PASS, 257
+distinct crc32, peak luma 41.751**, 800 frames presented.
