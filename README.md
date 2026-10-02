@@ -19,11 +19,23 @@ supply; the ROM and any ripped assets are never included. Built on the
 > 0 is that **no criterion may be satisfied by a claim — only by a command that
 > exits 0**.
 >
-> This project has retracted **26** claims out of **34** ledger rows (computed,
+> This project has retracted **28** claims out of **36** ledger rows (computed,
 > `make retraction-count` — never a hand-written number; the other 8 rows are 6
 > `superseded` and 2 `invalidated-premise`, which is not a retraction). Where an
 > old claim is quoted below it is labelled **RETRACTED** and is printed as
 > history, not as the answer.
+>
+> **And that number has a known hole in its guard — read this before you trust a
+> count in prose.** A stale `26 refuted` sat in this file's own gate table for a
+> commit while `make retraction-count` said 28, because the guard that checks
+> counts matches `"N retractions"` and the ledger's native phrasing is `"N
+> refuted"`. The fix was written, measured against this project's own corpus,
+> produced **three false positives**, and was **reverted**; the attempt is
+> recorded in `scripts/check-retracted-claims.sh`'s own comment block. So
+> **CONF-14 is an open hole, not a closed one**, and the interim rule is
+> structural: *the retraction count has exactly one authority,
+> `make retraction-count`. Do not type it.* If a document must state it, state it
+> as `N rows = M refuted + …` and re-read it **after** running the command.
 
 ### How much of it is actually native
 
@@ -76,25 +88,53 @@ were added. This port reproduces that SNES release.
 
 ## Status
 
-**The city renders and it does not simulate. `make clock` is red and must stay
-red.** One paragraph, because the rest of this section is the evidence:
+**The reference build simulates. Decisively, measurably, indefinitely — and we do
+not. `make clock` is red and must stay red.** That comparison used to be an
+*assumption* this project was leaning on and could not check, because two
+reference runs appeared to disagree about whether the reference simulates at
+all. **They never did.** The disagreement was **our own instrument** printing
+`$0B53` under the label `$0B55`. With that fixed, the premise is a measurement
+and it holds:
+
+> **T101, Deck-native, clean core, cold SRAM, a real save, `EXIT=0`, 211 s over
+> 30 000 frames** — city at **f3000** (1900 JAN), first month roll at **f4440**
+> and a cadence of **~780 frames**, **28 month rolls**, year rollovers at
+> **f13080** and **f24600**, and at f30 000 **1902 MAY** with `$0B51 = $0071`.
+> **29 distinct date images.** **[MEASURED, Deck-native]**
+> [`docs/measurements/2026-10-02-t101-reference-simulates.md`](docs/measurements/2026-10-02-t101-reference-simulates.md)
+
+**No comparative premise was retracted. The opposite: two sentences written
+*against* the reference were, and the story they were used to kill — *"make
+`$03:8026` run and the clock advances"* — is no longer refuted. It is what the
+evidence points at.** (`scripts/retracted-claims.tsv` R-035, R-036.)
+
+**What "simulates" means here, precisely: the tick runs.** Population (`$0BA5`)
+is **0** and funds (`$0B9D`) are **20 000** in **every** sample of **both**
+builds — 452 reference samples over 30 000 frames and 440 more over 33 700,
+against ours. **No claim that an economy grows is made anywhere in this
+repository, and none may be.** Whether a city with no residents and nothing zoned
+*should* show a moving treasury is **OPEN** and is not answered by any run in
+this tree.
+
+The rest of this section is the evidence:
 
 | | state |
 |---|---|
 | ROM boots to attract, menus, naming | **working** [MEASURED] |
 | A live city loads and is presented | **working** [MEASURED] — `$0B53 = 0x076C` (year 1900), `$0B55 = 1`, `$0B9D = 20000` |
 | The vblank token handshake (a former deadlock) | **fixed** [MEASURED] |
-| Date, population, treasury advance | **they do not** [MEASURED] — a byte diff over f3400→f5999 of a live city moves **34** WRAM bytes, and a 9 000-frame settle protocol with a *real* save reads `1900/1` at **every** snapshot, `$0BA5` = 0, `$0B9D` = 20 000, with 19–34 bytes changing per snapshot (0.02%) |
-| **Why the simulation does not advance** | **OPEN** — no cause is asserted anywhere in this repository |
+| **Reference build's clock** | **RUNS** [MEASURED, Deck-native] — 28 month rolls and 2 year rollovers in 30 000 frames, never stops writing city state |
+| **Our build's clock** | **DOES NOT RUN** [MEASURED, Deck-native] — the tick instruction executes **0** times in 9 000 frames containing 12 of the reference's own ticks; the city-state block is written **once** at f3259 and never again |
+| **Why our simulation does not advance** | **OPEN** — no cause is asserted anywhere in this repository |
 
 ![SimCity title screen](docs/screenshots/title.png)
 
-⚠️ **Not deliverable.** The date stays `1900 JAN` forever — no month ever appears
-across 6 000 frames, the seasons never recolour the map, the population stays 0 —
-while the controller does nothing. `scripts/d_city.script` drives the game from
-boot into a live city headlessly and deterministically, so this is **not** a
-game-flow problem, and the renderer is proven live: poking a WRAM byte moves the
-presented picture on the very next frame.
+⚠️ **Not deliverable.** Our date stays `1900 JAN` forever — the seasons never
+recolour the map, the population stays 0 — while the controller does nothing.
+`scripts/d_city.script` drives the game from boot into a live city headlessly
+and deterministically, so this is **not** a game-flow problem, and the renderer
+is proven live: poking a WRAM byte moves the presented picture on the very next
+frame.
 
 ![A city at 1900 JAN, frozen](docs/screenshots/city-frozen.png)
 
@@ -148,12 +188,17 @@ SRAM: the city appears at **f3000** (1900 January), the month rolls every
 and f30 000 reads **1902 MAY**, `$0B51 = $0071`. **[MEASURED, Deck-native]**
 (`docs/measurements/2026-10-02-t101-reference-simulates.md`).
 
-The relationship holds across **1 344 city samples in three independent runs**
-with **zero** violations:
-
 > **`$0B51` = 4 × (months elapsed since the city was created) + (0…3)**
 
-so `AND #$0003` extracts **the quarter within the current month**, and the 27
+It holds across **1 344 city samples in three independent runs** with **zero**
+violations — and, in the stronger form, across **113 individual tick events in
+the write log, every one of them +1, zero deviations, strictly monotonic**, with
+the month rolling at exactly the **28** events where the counter reaches a
+multiple of 4. The sample form is one observation per 60 frames; the event form
+is one observation per write, and it is the one to rely on. **[MEASURED,
+Deck-native]**
+
+So `AND #$0003` extracts **the quarter within the current month**, and the 27
 ticks counted in the old 9 000-frame reference run are `6 × 4 + 3` — six whole
 months and three quarters. Population (`$0BA5`) stays **0** and funds (`$0B9D`)
 stay **20 000** in every reference sample, so "the reference simulates" means
@@ -178,6 +223,29 @@ It is the shape the evidence now points at.
 `INC.w $0B51` lives in bank 03 at ROM offset `0x18026` (`EE 51 0B`, SNES
 `$03:8026`). What is measured about bank 03 in **our** build is much narrower
 than that premise deserves:
+
+#### `$03:8026`'s standing, in one place
+
+- **In our build: it does not execute.** **0 executions over f0–f9 000** — a
+  window containing **12** of the reference's own ticks — both machines, both
+  tiers. **[MEASURED, Deck-native, T100 `1b099ce`]**. **C-041 stands.**
+- **In the reference build: it is what moves the clock.** 27 executions, first at
+  **f3857**, and `$0B51 = 4 × (months elapsed) + quarter` with **113 tick
+  events, every one +1, zero deviations** — so the month rolls at exactly the 28
+  events where the counter reaches a multiple of 4. **[MEASURED, Deck-native,
+  T101 `9069182`]**
+- **Therefore its standing is INFERRED-but-supported, and it is no longer
+  refuted.** The sentence R-036 retracted was *"make `$03:8026` run and the
+  clock advances" is refuted by the reference itself*. It is not: the reference
+  reaches the city through the same neighbourhood and this is the instruction
+  that ages it. **[INFERRED]** — the link between *this instruction executing*
+  and *the date moving* is read off the ROM plus the reference's write log; it
+  has never been observed as a controlled result in this build, because no
+  change has ever made it execute. Making it execute is the obvious next thing
+  to try and **nothing here establishes that it would be sufficient.**
+- **What is NOT standing:** "the tick is absent, therefore the tick is the
+  cause." Absence of execution is a measurement; it is not a cause. What *starts*
+  the simulation is a different and still **OPEN** question (C-006).
 
 - **Bank 03 executes.** 921 distinct PCs and 515 043 interpreted steps over
   frames 0–3700. **[MEASURED]**, on the Deck and on the dev host, to the unit.
@@ -404,7 +472,20 @@ and it holds.** It is no longer an assumption this project is leaning on.
 **[MEASURED, Deck-native]** — the reference row is a measurement; the "we do not"
 half is C-041c/C-058.
 
-**And that next measurement has now been made — [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md), Deck-native.** Over 6 000 frames, a window containing **12** of the reference's own ticks, `$03:8026` executes **zero** times. So the tick genuinely does not run here — that part is now a measurement rather than a window artefact — and **the fix-shaped story is correspondingly weaker, not stronger**: making it run is a necessary-looking change whose sufficiency has counterevidence in the reference build.
+**And that next measurement has now been made — [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md), Deck-native.** Over 9 000 frames, a window containing **12** of the reference's own ticks, `$03:8026` executes **zero** times. So the tick genuinely does not run here — that part is now a measurement rather than a window artefact. **C-041 stands.**
+
+> **RETRACTED (R-036), and it is the sentence this paragraph used to end with.**
+> It read: *"the fix-shaped story is correspondingly weaker, not stronger:
+> making it run is a necessary-looking change whose sufficiency has counterevidence
+> in the reference build."* There is no such counterevidence. The reference build
+> **does** execute `$03:8026` and **its date does advance** — 28 month rolls in
+> 30 000 frames, verified at every one of 113 tick events. The story is
+> **stronger** than this paragraph claimed, and it is the shape the evidence
+> points at. **What is still true and is stated here so the retraction does not
+> become a claim in the opposite direction: making the instruction execute is
+> [INFERRED], not [MEASURED], to be sufficient.** Nothing in this repository has
+> ever made it execute, so no controlled result exists. It is the obvious next
+> thing to try; it is not a demonstrated fix.
 
 What the same runs established instead is a mechanism the project had never seen: **the city-state block is written once, at f3259, by a creation routine, and never written again** — 66 writes in 6 000 frames on `$0B51`–`$0B5F`, 61 in 9 000 on `$0DC0`–`$0DD0`, none of either after f3259. Nothing rewrites the date with the same value; nothing writes it at all. That is a measurement of *where* the freeze lives and **still not a cause** — a write census cannot see the code that would have written.
 
@@ -461,7 +542,7 @@ A 9 000-frame settle protocol on the Deck (162.5 s wall, real save
 
 ### Where the record lives
 
-This file is the entry point and is **not** the maintained record. Seven files
+This file is the entry point and is **not** the maintained record. Ten files
 are:
 
 | file | what it holds |
@@ -469,13 +550,34 @@ are:
 | [`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) | every causal claim in this project, classified MEASURED / INFERRED / RETRACTED / OPEN, with the instrument or the reason there is none |
 | [`docs/CONFLICTS.md`](docs/CONFLICTS.md) | every contradiction found between docs, code and git history, with the command that found it |
 | [`docs/RE_CITY_FREEZE.md`](docs/RE_CITY_FREEZE.md) | the chronology — 44 entries, each with a state banner, and a maintained index at the top |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | **the tracked mirror of the board.** `aes/kanban.md` is not versioned, so this is what a clone gets; where they disagree, this file wins, because that is what a clone actually receives |
 | [`docs/measurements/2026-10-02-deck-interp-histogram.md`](docs/measurements/2026-10-02-deck-interp-histogram.md) | the whole-run histogram this file's table reproduces, and the three instrument limits it established |
 | [`docs/measurements/`](docs/measurements/) | raw measurements, the exact commands, and **what each instrument cannot see** |
 | [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) | the index of what is retracted, superseded or unverified |
 | [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) | the standard of proof — **no acceptance criterion may be satisfied by a claim** |
-| [`docs/review/RUBRIC.md`](docs/review/RUBRIC.md) | the pre-registered review rubric (hash-pinned in `RUBRIC.sha256`) |
-| [`docs/review/REVIEW-2026-10-02b.md`](docs/review/REVIEW-2026-10-02b.md) | the last full review — **REJECT, 3 BLOCKERs**, all since closed |
-| [`docs/review/REVIEW-2026-10-02c.md`](docs/review/REVIEW-2026-10-02c.md) | the review of the C-041 work, and of this file's own gates |
+| [`docs/review/RUBRIC.md`](docs/review/RUBRIC.md) | the pre-registered review rubric (hash-pinned in `RUBRIC.sha256` — **do not edit**) |
+| [`docs/review/REVIEW-2026-10-02b.md`](docs/review/REVIEW-2026-10-02b.md) · [`-02c.md`](docs/review/REVIEW-2026-10-02c.md) | the last two full reviews — **REJECT, 3 BLOCKERs**, all since closed; and the review of the C-041 work |
+
+### The peer review of T101, and its standing
+
+**It is not an approval, and this file does not treat it as one.** The review of
+the T101 result was run in **multi-perspective fallback** mode — **one agent,
+one model family, no independent reviewers available**. Its **four personas are
+four stances written by the same model in the same session and are explicitly
+not independent**; the review says so at the top and it is not something a
+script can settle. Its own verdict is **REJECT WITH CONDITIONS** (0 BLOCKER,
+1 MAJOR and 1 MINOR still open), and per that protocol the candidate stays
+**CANDIDATE** until **someone who did not author the session** runs
+`aes/peer-reviews/T101/validate.sh` and records the output. `aes/` is
+gitignored, so that script is **not in a fresh clone** — a clone inherits the
+caveat and not the validator.
+
+**What the review did change:** two findings were closed by measurement, not by
+argument — the `$0B51` law was re-derived at **event** granularity (**113 tick
+events, every one +1, zero deviations**) instead of at 60-frame sample
+granularity, and the driver defect was attributed to us with its commit. **What
+it did not change:** nothing in this file rests on the review's judgement. The
+numbers came from the Deck.
 
 ## Gates
 
@@ -526,6 +628,19 @@ causal sentence still fires; the same sentence labelled `HYPOTHESIS` does not).
 T094 carries the transcript. **The lesson is not the regex**: it is that a gate
 added in the same commit as the claim it guards, and never run, shipped broken
 and reported green.
+
+**`make check-claims` does not check the number, and that hole is open (CONF-14).**
+It reported `(no violations)` while this very table carried a stale **26
+refuted** against a ledger of 28 — because its count guard matches `"N
+retractions"` and the ledger's own phrasing is `"N refuted"`. **Every count in
+this file, including the one in the row above, is therefore unverified by any
+gate.** The repair was written, and it produced **three false positives on this
+project's own corpus** (two markdown table rows whose trailing cell is `| 0 |`,
+and the guard's own header sentence), so it was **reverted**; the failed attempt
+is recorded in `scripts/check-retracted-claims.sh`'s comment block where the next
+person meets it. A guard that cries wolf on its own corpus is worse than the
+hole it closes. **This is why the count is stated as `N rows = M refuted + …`
+and re-read after running `make retraction-count`, rather than typed.**
 
 **`make clock` is the one that matters and the one that is red.** It fails
 identically on the Deck. It prints the guest's own year word as proof that a city
@@ -813,13 +928,35 @@ documented in the framework at `snesrecomp/docs/MOD_PACKAGES.md`.
 - `SNESRECOMP_HOST_PROFILE=1` — per-stage host cost (`guest`, `upload-present`,
   `deadline-wait`) into `last_run_report.json`
 
-### Instruments, and three traps in them
+### Instruments, and eight traps in them
 
-The three facts below are the most transferable result in this repository, and
-every one of them cost a wrong conclusion first. They are here so the next
-session does not pay for them again.
+The facts below are the most transferable result in this repository, and every
+one of them cost a wrong conclusion first. They are here so the next session
+does not pay for them again.
 
-1. **`CYC_WATCH` is blind to AOT.** Its hook,
+1. **Our own driver printed `$0B53` under the label `$0B55`, and it cost this
+   project its central result for a day.** `study/peer-linux/jjhead.c` clobbered
+   the month column of its own WRAM dump. The consequence was not a typo: a
+   correct measurement (`$0B55 = 07`, **AUGUST**, at f9000) was read as
+   `$0B55 = 076C`, which is *`$0B53`*, i.e. the year. The month had advanced
+   **six times** inside that very window. So a live, correctly-reproducing
+   reference run was recorded as *"the reference does not simulate"*, and two
+   sentences were written on the strength of it — **R-035, R-036** — one of
+   which was then used to kill the correct theory (*"make `$03:8026` run and the
+   clock advances" is refuted*). **The arithmetic was right; the instrument could
+   not read it.** Fixed in `c4923de`.
+   **The generalisable form: an instrument that cannot read the answer looks
+   exactly like an instrument that measured a negative.** Re-running the disputed
+   configuration reproduced it byte for byte (`master_clock=3216243544
+   insns=107365572`) and printed the right number — so "reproducible" and
+   "correct" are two different properties of a measurement.
+   **And the same section's other lesson: the write-watch was inert.** Clean and
+   watched cores produce `cmp`-IDENTICAL 30 000-frame timelines, and the watch
+   log holds 230 rows f0→f29967, so an inert instrument and a perturbing one are
+   also indistinguishable from the outside. An instrument is proven live by
+   showing it *changing something*, never by its output existing.
+
+2. **`CYC_WATCH` is blind to AOT.** Its hook,
    `snesrecomp/runner/src/snes/interp_bridge.c:2034`, sits inside
    `_interp_run_core` (`:1009`), the per-interpreted-opcode loop, and compares
    against `pc_before`; the AOT side lives in `cpu_trace_block`, which is a
@@ -829,12 +966,23 @@ session does not pay for them again.
    hits, all in f3094–f3103, and **zero** in f3400–f3410, while `AOTBLK=3400-3410`
    logged 11 267 entries at overlapping PCs in exactly those frames.
    **A zero from `CYC_WATCH` proves nothing about AOT execution.**
-2. **`AOTBLK` was never mute — it takes a frame window, not a PC range.**
+   **The same blindness belongs to `SNESRECOMP_COUNT_PC`**, which sits in
+   `interp816_runOpcode` (`snesrecomp/runner/src/snes/interp816.c:317`) — the
+   interpreter opcode loop, for the same reason. A count from it is a statement
+   about the **interpreter tier** unless you have separately established that the
+   watched address is not compiled AOT. For `$03:8026` that has been
+   established, from `src/gen/program_manifest.json`: exactly **one** node
+   covers it, `$038000:M1X1` spanning `$038000`–`$03815D`, and its disposition
+   is **`lle_only`** — so the interpreter counter is exhaustive over *both*
+   tiers for this address. **[MEASURED, from the manifest, machine-independent]**
+
+3. **`AOTBLK` was never mute — it takes a frame window, not a PC range.**
    `snesrecomp/runner/src/cpu_trace.c:1244` `sscanf`s `"%ld-%ld"` against
    `snes_frame_counter`; `CYC_WATCH` (`interp_bridge.c:2036`) `sscanf`s
    `"%lx-%lx"` against `pc_before`. Passing `38000-381FF` asked for frames
    38000–381FF.
-3. **`SNESRECOMP_INTERP_PROFILE` was exposed by no CMake option**, which is why
+
+4. **`SNESRECOMP_INTERP_PROFILE` was exposed by no CMake option**, which is why
    the interpreted histogram had never been run in a normal build. Configure with
    `-DCMAKE_C_FLAGS="-DSNESRECOMP_INTERP_PROFILE=1"`. Note also that its
    `[interp_profile] … top 60 by host-ms` list prints **nothing** unless
@@ -842,21 +990,21 @@ session does not pay for them again.
    and the leading sort slots are unused hash-table entries.
    **A section header with no rows under it is not a negative result.**
 
-4. **Every AOT-side instrument is unreachable from a default build.**
+5. **Every AOT-side instrument is unreachable from a default build.**
    `SNESRECOMP_AOTBLK="lo-hi"` over 4 000 frames logged **zero** lines and no
    warning: `cpu_trace_block()` is an empty `static inline` unless
    `SNESRECOMP_TRACE=1`, and with that define the link fails on 24 undefined
    references into `debug_server.c`, which no CMake option in this repository
    added. A knob that accepts its variable and prints nothing is worse than one
    that is absent. `-DSNESRECOMP_TRACE_BUILD=ON` (default **off**) now adds
-   `debug_server.c` and links pthreads, which is what makes trap 4 avoidable.
-   **And it is avoidable on the Deck too** — that was long believed otherwise on a
-   false cause; see the warning in *Steam Deck* above, ledger row **R-032**, and
+   `debug_server.c` and links pthreads, which is what makes trap 5 avoidable.
+   **And it is avoidable on the Deck too** — that was long believed otherwise on
+   a false cause; see the warning in *Steam Deck* above, ledger row **R-032**, and
    CONF-9. `scripts/deck-trace-build.sh` builds it there and asserts the
    `[aotblk]` count is non-zero, because a link that produces no trace output is
    not a working instrument.
 
-5. **On the Steam Deck, `exit: SDL_QUIT` means you signalled it — not that the
+6. **On the Steam Deck, `exit: SDL_QUIT` means you signalled it — not that the
    game did.** A SIGTERM reaching the host surfaces as `SDL_QUIT event after N
    frames`, with no crash and no guest-side cause. Four runs died at 1 414, 1 425,
    1 428 and 1 430 frames, and the death time tracked the supervising `timeout`
@@ -871,8 +1019,12 @@ session does not pay for them again.
    the same binary ran at ~4 300 lines/s against 154.2 s for the full 4 000 frames
    to `/dev/null`. Measured in
    `docs/measurements/2026-10-02-deck-aot-histogram.md` §4.
+   **Three runs backgrounded with `setsid nohup … &` died with no error, no core
+   and no exit status at all** (CONF-13) — the same failure with one fewer clue.
+   *Foreground every heavy Deck run through `ssh` and read `EXIT=` before you read
+   the log.*
 
-6. **`SNESRECOMP_COUNT_PC` prints nothing unless `SNESRECOMP_PHASE_MS` is also
+7. **`SNESRECOMP_COUNT_PC` prints nothing unless `SNESRECOMP_PHASE_MS` is also
    set.** It counts executions of one 24-bit PC and the counter works; the only
    `fprintf` that reports it sits inside `interp_profile_dump_atexit()`, whose
    first statement is `if (!HostGetenv("PHASE_MS")) return;`
@@ -881,9 +1033,21 @@ session does not pay for them again.
    `[count] pc watched: N executions over F frames`. And
    `SNESRECOMP_COUNT_PC_FRAME`, documented at `interp816.c:196` as printing the
    count per frame, is **dead code**: `s_interp_pc_frame` is declared at `:200`
-   and read nowhere in the tree. This is trap 3 and trap 4's shape again — a
+   and read nowhere in the tree. This is trap 4 and trap 5's shape again — a
    *different* knob, the same mistake. Measured in
    `docs/measurements/2026-10-02-f3271-entry-gate.md` §6.
+
+8. **A gate added in the same commit as the claim it guards, and never run,
+   shipped broken and reported green.** `make check-causes` fired on the bare
+   word `date` inside "candi**date**" on line 30 of its own header, so it could
+   never be green while that header stood — and the commit that added it
+   (`8a7340f`) said in its message and in DoD D3.7 that it was green. It sat red
+   for four commits. Fixes to gates here are falsified in **both directions**
+   before they are committed (revert the fix → red again; a synthetic unlabelled
+   causal sentence still fires; the same sentence labelled `HYPOTHESIS` does
+   not), and **any new guard must be demonstrated on an untracked file**, because
+   both evidence gates once read `git ls-files` = the *index*, which is CONF-11
+   and let an untracked doc asserting a refuted claim pass.
 
 Two knobs were added for this, dev-only behind `-DSNESRECOMP_INTERP_PROFILE`:
 `SNESRECOMP_INTERP_DUMP_BANK=03` prints **every** distinct PC in one bank with
@@ -960,22 +1124,24 @@ the naming screen's cursor walks on the d-pad and **B** confirms from a characte
 key. See `study/peer-linux/README.md`.
 
 **What comparing against it proved, and what it did not.** The peer recompiles
-the same ROM. **In one measured run its clock ran — `$0B53` `076C -> 076E`, 23
-months across 33 700 frames, `$0B51` `0000 -> 006D`.** **[MEASURED, Deck]** In
-a *second, later* measured run — a different route, `scripts/d_city_kbd.script`,
-9 000 frames — **it does not**: `$0B51` climbed 27 times and the year stayed
-1900 with the population at 0. **[MEASURED, Deck + host].** Both rows are in the
-table under *The open question* above; they are not reconciled and **the
-disagreement is itself the finding**, because the older row is the only
-"reference simulates, we do not" premise this project ever had.
+the same ROM. **Its clock runs, and it was measured that way to f30 000 and
+beyond** — 28 month rolls, two year rollovers, **29 distinct date images**, and
+a city-state block that is never abandoned. **[MEASURED, Deck-native, T101
+`9069182`]** Two peer runs *appeared* to disagree about this; **they never
+did.** The reconciliation is in the table under *The open question* above and it
+resolved against **our own driver**, which printed `$0B53` under the label
+`$0B55` (`c4923de`) — the disputed 9 000-frame run is reproducible byte for
+byte and reads `$0B55 = 07`, **AUGUST**. See instrument trap 1.
 
 The arithmetic on our side is measured (`$0B51 = 0000` at every sample from
-f3150 to f30000); the *role* of `$0B51` is **[INFERRED]** from the peer and has
-never been measured here, and it now has counterevidence — in the reference
-build it rises without the date moving. **Do not read the peer's working clock
-as a measurement of ours, and do not read the peer's non-working clock as an
-excuse.** Either way, the comparison has **not** established where control fails
-to reach the tick routine.
+f3150 to f30000); the *role* of `$0B51` in our build is still **[INFERRED]**
+from the peer and has never been measured here — but its reference-side
+behaviour is now **decoded** (`$0B51` = 4 × months elapsed + quarter, verified at
+every one of 113 tick events). **Do not read the peer's working clock as a
+measurement of ours.** The comparison has established that the two builds are
+separated **at the instruction** (`$03:8026` executes 0 times here, 27+ times
+there) and it has **not** established what starts the simulation in either
+build.
 
 ## Development
 
@@ -1007,18 +1173,22 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | SNES Mouse on player 2 (`SNESRECOMP_MOUSE=1`, bsnes-exact protocol) | ✅ Device-level done (T042, ROM-free verified) |
 | Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
 | Quick save/load (10 slots), save-state menu, rewind, turbo | ✅ Working |
-| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red. Measured over 6 000 frames on the Deck: the tick instruction executes 0 times, and the date field is written 0 times after f3259. Cause [OPEN]** |
+| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red. Measured on the Deck: the tick instruction `$03:8026` executes 0 times in 9 000 frames — a window containing 12 of the reference's own ticks — and the city-state block is written 0 times after f3259. Cause [OPEN]** |
 | Scenarios (all 5 US) | ⏳ T011 — confirm ENT step is the gate (see `docs/RE_SCENARIO_NAV.md` step 10) |
 | Building/visual verification (headless capture) | 🔄 T033 — unblocked by T039 |
 
 The city view renders correctly and the frame loop runs once per frame
-throughout; the game state never leaves its initial values, so the date,
-population and treasury never change. **The cause is OPEN** — see
-[`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) node C-006. (An earlier version of
-this file pointed at `aes/tickets/T058-city-clock-does-not-advance.md`. `aes/` is
-gitignored **permanently and by rule** — DoD D4.3 — so that path resolves in no
-fresh clone. Pointing a tracked file into an uncommittable directory is the same
-rule breaking itself; the pointer now names a tracked file.)
+throughout. In **our** build the game state never leaves its initial values, so
+the date, population and treasury never change. In **the reference** build the
+date *does* change — 28 month rolls in 30 000 frames — while population and
+treasury are equally flat. **So "the reference simulates" means the tick runs,
+not that an economy grows, and this repository makes no claim that one does.**
+The cause of our freeze is **OPEN** — see
+[`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) node C-006. (An earlier version
+of this file pointed at `aes/tickets/T058-city-clock-does-not-advance.md`. `aes/`
+is gitignored **permanently and by rule** — DoD D4.3 — so that path resolves in
+no fresh clone. Pointing a tracked file into an uncommittable directory is the
+same rule breaking itself; the pointer now names a tracked file.)
 
 ## License
 
