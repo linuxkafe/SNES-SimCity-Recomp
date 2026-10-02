@@ -1,5 +1,39 @@
 # T060 — the clock does not advance in a running city
 
+> ## ⚠ STATUS AS OF `afceeec`, measured 2026-10-02 — read this before anything below
+>
+> This file is an **append-only chronological log**, 3,130 lines and 41 entries.
+> **97.8% of it predates its own newest entry** and 94.0% predates the root
+> cause. There is no other way to find the current position, so here it is.
+>
+> | Question | Answer | Instrument |
+> |---|---|---|
+> | Does the city load? | **Yes.** `$0B53 = 0x076C` (1900), `$0B55 = 1` (January), `$0B9D = 20000`; the framebuffer at f3400/f4000 is a rendered city. | 5 × `SNESRECOMP_WRAM_DUMP_AT` + screenshot |
+> | Is the vblank deadlock fixed? | **Yes.** `$00B9 = 0001` at 5/5; `$00C7` advances 5/5. | same 5 samples |
+> | Does the city simulate? | **No.** 34 WRAM bytes across 2,599 frames of a live city; the date never leaves `1900 JAN`. | byte diff f3400→f5999 |
+> | **Why not?** | **NOT ESTABLISHED. OPEN.** `$0B51 = 0000` at 5/5, and `$0B51` is the peer-derived tick candidate — but that role is INFERRED, not measured here. | — |
+>
+> **Three claims below that are NOT established, and are asserted as if they were:**
+>
+> 1. **The `$0012` diagnosis (entry (a), and the text `scripts/clock-gate.sh`
+>    prints under "What is established") is REFUTED.** `$0012 = 0001` in 5/5
+>    samples and `$0014 = 8000` (bit 7 set) in 5/5. Its own stated evidence
+>    ("0 in 13 of 13 samples") is what measurement refuted.
+> 2. **"The city does not load" (entry (q)) is RETRACTED** — see the retraction
+>    box in that entry. The city loads.
+> 3. **`CODE_008061` "never runs" is OPEN, not retracted.** Its premise
+>    (`$0012 == 0`) is false, which voids the inference and establishes
+>    nothing. Whether it executes has never been measured.
+>
+> The next measurement that would most reduce uncertainty is a **PC/block
+> histogram over f3400-f3600**: which addresses execute in a live city, and is
+> `$03:8000-$03:81FF` among them. One 6,000-frame headless run, ~40 s. Unrun.
+>
+> Entry index: the root cause is **(p)** at line ~3000; the deadlock fix is
+> **(q)** at the end. Entries (a)–(o) are history and several of their
+> conclusions are superseded. **`docs/CLAIMS_REGISTER.md` is the index of what
+> is retracted, and `docs/DEFINITION_OF_DONE.md` is the standard of proof.**
+
 Entry into the game is solved (`RE_SCENARIO_NAV.md`). This is the remaining
 bug, and it is narrow: **the city runs, animations play, and the date stays at
 1900 JAN.**
@@ -94,7 +128,8 @@ The fix puts it in the game's own chunk, which is what `state_save_extra` and
 cross-check is the good part: a state saved on the naming screen now reports
 `state loaded: resume PC restored as $009311`, and `$009311` is the address this
 project already carries in `recomp/bank00.cfg` as
-`force_lle 0x009311  # VBlank wait loop main polling address`. The resume point is
+`force_lle 0x009311  # VBlank wait loop main polling address` (REMOVED by 436b25b
+on 2026-09-30 — see the correction at the end of this section). The resume point is
 the game's vblank wait, which is where it should be.
 
 A state written before this fix has no chunk and cannot be resumed; it falls
@@ -319,7 +354,8 @@ That is an idle loop poking the OAM address register, not a renderer.
 
 `$009313` is the hottest interpreter PC in the whole run (2.3% of 1.7M
 samples), and `recomp/bank00.cfg:32` already pins
-`force_lle 0x009311  # VBlank wait loop main polling address`.
+<!-- RETRACTED 2026-10-02: this config line was REMOVED by 436b25b. -->
+`force_lle 0x009311  # VBlank wait loop main polling address` (REMOVED in 436b25b).
 
 ### What this means
 
@@ -459,7 +495,8 @@ waiting for an event that does not happen — the event happens and is destroyed
 before it can be seen.
 
 And the AOT loop should not exist: `recomp/bank00.cfg:32` declares
-`force_lle 0x009311`, but `src/gen/program_manifest.json` has
+<!-- RETRACTED 2026-10-02: force_lle 0x009311 was REMOVED in 436b25b. -->
+`force_lle 0x009311` (removed in 436b25b), but `src/gen/program_manifest.json` has
 
 ```
 00930D:M0X0   aot_eligible   instr=6   reasons=[]
@@ -472,7 +509,8 @@ prevent this, and it is the same gap T057 found in `bank_00_8D65_M1`.
 
 ### So: three bugs, not one
 
-1. `force_lle 0x009311` does not stop `$930D` being compiled AOT — the
+1. `force_lle 0x009311` (removed in 436b25b — RETRACTED as a current fact)
+   does not stop `$930D` being compiled AOT — the
    declaration is off-label. `snesrecomp/docs/MULTI_TIER.md:181-195` is the
    only documentation of `force_lle` and scopes it to *architectural* ABI
    boundaries, not timing. A `LDA/BNE` spin is not an ABI boundary.
@@ -1105,8 +1143,10 @@ JSR.w (DATA_008223,x)` — **tabela de 11 entradas em `$01:8223`**, índice `A>>
 mais vezes por iteração do main loop** — o host entrega um NMI por frame.
 
 `GAME_MASTER_CYCLES_PER_FRAME` + o slice loop é uma **palpite** a substituir
-por `interp_bridge_run_scheduler(0x009311, 0x009311, 0x00B9)`. O nosso cfg já
-tem `force_lle 0x009311` com o comentário certo — **falta o token, `$7E:00B9`.**
+por `interp_bridge_run_scheduler(0x009311, 0x009311, 0x00B9)`. O nosso cfg **NÃO** tem `force_lle 0x009311` — foi removido em `436b25b`.
+(2026-10-02: esta frase afirmava que o cfg já o tinha; a afirmação estava errada.
+Ver `docs/CLAIMS_REGISTER.md` §12 e T082.)
+O nosso cfg tinha então — **falta o token, `$7E:00B9`.**
 
 ### Duas refutações minhas
 
@@ -1728,12 +1768,47 @@ depois de o seu laço `BPL CODE_03D287` sair. E `$12` está a 0 em **13 de 13**
 amostras de fronteira de frame. Logo `CODE_008061` — que é o que regista a task
 de simulação — nunca corre.
 
+> ### 🚫 RETRACTADO em 2026-10-02 — o diagnóstico do `$0012`
+>
+> **O texto acima é anterior a `afceeec` e está medido como FALSO.** Duas
+> medições o derrubam, e uma delas é a própria evidência que ele citava:
+>
+> ```
+> $0012  f3400=0001 f3600=0001 f4000=0001 f5000=0001 f5999=0001
+> $0014  f3400=8000 f3600=8000 f4000=8000 f5000=8000 f5999=8000
+> ```
+>
+> - `$12` **não** está a 0: está a `0001` em **5 de 5** amostras. A afirmação
+>   "0 em 13 de 13" era do mundo em que o guest estava encravado à espera deste
+>   token — o mesmo problema de precondição que torna o "INC `$0B51` executa
+>   zero vezes" (§ g) um número sem informação.
+> - A condição de bloqueio que este diagnóstico nomeia — "precisa do bit 7 de
+>   `$0014`" — está **satisfeita**: `$0014 = $8000` em 5 de 5.
+>
+> **Logo `$0012` não é a fechadura.** Ver `docs/CLAIMS_REGISTER.md` §2 e
+> `docs/review/REVIEW-2026-10-02.md` F-01.
+>
+> **O que NÃO se segue disto (e é a parte que importa):** isto **não** prova
+> que `CODE_008061` corra. Uma premissa falsa anula a inferência; não estabelece
+> a conversa. Se `CODE_008061` executa ou não é **OPEN**, e é exactamente o que
+> responde um histograma de PC/blocos sobre f3400-f3600 — a medição mais barata
+> que este projecto tem por fazer e que continua por fazer. Registar "nunca
+> corre" como retracted seria substituir uma afirmação não-medicida por outra
+> de sinal contrário, também não-medicida. É o mecanismo exacto que produziu a
+> retractação pareada do `$0B51` (§ g).
+>
+> **Sobre o ponto 5 (a "prova causal"):** forçar `$12=1` fazer `CODE_00825F`
+> correr mostra que **o caminho existe** quando o token é posto. Não mostra que
+> `$12` seja a fechadura — uma prova causal precisa do caminho inverso, e
+> nenhuma foi feita. Continua OPEN.
+
 **5. Prova causal do ponto 4.** `pokefor 0012 01 400` — forçar `$12=1` durante
 400 frames. Imediatamente `$1F7D/$1F7E/$1F7F` passam a `00 80 03`.
 `CODE_00825F`, alcançado só a partir de `CODE_008061`, escreve exactamente
 esses bytes: guarda `CODE_038000` em `$1F7D..$1F7F`. Em jogo normal esses bytes
 são `00 00 00 00` em **todas** as amostras. **`CODE_008061` demonstra não correr
 em jogo normal, e forçar `$12=1` fá-lo correr.**
+<!-- (ponto 5 preservado; a sua leitura como "prova causal" está retractada acima) -->
 
 **6. E mesmo assim a task de simulação não acontece.** Com o hook instalado
 (`$1F7D..F = 038000`) à força, `$0B51`/`$0B53`/`$0B55`/`$0BA5`/`$0B9D` continuam
@@ -1905,6 +1980,8 @@ código no ROM pode produzir `DP=$005E`.** Portanto `$14` é WRAM `$0014/$0015` 
 
 ```
 $0012 (porta) = $0000     $0014 (word) = $0001     $00C9 = $0000
+<!-- MEDIÇÃO OBSOLETA (2026-10-02): $0012 mede 0001 e $0014 mede 8000 em 5/5 amostras.
+     Estas amostras são de antes de afceeec. Ver a retratação do $0012 na secção (a). -->
 ```
 
 `$14` está em `$0001` — índice da task 1, `CODE_03D2C6`. A cauda em `03:D2F4`:
@@ -1964,7 +2041,8 @@ $03D287  o laço do scheduler                    medido: $14 não avança
    |
 $03D2F6  AND #$9000  ->  INC $14                ROM 0x01D2F6   <== A PORTA
    |
-$03D2A3  $12 = 1                                 medido: $12 = 0 em 13/13
+$03D2A3  $12 = 1                                 medido (OBSOLETO): $12 = 0 em 13/13
+     <!-- 2026-10-02: $12 mede 0001 em 5/5. Retractado; ver secção (a). -->
    |
 $008061  corpo de vblank                        provado por pokefor: corre
    |                                           quando $12 é forçado
@@ -2134,7 +2212,8 @@ referência que sabemos funcionar.
 $009311  wait on $B9                                    medido
 $03D287  scheduler loop                                 $14 nao avanca
 $03D2F6  AND #$9000 gates INC $14   ROM 0x01D2F6        <== A PORTA
-$03D2A3  $12 = 1                                        $12 = 0 em 13/13
+$03D2A3  $12 = 1                                        $12 = 0 em 13/13 (OBSOLETO)
+     <!-- 2026-10-02: $12 mede 0001 em 5/5. Retractado; ver secção (a). -->
 $008061  per-vblank body                                provado por pokefor
 $00825F  CODE_038000 -> $1F7D..$1F7F                    00 00 00 00
 $038000  a task do mes                                  nao corre
@@ -3111,14 +3190,45 @@ sobrevive e o spin sai.** O handshake deixou de ser estruturalmente impossível.
 
 ### O que ainda não funciona, sem enfeite
 
+> **RETRACTADO em 2026-10-02.** O parágrafo original desta secção afirmava
+> **"A cidade não carrega"** e citava `$0B53 = 0`, população `0`, fundos `0`.
+> **Isto é falso.** Medido em `afceeec`, em cinco amostras de WRAM
+> (f3400, f3600, f4000, f5000, f5999) com `scripts/d_city.script`:
+> `$0B53 = 0x076C` = **1900**, `$0B55 = 0x0001` = Janeiro, e `$0B9D = 20000`
+> — o valor exacto do `$20000` que o HUD mostra. A framebuffer a f3400 e a
+> f4000 mostra uma cidade desenhada: terreno, barra RCI, população `0`,
+> `1900 JAN`, `BullDoze Area $ 1`, cursor. **A cidade carrega e renderiza.**
+> Ver `docs/CLAIMS_REGISTER.md` §11 e `docs/review/REVIEW-2026-10-02.md` F-01/F-06.
+>
+> **Porque é que a conclusão errada foi tirada:** as medições por trás dela
+> usaram um **save de 32768 bytes zerado**, que não é o estado a partir do qual
+> `scripts/d_city.script` foi escrito. A leitura correcta dessas execuções é
+> **"desconhecido"**, não "regressão". E o próprio parágrafo original continha
+> já a refutação na sua última linha — *"o save zerado pode não ser o estado a
+> partir do qual aqueles scripts foram escritos"* — e a conclusão foi na
+> mesma. O texto original é mantido abaixo, sem alterações, porque apagá-lo
+> apagaria o registo de que o erro foi cometido.
+>
+> **O que substituí a conclusão:** a cidade **carrega e não simula**. Entre
+> f3400 e f5999 — 2599 frames de cidade viva — apenas **34 bytes** de WRAM
+> mudam, 30 deles nos primeiros 4 KiB e 10 no slot OAM do cursor
+> (`$2510-$251F`). A data nunca sai de `1900 JAN`. **Porque** é OPEN.
+
+<!-- ══ RETRACTED 2026-10-02: everything from here to the closing comment is the
+     ORIGINAL text, preserved verbatim. The claim below is FALSE and is retracted
+     in the box above. Kept because deleting it would erase the record that the
+     error was made. ══ -->
 **A cidade não carrega** com `scripts/d_city_kbd.script` nem com
 `scripts/d_city.script` a partir de um save de 32768 bytes zerado, em f3500,
 f6000 e f11200: `$0B53 = 0`, população `0`, fundos `0`. Isto é um problema
 **separado** do bloqueio do vblank, e ainda não está diagnosticado — e o save
 zerado pode não ser o estado a partir do qual aqueles scripts foram escritos.
+<!-- (texto original preservado; a afirmação "A cidade não carrega" está RETRACTADA acima) -->
 
 `make clock` continua FAIL. Não há data a avançar porque não há cidade, e o gate
 continua a dizer exactamente o que mede.
+<!-- (a frase acima era verdadeira sob a premissa retractada; a premissa e a
+     frase caem juntas. Hoje: há cidade, e a data não avança.) -->
 
 ### Confirmação ainda em falta
 

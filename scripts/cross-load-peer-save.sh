@@ -1,10 +1,54 @@
 #!/usr/bin/env bash
+# ############################################################################
+# #  DEAD END - KNOWN IMPOSSIBLE. THIS SCRIPT CANNOT WORK. DO NOT RUN IT.   #
+# ############################################################################
+#
+# The disproof, measured 2026-09-30 and recorded in docs/CLAIMS_REGISTER.md §4
+# and in commit 0c76a37 ("clock: the cross-load cannot work, and I designed it
+# on an unchecked assumption"):
+#
+#   The 32 KiB battery SRAM does NOT carry the city. Dumping it gives
+#   32,746 bytes of 0xFF around the ASCII "SIM", and the md5 is IDENTICAL
+#   between a session sitting at the naming screen and a session that has run
+#   a city from JAN to MAR. There is nothing in the file to cross-load.
+#
+#   Equivalently: the date lives in WRAM ($0B53/$0B55) and WRAM is not
+#   battery-backed, so the city is in RAM and never was in the save.
+#
+# WHY THIS FILE STILL EXISTS
+#
+# It is kept, not deleted, for one reason: this project's own record says the
+# knowledge went into a COMMIT MESSAGE instead of the artifact, and the next
+# reader of this file had no way to learn it could not work. That is the exact
+# failure docs/DEFINITION_OF_DONE.md Rule 0 forbids. So the disproof is now at
+# the top of the file, where anyone who opens it sees it first.
+#
+# It is also not executable, so it cannot be run by accident. If you genuinely
+# need to re-test the SRAM hypothesis - and on the evidence above there is no
+# reason to - remove the chmod, and expect the answer to be no.
+#
+# Everything below this banner is the ORIGINAL script, preserved unedited as
+# the record of what was believed and why. Read it as history, not as
+# instructions. Two of its premises are now known false:
+#
+#   * "29 WRAM bytes move in 3600 frames"   -> superseded; 34 bytes across
+#     2,599 frames measured 2026-10-02.
+#   * "stalled at $C9 & #$9000 gating INC $14 inside the round-robin
+#     scheduler" -> that generation's diagnosis, and the "$0012 gate" poke
+#     further down is REFUTED: $0012 measures 0001 in 5 of 5 samples.
+# ############################################################################
+exit 2
+# ---------------------------------------------------------------------------
+# Everything below is unreachable (see the banner). Preserved as history.
+# ---------------------------------------------------------------------------
+#!/usr/bin/env bash
 # Cross-load test: does OUR build simulate from the PEER's city?
 #
 # WHY
 # ---
 # We have a live city in saves/save1.sav. It renders, and nothing simulates:
-# 29 WRAM bytes move in 3600 frames and the date never leaves 1900 JAN. The
+# 29 WRAM bytes move in 3600 frames (SUPERSEDED 2026-10-02) and the date
+# never leaves 1900 JAN. The
 # chain is documented in docs/RE_CITY_FREEZE.md and it is stalled at
 # $C9 & #$9000 gating INC $14 inside the game's round-robin scheduler.
 #

@@ -47,6 +47,18 @@
 # would fail the date check and pass the picture one. Both are reported so a
 # failure says which kind of broken it is.
 #
+# AND WHY IT CHECKS THE GUEST'S OWN YEAR WORD (added 2026-10-02)
+#
+# Because for several sessions this gate's failure text asserted a cause that
+# measurement had refuted, and because "the city does not load" was believed
+# for several more - both sourced from runs whose precondition (a zeroed save)
+# was never checked. A gate that trusts a picture cannot tell a city from a
+# menu. So the verdict now also requires $0B53, the guest's own absolute year
+# word, to be non-zero at the city frame. Zero means no city object exists, and
+# the gate says so instead of blaming the clock. This is DoD clause D2.2 in
+# docs/DEFINITION_OF_DONE.md, and it is why this gate cannot report PASS on a
+# build that loads no city.
+#
 # THE POSITIVE CONTROL, WHICH IS THE PART THAT MATTERS
 #
 # A gate that cannot pass is as useless as one that cannot fail, and this one
@@ -133,9 +145,15 @@ run_once() {  # $1 = tag
   # $1 is already a full path, so it is used verbatim - prefixing $TMP here
   # would silently create $TMP/tmp/... and write every screenshot there.
   mkdir -p "$1"
+  # WRAM_DUMP_AT is what makes the city-loaded check below a measurement
+  # instead of an assumption. It is the whole reason this gate cannot report
+  # green on a build that loads no city: the verdict is gated on the guest's
+  # own year word, not on the picture. See docs/DEFINITION_OF_DONE.md D2.2.
   SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
   SNESRECOMP_MOUSE=1 SNESRECOMP_SOFT_MOUSE=1 \
   SNESRECOMP_RUN_FRAMES="$FRAMES" \
+  SNESRECOMP_WRAM_DUMP="$1/wram" \
+  SNESRECOMP_WRAM_DUMP_AT="$CITY_FRAME" \
   SNESRECOMP_SCREENSHOT_DIR="$1" \
   SNESRECOMP_SCREENSHOT_FROM=0 \
   SNESRECOMP_SCREENSHOT_TO="$FRAMES" \
@@ -237,6 +255,8 @@ EOF
 fi
 
 fail=0
+city_loaded=0
+year_word=0000
 for i in $(seq 1 "$RUNS"); do
   dir="$TMP/run/$i"
   rm -rf "$dir"; mkdir -p "$dir"
@@ -250,7 +270,38 @@ for i in $(seq 1 "$RUNS"); do
   printf "%s distinct date images after f%d (last change f%s of %s)\n" \
     "$DISTINCT_AFTER" "$CITY_FRAME" "$LAST_CHANGE" "$FRAMES"
 
-  if [ "$DISTINCT_AFTER" -lt "$MIN_ADVANCE" ]; then
+  # Is a city actually there? Ask the guest, not the picture.
+  #
+  # $0B53 is the guest's own absolute year word; 0 means no city, 0x076C is
+  # 1900. Reading it here is what stops this gate reporting PASS on a build
+  # that renders a menu and calls it a city - the failure that let "the city
+  # does not load" stand unchallenged for several sessions (RETRACTED
+  # 2026-10-02; the city does load, but the gate must never assume it).
+  yraw="$dir/wram.f${CITY_FRAME}.bin"
+  if [ -f "$yraw" ]; then
+    y=$(python3 -c "
+import sys
+d=open(sys.argv[1],'rb').read()
+print('%04X' % (d[0x0B53] | (d[0x0B53+1] << 8)))" "$yraw" 2>/dev/null || echo "ERR")
+    printf "  city-loaded check: \$0B53 = %s" "$y"
+    if [ "$y" != "ERR" ] && [ "$y" != "0000" ]; then
+      printf "  -> a city is present (year %d)\n" "$((16#$y))"
+      city_loaded=1
+      year_word="$y"
+    else
+      printf "  -> NO CITY (year word is zero)\n"
+      city_loaded=0
+    fi
+  else
+    printf "  city-loaded check: NO WRAM DUMP at f%d - cannot confirm a city\n" "$CITY_FRAME"
+    city_loaded=0
+  fi
+
+  # Two independent ways to fail, deliberately kept separate so the verdict can
+  # say which kind of broken it is.
+  if [ "$city_loaded" -ne 1 ]; then
+    fail=2
+  elif [ "$DISTINCT_AFTER" -lt "$MIN_ADVANCE" ]; then
     fail=1
   fi
 done
@@ -258,24 +309,44 @@ done
 # Corroboration: the picture itself. Reported either way, because it separates
 # "the clock is stuck" from "nothing is simulating".
 printf "\n== verdict ==\n"
+if [ "$fail" -eq 2 ]; then
+  printf "CLOCK: FAIL - no city was loaded; the clock was never given a chance.\n\n"
+  printf "  The guest's own year word \$0B53 reads 0000 at frame %d, which\n" "$CITY_FRAME"
+  printf "  means no city object exists. This is a DIFFERENT and EARLIER fault\n"
+  printf "  than a frozen clock, and it must not be reported as one.\n\n"
+  printf "  This gate will not report PASS in this state, whatever the date\n"
+  printf "  crop shows. A menu screen with a still date is not a city.\n"
+  printf "  See docs/RE_CITY_FREEZE.md and docs/CLAIMS_REGISTER.md section 11.\n"
+  exit 1
+fi
 if [ "$fail" -ne 0 ]; then
   printf "CLOCK: FAIL - the date did not advance in a live city.\n\n"
-  printf "  The city loaded (scripts/d_city.script reached it) and then stopped\n"
-  printf "  simulating. Expect: date frozen, no month ever appears, seasons never\n"
-  printf "  recolour the map, controller ignored, cursor still animating.\n\n"
-  printf "  The cursor animating is NOT evidence the game is alive - OAM writes\n"
-  printf "  continue while the simulation does not. That is what made this look\n"
-  printf "  healthy for weeks.\n\n"
-  printf "  See docs/RE_CITY_FREEZE.md for the measurements. What is established:\n"
-  printf "  the main loop at \$00804D branches on vblank-done token \$0012, and\n"
-  printf "  \$0012 is written in exactly one place in the whole ROM - the tail of\n"
-  printf "  the round-robin scheduler CODE_03D283. Measured 0 in 13 of 13\n"
-  printf "  frame-boundary samples, so the per-vblank body CODE_008061 never\n"
-  printf "  runs. Forcing \$0012=1 with pokefor makes it run immediately:\n"
-  printf "  \$1F7D..\$1F7F become 00 80 03, which is what CODE_00825F writes.\n"
-  printf "  So the gate is \$0012, and \$0012 waits on the scheduler loop at\n"
-  printf "  CODE_03D287 exiting, which needs bit 7 of \$0014. Open question.\n"
+  printf "  What is measured, and nothing more:\n"
+  printf "  * a city is loaded and rendered on screen, and\n"
+  printf "  * its date did not advance within this window.\n\n"
+  printf "  The city not simulating is the established fact. WHY it does not\n"
+  printf "  simulate is NOT ESTABLISHED, and this gate deliberately does not\n"
+  printf "  guess. See docs/RE_CITY_FREEZE.md for the measurements and\n"
+  printf "  docs/CLAIMS_REGISTER.md for what has been retracted.\n\n"
+  printf "  Expect: date frozen, no month ever appears, seasons never recolour\n"
+  printf "  the map, controller ignored, cursor still animating. The cursor\n"
+  printf "  animating is NOT evidence the game is alive - OAM writes continue\n"
+  printf "  while the simulation does not. That is what made this look healthy\n"
+  printf "  for weeks.\n\n"
+  printf "  A previous version of this message named a specific cause here\n"
+  printf "  under a heading reading \"What is established\". That cause was\n"
+  printf "  measured FALSE and has been retracted; see docs/CLAIMS_REGISTER.md\n"
+  printf "  section 2. A gate that teaches the wrong answer is worse than a gate\n"
+  printf "  that reports none, because the wrong answer is what the next person\n"
+  printf "  starts from.\n\n"
+  printf "  The cheapest next measurement is a PC/block histogram over\n"
+  printf "  f3400-f3600: which addresses execute in a live city, and whether\n"
+  printf "  the per-frame task block does. One 6000-frame headless run.\n"
   exit 1
 fi
 
 printf "CLOCK: PASS - the date advanced in a live city.\n"
+printf "  city-loaded proof: guest year word \$0B53 = %s (non-zero), so a city\n" "$year_word"
+printf "  object existed at frame %d. The date advanced on top of that.\n" "$CITY_FRAME"
+printf "  Both halves are required: a date that moves without a city is not a\n"
+printf "  passing clock, and a city without a moving date is the current FAIL.\n"

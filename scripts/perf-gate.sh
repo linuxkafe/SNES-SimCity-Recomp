@@ -37,10 +37,38 @@
 # NOTE WHAT IS NOT BEING MEASURED HERE: the game is vsync-capped at 60 fps, so
 # a healthy Release build reports ~60 and has no headroom visible in this
 # number at all. Faster hardware, or a lighter renderer, would not move it. The
-# figure that shows headroom is `guest` ms/frame in last_run_report.json, which
-# is ~4.97 ms of a 16.67 ms budget on this box and ~2.45 ms on the Deck. If you
-# want to know whether the emulated CPU has slack, read that; this gate only
-# answers "does the game still hold 60".
+# figure that shows headroom is `guest` ms/frame in last_run_report.json. The
+# ~2.45 ms figure that used to be quoted here for the Deck was RETRACTED on
+# 2026-10-02: the number behind it was never re-measured, and the register's own
+# re-measurement of the same stage was 4.511 ms - 27% of the budget, not 15%.
+# "The 65816 is not the bottleneck" is therefore UNPROVEN and is not asserted
+# here. If you want per-stage cost, read last_run_report.json; if you want to
+# know whether the emulated CPU has slack, take that measurement yourself and
+# write the number down next to the machine and the date. This gate only answers
+# "does the game still hold 60".
+#
+# THIS GATE IS MACHINE-DEPENDENT, AND MEASURED TO BE FRAME-LOCKED ON THE DECK
+#
+# Measured 2026-10-02 at afceeec, same binary, same ROM, same commit:
+#
+#   dev host seyon    FAIL, exit 2, worst run 48.38 fps (20.67 ms/frame)
+#   Deck steamdeck    PASS, exit 0, 56.88 fps
+#
+# Two consequences, both measured:
+#
+#   1. A red gate here is not a recompiler regression. The same binary passes
+#      on the Deck. The threshold is a property of the machine, as the Makefile
+#      says. Always report which machine a number came from.
+#   2. On the Deck all five runs finished in EXACTLY 10.549 s - to the
+#      millisecond, five times. Pacing there is frame-locked, not CPU-bound, so
+#      this gate CANNOT detect guest performance regression on the Deck at all.
+#      It is a "does it still run" check. Do not use Deck fps to argue about
+#      whether the emulated CPU is or is not the bottleneck.
+#
+#   Also: the Deck cannot build this project. SteamOS has an immutable rootfs
+#   with no glibc headers, so `make build` there fails at configure. Every Deck
+#   number in this repo comes from a binary built on the dev host and copied
+#   over. Say so when reporting one.
 #
 # WHAT THIS DOES AND DOES NOT MEASURE
 #

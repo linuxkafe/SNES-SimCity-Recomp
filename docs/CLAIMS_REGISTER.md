@@ -45,7 +45,9 @@ them.**
 `scripts/clock-gate.sh` is the gate. Its failure text is the most-read prose in
 the project, and it is **two generations out of date**.
 
-`scripts/clock-gate.sh:262-278` prints, under "What is established":
+`scripts/clock-gate.sh` printed, under the heading "What is established"
+(the following quotes are RETRACTED 2026-10-02 - see section 2; that text
+has since been removed from the script):
 
 - "the main loop at `$00804D` branches on vblank-done token `$0012`"
 - "`$0012` is written in exactly one place in the whole ROM — the tail of the
@@ -75,15 +77,25 @@ across 30,000 frames**. Its header also still asserts the `$C9 & #$9000` gating
 
 ## 3. Performance numbers that are wrong in four places
 
+**UPDATE 2026-10-02 — the figures below are SUPERSEDED, and the last of the
+four sites has now been corrected.** `README.md:179`, `docs/ROADMAP.md:83` and
+`scripts/perf-gate.sh:41` have all been fixed; `aes/tickets/T061` is local and
+gitignored. Additionally, `make perf` **straddles its own threshold on the dev
+host** — the same binary measured **FAIL at 48.38 fps** and **PASS at 51.52
+fps** against a threshold of 50, in one session. So the figures below are a
+historical correction, not a current measurement, and **no current per-stage
+split exists for this binary** (the Deck cannot build the project at all).
+`scripts/retracted-claims.tsv` rows R-012, R-021.
+
 `aes/tickets/T061`, `README.md:179`, `docs/ROADMAP.md:83` and
-`scripts/perf-gate.sh:41` all carry:
+`scripts/perf-gate.sh:41` all carried (RETRACTED 2026-10-02):
 
 > Deck `guest` **2.45 ms**/frame (~15% of the 16.67 ms budget);
 > `upload-present` **8.13 ms** — more than the whole guest;
 > therefore **the emulated 65816 is not the bottleneck**.
 
-The measured Deck figures are **guest 4.511 ms**, **upload-present 6.540 ms**,
-**deadline wait 5.916 ms**.
+The measured Deck figures were **guest 4.511 ms**, **upload-present 6.540 ms**,
+**deadline wait 5.916 ms** — themselves taken at `ec4cabe` and not re-measured.
 
 Three consequences, in ascending order of seriousness:
 
@@ -94,8 +106,9 @@ Three consequences, in ascending order of seriousness:
    comment already half-admits ("vsync-capped to 60, therefore the fps shows no
    headroom whatsoever"), but then cites `guest` ms as the number that *does*
    show headroom. It does not, in combination.
-3. **"The 65816 is not the bottleneck" is UNPROVEN.** It rested on guest being
-   2.45 ms against a large `upload-present`. At 4.511 vs 6.540 the ratio is
+3. **"The 65816 is not the bottleneck" is UNPROVEN** (RETRACTED as stated). It
+   rested on guest being 2.45 ms against a large `upload-present`. At 4.511 vs
+   6.540 the ratio is
    1.45×, not 3.3×, and the total does not fit in the budget. ROADMAP:83's
    "the obvious next lever on performance" is correspondingly weaker than stated.
 
@@ -246,3 +259,122 @@ Flagged because they are load-bearing and no reader can currently re-run them:
 The pattern is consistent and worth naming: every *byte-level* claim in this
 project has survived re-verification, and every *runtime* claim is currently
 unreproducible by a reader. See T074.
+---
+
+## 11. RETRACTED 2026-10-02: "the city does not load"
+
+**This file did not list it, and that omission is the finding.**
+
+`docs/RE_CITY_FREEZE.md` entry (q) asserted **"A cidade não carrega"** — the
+city does not load — with `$0B53 = 0`, population `0`, funds `0`. **False.**
+
+Measured at `afceeec`, five WRAM samples (f3400, f3600, f4000, f5000, f5999)
+via `scripts/d_city.script`:
+
+| | value |
+|---|---|
+| `$0B53` (absolute year) | `0x076C` = **1900** |
+| `$0B55` (month) | `0x0001` = **January** |
+| `$0B9D` (treasury, 32-bit LE) | `20000` — the `$20000` on the HUD, exactly |
+| framebuffer f3400 / f4000 | a rendered city: terrain, RCI bar, `1900 JAN`, `BullDoze Area $ 1`, cursor |
+
+Two independent instruments agree, and one of them is the guest's own state
+rather than the renderer. The register's own §1 item 3 rule ("`$0B53` is the
+absolute year, 0 means no city") predicts a non-zero year for a loaded city.
+
+**Why the wrong conclusion was reached:** the runs behind entry (q) used a
+**zeroed 32,768-byte save**, which is not the state `scripts/d_city.script` was
+written against. The correct label for those runs is **unknown**, not
+"regression". Entry (q) contained its own refutation in its final line and drew
+the conclusion anyway.
+
+**What replaces it:** the city **loads and renders**; it does **not** simulate
+(§13). Why it does not simulate is **OPEN**.
+
+`make clock` now enforces this: it reads `$0B53` itself and refuses to report
+PASS when it is zero. See `docs/DEFINITION_OF_DONE.md` D2.2.
+
+## 12. RETRACTED 2026-10-02: `force_lle 0x009311` is not in the config
+
+`RE_CITY_FREEZE.md` stated, in the present tense and in backticks as file
+content, that "o nosso cfg **já tem** `force_lle 0x009311`". It does not.
+`git log -S"force_lle 0x009311" -- recomp/bank00.cfg` shows it was **removed** by
+`436b25b` (2026-09-30), *before* the text asserting its presence was written.
+
+The actual set is `{0x008000, 0x00804D, 0x0080B2, 0x00927C, 0x009280,
+0x009287, 0x00928F}`. It was removed **because** a `force_lle` pins one PC inside
+a function beginning at `$930D` — so a reader who acted on that sentence would
+have re-introduced a bug that was already diagnosed and closed.
+
+Related trap: `recomp/funcs.h` defines `CODE_009311` as an **alias of
+`$03:7649`**, not `$00:9311`. Grepping `009311` in `recomp/` finds the wrong
+routine in the wrong bank.
+
+## 13. MEASURED 2026-10-02: the city loads, renders, and does not simulate
+
+This is the current position. `make clock` on the dev host and on the Deck both
+print `1 distinct date images after f3600 (last change f3378 of 6000)`.
+
+Byte-level diff of 128 KiB WRAM across a live city:
+
+| window | bytes differing |
+|---|---|
+| f3400 → f3600 (200 frames) | 30 |
+| f3600 → f4000 (400 frames) | 33 |
+| f4000 → f5000 (1000 frames) | 32 |
+| f5000 → f5999 (999 frames) | 34 |
+| **f3400 → f5999 (2599 frames)** | **34** |
+
+30 of the 34 are in the first 4 KiB; 10 are at `$2510-$251F`, the cursor's OAM
+slot. `$00C7` — a per-frame counter — advances at 5/5 successive samples, so the
+CPU is running every frame. **The CPU runs; the city does not.**
+
+**OPEN, not guessed:** why. `$0B51` is `0000` at 5/5, but its role as "the
+master city tick" is INFERRED from the peer's trace, not measured here. The next
+measurement is a PC/block histogram over f3400-f3600.
+
+**Superseded:** "53 WRAM addresses across 30,000 frames" (§14) and "29 WRAM
+bytes in 3600 frames" are different windows and are not directly comparable.
+Neither is current; use the table above.
+
+## 14. Corrections to this register's own §8, §9 and §2
+
+- **§8 is RETRACTED.** The ROM→CPU mapping is **pinned**: HiROM
+  `offset = bank*0x8000 + (addr & 0x7FFF)`, byte-verified on four independent
+  labels (`$00:930D`, `$00:80B2`, `$03:8026`, `$03:C77E`). The register's
+  counter-evidence — "the bytes at file offset `0x930D` are a dispatch table" —
+  is *true and irrelevant*: `0x930D` is the naive offset that omits the
+  `& 0x7FFF` mask.
+- **§9's row** "`recomp/bank00.cfg:44` contains `exclude_range 0x930D 0x9318` ✅"
+  is **false**: it has read `0x130D 0x1318` since `afceeec`.
+- **§2's quotation** of `clock-gate.sh`'s "$0012 is the gate" text is
+  **retracted**: `$0012` measures `0001` in 5/5 samples and `$0014` measures
+  `8000`. That text has been removed from the script.
+- **`CODE_008061` / `CODE_00825F` never run` — status is OPEN, not RETRACTED.**
+  §1 item 6 lists it as RETRACTED, and that status is wrong. Its
+  premise (`$0012 == 0`) was refuted, which voids the inference and establishes
+  nothing about whether it runs. Recording it as retracted would swap one
+  unmeasured assertion for another of opposite sign — the mechanism behind the
+  paired `$0B51` retraction.
+- **§9's closing note** offers T078 option 1 (commit `aes/`). **That option is
+  forbidden**: `aes/` is gitignored permanently, and the review rubric was moved
+  out of it for exactly this reason (`4b974f5`). Durable content belongs in
+  `docs/`.
+- **"254 distinct crc32"** is stale; `make test-rom` printed **257** on
+  2026-10-02.
+
+## 15. The ledger, and the guard that now checks it
+
+The retraction count lives in **`scripts/retracted-claims.tsv`** — data, not
+prose, so it can be checked, diffed and appended to. This file is the index
+that points at it.
+
+`scripts/check-retracted-claims.sh` (wired as `make check-claims`) fails when a
+script or doc asserts a claim the ledger records as refuted **without a
+retraction marker where the claim is made**. Run it with `--self-test`; it
+demonstrably fails on a seeded violation, which is the only way to know a guard
+works.
+
+**A measurement is retracted only by a second measurement. An interpretation may
+be retracted by reasoning.** Never retract a measurement with an argument —
+that is how the correct `$0B51` claim was replaced by a wrong one.

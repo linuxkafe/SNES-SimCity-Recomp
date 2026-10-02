@@ -1,0 +1,66 @@
+# scripts/retracted-claims.tsv - THE retraction ledger, as data
+#
+# One row per retracted, superseded, or premise-invalidated claim. This file is
+# the single authority; docs/CLAIMS_REGISTER.md is the prose index that points
+# here. It exists as TSV rather than prose for three reasons:
+#
+#   1. It can be CHECKED. scripts/check-retracted-claims.sh reads it and fails
+#      when a ledger pattern is asserted in a script or doc without a retraction
+#      marker nearby.
+#   2. It can be DIFFED. Adding a retraction is a one-line append, visible in
+#      review as a row, not a paragraph rewrite.
+#   3. It can be COUNTED. The project has three prose counts of its own
+#      retractions and no two agree (docs/RE_CITY_FREEZE.md says "doze", the
+#      old register listed 8, git log greps 13 commits). This file is the one
+#      count, and any prose count that disagrees with it is wrong.
+#
+# COLUMNS (tab-separated):
+#   id       stable identifier, cited by decisions and tickets
+#   kind     token | phrase      (token = case-sensitive, phrase = case-insensitive)
+#   status   refuted | superseded | invalidated-premise
+#   pattern  the literal string to look for
+#   where    file:line where the retraction lives. Checked for existence.
+#
+# STATUS SEMANTICS - the distinction is load-bearing:
+#
+#   refuted              A measurement showed the claim to be false.
+#   superseded           The claim was true and has been replaced by a later
+#                        measurement. It is not wrong, it is old.
+#   invalidated-premise  The claim's EVIDENCE was refuted. The inference is
+#                        therefore void. THE CLAIM'S TRUTH IS UNKNOWN. This is
+#                        NOT a retraction, and a checker that treats it as one
+#                        will replace an unmeasured assertion with an
+#                        unmeasured assertion of the opposite sign. That is
+#                        exactly how the paired $0B51 retraction happened.
+#
+# WHEN YOU RETRACT SOMETHING: append a row. Do not edit prose to remove the
+# claim, and do not weaken a pattern to make a check pass.
+
+# id          kind     status                 pattern                                       where
+R-001	phrase	refuted	A cidade não carrega	docs/RE_CITY_FREEZE.md:3114
+R-002	phrase	refuted	the city does not load	docs/RE_CITY_FREEZE.md:3114
+R-003	phrase	refuted	em \*\*um único sítio\*\*	docs/RE_CITY_FREEZE.md:1758
+R-004	phrase	refuted	depois de o seu laço	docs/RE_CITY_FREEZE.md:1758
+R-005	phrase	refuted	the gate is .{0,2}\$?0012	docs/RE_CITY_FREEZE.md:1758
+R-006	phrase	refuted	o gate is \$0012	docs/RE_CITY_FREEZE.md:1758
+R-007	phrase	refuted	13 of 13	docs/RE_CITY_FREEZE.md:1758
+R-008	phrase	refuted	13 de 13	docs/RE_CITY_FREEZE.md:1758
+R-009	phrase	refuted	What is established	scripts/clock-gate.sh:1
+R-010	phrase	refuted	$02BF pause	docs/RE_CITY_FREEZE.md:1120
+R-011	phrase	superseded	29 WRAM bytes move	docs/CLAIMS_REGISTER.md:1
+R-012	phrase	superseded	2.45 ms on the Deck	scripts/perf-gate.sh:1
+R-013	phrase	superseded	254 distinct crc32	README.md:1
+R-014	phrase	superseded	53 WRAM addresses	docs/CLAIMS_REGISTER.md:1
+R-015	phrase	refuted	the ROM->CPU address translation could not be confirmed	docs/CLAIMS_REGISTER.md:189
+R-016	phrase	refuted	load average 8	docs/CLAIMS_REGISTER.md:1
+R-017	phrase	refuted	fps and game time are coupled	docs/CLAIMS_REGISTER.md:1
+R-018	phrase	refuted	force_lle 0x009311	docs/RE_CITY_FREEZE.md:1143
+R-019	phrase	invalidated-premise	CODE_008061 never runs	docs/RE_CITY_FREEZE.md:1758
+R-020	phrase	invalidated-premise	INC.w $0B51	docs/CLAIMS_REGISTER.md:218
+R-021	phrase	superseded	2\.45 ms	scripts/perf-gate.sh:41
+R-022	phrase	superseded	254 distinct crc32	README.md:172
+R-023	phrase	refuted	causal link is proven	README.md:70
+R-024	phrase	refuted	<-- THE GATE	README.md:70
+R-025	phrase	refuted	proven by pokefor	README.md:70
+R-026	phrase	refuted	demonstrably does not run	README.md:70
+R-027	phrase	refuted	AND #\$9000 gates INC	README.md:70

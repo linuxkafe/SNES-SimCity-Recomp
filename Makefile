@@ -1,4 +1,5 @@
-.PHONY: build debug test test-rom perf clock clock-self-test clean doctor
+.PHONY: build debug test test-rom perf clock clock-self-test check-claims \
+        check-claims-self-test review-check clean doctor
 
 BUILD_DIR := build
 
@@ -60,6 +61,26 @@ clock: build
 
 clock-self-test: build
 	scripts/clock-gate.sh --self-test --frames 1200
+
+# Evidence-integrity gate. Cheap, needs no ROM and no build, and it is the guard
+# whose absence let eleven retractions stand: it fails when a script or doc
+# asserts a claim that scripts/retracted-claims.tsv records as refuted, without
+# a retraction marker where the claim is made. A gate that teaches a retracted
+# cause is worse than one that reports none, because the wrong cause is what
+# the next session starts from.
+#
+# Run it with --self-test after editing either the checker or the ledger: a
+# guard that has never been seen to fail has not been tested.
+check-claims: build
+	scripts/check-retracted-claims.sh
+
+check-claims-self-test:
+	scripts/check-retracted-claims.sh --self-test --open-labels
+
+# Validates the findings in docs/review/REVIEW-*.md against the tree. Intended
+# to be run by someone other than the author of the review.
+review-check:
+	docs/review/validate-findings.sh
 
 clean:
 	rm -rf $(BUILD_DIR)

@@ -57,53 +57,70 @@ echo
 
 # ------------------------------------------------- F-01 gate asserts a cause
 echo "-- F-01 (BLOCKER) clock-gate.sh asserts a cause measurement refuted --"
-n_est=$(grep -c 'What is established' scripts/clock-gate.sh 2>/dev/null || echo 0)
+# Check for the ASSERTION, not the mention. The script is allowed to say "a
+# previous version printed a heading reading X" - that is the retraction, and
+# flagging it would make the fix impossible. What must not survive is a printf
+# that emits the heading or the claim.
+# The label form only. A line that NAMES the old heading while retracting it
+# ("under a heading reading \"What is established\". That cause was...") is the
+# fix, not the defect; flagging it would make the fix impossible to write.
+n_est=$(grep -cE 'printf.*What is established:' scripts/clock-gate.sh 2>/dev/null); n_est=${n_est:-0}
 if [ "$n_est" -gt 0 ]; then
-	bad "F-01 'What is established' still present in clock-gate.sh ($n_est) -- BLOCKER not closed"
+	bad "F-01 clock-gate.sh still PRINTS 'What is established' ($n_est) -- BLOCKER not closed"
 else
-	ok "F-01 clock-gate.sh no longer prints 'What is established'"
+	ok "F-01 clock-gate.sh no longer prints the 'What is established' heading"
 fi
-# the specific refuted assertions
 for tok in '0012' 'CODE_03D283' 'CODE_03D287' 'CODE_008061'; do
-	c=$(grep -c "$tok" scripts/clock-gate.sh 2>/dev/null || echo 0)
+	c=$(grep -cE "printf.*${tok}" scripts/clock-gate.sh 2>/dev/null); c=${c:-0}
 	if [ "$c" -gt 0 ]; then
-		bad "F-01 clock-gate.sh still asserts '$tok' ($c site(s))"
+		bad "F-01 clock-gate.sh still PRINTS a refuted cause containing '$tok' ($c site(s))"
 	fi
 done
+if ! grep -qE 'printf.*(NOT ESTABLISHED|does not guess)' scripts/clock-gate.sh 2>/dev/null; then
+	bad "F-01 clock-gate.sh does not state that the cause is not established"
+else
+	ok "F-01 clock-gate.sh states the cause is NOT ESTABLISHED"
+fi
 echo
 
 # --------------------------------------- F-02 test hardcodes the author's home
 echo "-- F-02 (BLOCKER) tests/ hardcodes an absolute path into the author's home --"
-n_home=$(grep -rn '/home/seyon' tests/ 2>/dev/null | wc -l)
+# Count CODE occurrences, not comments. The test's header deliberately records
+# that it used to hardcode the path; a comment saying so is the retraction, and
+# flagging it would forbid documenting the fix.
+n_home=$(grep -rn '/home/seyon' tests/ 2>/dev/null | grep -vE '^[^:]+:[0-9]+: *(\*|//|/\*)' | wc -l)
 if [ "$n_home" -gt 0 ]; then
-	bad "F-02 $n_home line(s) in tests/ contain /home/seyon -- BLOCKER not closed"
-	grep -rn '/home/seyon' tests/ 2>/dev/null | sed 's/^/      /'
+	bad "F-02 $n_home CODE line(s) in tests/ contain /home/seyon -- BLOCKER not closed"
+	grep -rn '/home/seyon' tests/ 2>/dev/null | grep -vE '^[^:]+:[0-9]+: *(\*|//|/\*)' | sed 's/^/      /'
 else
-	ok "F-02 no absolute path to the author's home in tests/"
+	ok "F-02 no absolute path to the author's home in tests/ code (comments excluded)"
 fi
-# and the README claim that it was fixed
 if grep -q 'now relocatable' README.md 2>/dev/null; then
 	if [ "$n_home" -gt 0 ]; then
 		bad "F-02 README claims the gate 'is now relocatable' while the path is still hardcoded"
+	else
+		ok "F-02 README's relocatability claim is now true"
 	fi
 fi
 echo
 
 # ------------------------------------ F-03 refuted premise listed as retracted
 echo "-- F-03 (BLOCKER) a refuted premise recorded as a retraction --"
-if grep -n 'CODE_008061' docs/CLAIMS_REGISTER.md 2>/dev/null | grep -qi 'never run'; then
-	bad "F-03 CLAIMS_REGISTER still lists 'CODE_008061 never runs' as retracted, not OPEN"
+# The requirement is that CODE_008061's status is labelled OPEN, not that the
+# words "never run" are absent - the retraction itself must name the claim.
+if grep -n 'CODE_008061' docs/CLAIMS_REGISTER.md 2>/dev/null \
+   | grep -qiE 'OPEN'; then
+  ok "F-03 CLAIMS_REGISTER labels CODE_008061's status OPEN, not retracted"
 else
-	ok "F-03 CLAIMS_REGISTER does not list CODE_008061-never-runs as a retraction"
+  bad "F-03 CLAIMS_REGISTER does not label CODE_008061's status OPEN"
 fi
-if grep -rn 'CODE_008061' scripts/ docs/ 2>/dev/null | grep -qiE 'never run'; then
-	bad "F-03 'CODE_008061 ... never runs' still asserted in scripts/ or docs/"
+if scripts/check-retracted-claims.sh >/dev/null 2>&1; then
+  ok "F-03 no script or doc asserts 'CODE_008061 never runs' without a marker"
 else
-	ok "F-03 'CODE_008061 never runs' is not asserted anywhere in scripts/ or docs/"
+  bad "F-03 check-retracted-claims.sh reports an unmarked assertion (run it for detail)"
 fi
 echo
 
-# ------------------------------- F-05 evidence index recommends a rule break
 echo "-- F-05 (MAJOR) CLAIMS_REGISTER recommends committing aes/ --"
 if grep -qi 'un-ignore' docs/CLAIMS_REGISTER.md 2>/dev/null; then
 	bad "F-05 CLAIMS_REGISTER still recommends un-ignoring aes/ (forbidden by standing rule)"
@@ -154,35 +171,36 @@ echo
 
 # ------------------------------------------------------- F-13 deleted line
 echo "-- F-13 (MINOR) the log quotes a config line that was deleted --"
-n_q=$(grep -rn 'force_lle 0x009311' docs/ README.md 2>/dev/null | wc -l)
-if [ "$n_q" -gt 0 ]; then
-	bad "F-13 $n_q doc site(s) still quote 'force_lle 0x009311' (removed by 436b25b)"
+# A mention is fine; an unmarked mention is not. The guard implements the
+# marker-within-N-lines rule, so delegate rather than counting.
+if scripts/check-retracted-claims.sh >/dev/null 2>&1; then
+  ok "F-13 every 'force_lle 0x009311' mention carries a retraction marker"
 else
-	ok "F-13 no doc site presents 'force_lle 0x009311' as present"
+  bad "F-13 an unmarked 'force_lle 0x009311' quote remains (run check-retracted-claims.sh)"
 fi
-# confirm against the tree and history
 if grep -rq 'force_lle 0x009311' recomp/ 2>/dev/null; then
-	bad "F-13 recomp/ actually contains force_lle 0x009311 -- the doc may be right"
+  bad "F-13 recomp/ actually contains force_lle 0x009311 -- the doc may be right"
 else
-	ok "F-13 confirmed: recomp/ has no force_lle 0x009311, so the doc quote is stale"
+  ok "F-13 confirmed: recomp/ has no force_lle 0x009311, so the doc quote is stale"
 fi
 echo
 
-# --------------------------------------------- F-14 stale numbers in prose
 echo "-- F-14 (MINOR) stale figures --"
-if grep -q '2\.45 ms' scripts/perf-gate.sh 2>/dev/null; then
-	bad "F-14 perf-gate.sh still states guest costs '2.45 ms on the Deck'"
+# Presence is not the test; an UNMARKED presence is. Both figures are in the
+# ledger, so the guard decides, and a marked mention is the fix rather than a
+# violation.
+if scripts/check-retracted-claims.sh >/dev/null 2>&1; then
+  ok "F-14 every mention of the stale figures (2.45 ms, 254 crc32) carries a marker"
 else
-	ok "F-14 perf-gate.sh no longer states the stale 2.45 ms Deck figure"
+  bad "F-14 an unmarked stale figure remains (run check-retracted-claims.sh)"
 fi
 if grep -qE '\b254\b' README.md 2>/dev/null; then
-	bad "F-14 README still states 254 distinct crc32"
+  bad "F-14 README still states 254 distinct crc32"
 else
-	ok "F-14 README no longer states 254 distinct crc32"
+  ok "F-14 README no longer states 254 distinct crc32"
 fi
 echo
 
-# ------------------------------------------------------- legal, always checked
 echo "-- legal (D4 of the definition of done) --"
 n_sfc=$(git ls-files 2>/dev/null | grep -ci '\.sfc$')
 [ "$n_sfc" -eq 0 ] && ok "no ROM tracked" || bad "$n_sfc ROM file(s) tracked"

@@ -72,7 +72,8 @@ is not a defect in them; it is why D2 exists.
 | D2.4 | The simulation is more than a cursor | WRAM diff between two samples >= 200 frames apart, in a live city, must exceed a **dead-city baseline** that the gate computes itself | printed bytes > printed baseline |
 
 **D2.2 is the anti-claim clause.** It exists because entry (q) of
-`docs/RE_CITY_FREEZE.md` asserted "the city does not load" and the assertion
+`docs/RE_CITY_FREEZE.md` asserted "the city does not load" (RETRACTED
+2026-10-02 - the city does load) and the assertion
 survived several sessions unchallenged, and because the previous generation of
 this DoD would have been satisfied by that assertion. A gate that can pass
 without proving the city exists is a gate that a claim can satisfy.

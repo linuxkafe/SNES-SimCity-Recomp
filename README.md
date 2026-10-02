@@ -67,9 +67,11 @@ very next frame.
 
 ![A city at 1900 JAN, frozen](docs/screenshots/city-frozen.png)
 
-**Where it is stuck, measured.** This is not a compilation problem — the bank-03
-tick is compiled to native C and still does not run. The chain, each link with its
-own measurement, is in `docs/RE_CITY_FREEZE.md`:
+**Where it is stuck: NOT KNOWN.** This is not a compilation problem — the
+bank-03 tick is compiled to native C and still does not run. But the *reason* is
+**not established**, and the chain below is the generation of hypotheses that was
+measured false on 2026-10-02. It is printed here as history, not as the answer,
+because it is what this file asserted until then:
 
 ```
 $009311  the guest waits on $B9, set by the NMI handler   $B9 = 0, $C7 spinning
@@ -82,11 +84,30 @@ $038000  the task that increments the month                does not run
 $0B53/$0B55  the date                                       never leaves 0
 ```
 
-The causal link is proven, not argued: `pokefor 0012 01 400` forces `$12` to 1 and
-`$1F7D..$1F7F` immediately becomes `00 80 03`, which is exactly what `CODE_00825F`
-writes. In normal play those bytes are `00 00 00 00` in every sample, so
-`CODE_008061` demonstrably does not run. The open question is one link further
-down: what makes `$14` negative, which lets the scheduler loop exit.
+**RETRACTED 2026-10-02 — do not read the chain above as the diagnosis.** Its two
+load-bearing claims are both measured false:
+
+- `$12` **is not 0**. It reads `0001` at 5 of 5 frame-boundary samples spanning
+  2,599 frames of a live city, as does `$14` — so the "THE GATE" link rests on a
+  value that is not what the table says it is.
+- `CODE_008061 demonstrably does not run` is **OPEN, not established.** Its
+  evidence was `$12 == 0`, which is false. A false premise voids the inference
+  and establishes nothing in its place — which is *not* a claim that it does run.
+
+The one solid result here is narrower than it looks: forcing `$12 = 1` with
+`pokefor 0012 01 400` does make `$1F7D..$1F7F` become `00 80 03`, so **the path
+through `CODE_00825F` exists**. That shows reachability, not causation; a causal
+claim needs the converse, and the converse was never measured.
+
+Also settled, and the reason the deadlock is gone: `$009311` no longer spins
+(`$B9 = 0001` at 5/5, `$C7` advancing). See `docs/RE_CITY_FREEZE.md` entry (q)
+and `docs/CLAIMS_REGISTER.md` §2, §13, §14.
+
+**The current position:** the city loads and renders, and does not simulate — 34
+WRAM bytes change across 2,599 frames of a live city. **Why is not established.**
+The next measurement is a PC/block histogram over f3400-f3600. See
+`docs/DEFINITION_OF_DONE.md` for why "the root cause is known" is listed there
+under *Not criteria*.
 
 **The reference that works, and what comparing against it proved.**
 `Junior-Jones/SimCity-SNES-Static-Recomp` recompiles the same ROM and its clock
@@ -171,17 +192,41 @@ the claims were.
 
 ### Gates
 
-| command | what it proves | today |
-|---|---|---|
-| `make test` | the core replays deterministically (30 frames) | PASS |
-| `make test-rom` | the picture moves (frames 200–800) | PASS |
-| `make perf` | the frame rate holds (600 frames) | PASS |
-| `make clock` | **the city actually simulates** (6000 frames) | **FAIL** |
+Every figure below names the machine and the date it was measured on. A gate
+result without a machine is not a measurement — see
+`docs/DEFINITION_OF_DONE.md` Rule 0.
 
-Verified on a Steam Deck as well as this host: `test-rom` PASS (254 distinct
-crc32), `perf` PASS at 60.05 fps against a 50 fps threshold, `clock` FAIL with
-`1 distinct date images after f3600`. The determinism gate is now relocatable —
-it used to hardcode one developer's checkout path and could only pass there.
+| command | what it proves | dev host `seyon`, 2026-10-02 | Deck `steamdeck`, 2026-10-02 |
+|---|---|---|---|
+| `make test` | the core replays deterministically (30 frames) | PASS (2/2) | not run |
+| `make test-rom` | the picture moves (frames 200–800) | PASS, **257** distinct crc32 | not re-run |
+| `make perf` | the frame rate holds (600 frames) | **PASS 51.52 / FAIL 48.38** — see below | PASS, 56.88 fps |
+| `make clock` | **the city actually simulates** (6000 frames) | **FAIL** | **FAIL** (identical) |
+| `make check-claims` | no retracted claim is asserted without a marker | PASS | not run |
+
+**`make perf` straddles its own threshold on this host.** The same binary, the
+same ROM, the same commit, measured twice in one session: **FAIL at 48.38 fps**
+and **PASS at 51.52 fps**, against a threshold of 50. That is host load, not a
+recompiler change, and it is the clearest available demonstration that this gate
+proves very little. On the Deck all five runs finished in exactly 10.549 s — to
+the millisecond, five times — so Deck pacing is **frame-locked** and the gate
+cannot detect guest slowdown there at all. It answers "does it still run".
+
+`make clock` is the one that matters and the one that is red. It fails
+identically on both machines: `1 distinct date images after f3600 (last change
+f3378 of 6000)`. It now also prints the guest's own year word as proof that a
+city object exists (`$0B53 = 0x076C` = 1900), so it **cannot report PASS on a
+build that loads no city** — verified by pointing it at a script that never
+reaches one, which it refuses with a distinct "no city was loaded" verdict.
+
+The determinism gate (`make test`) is now genuinely relocatable. It used to
+hardcode one developer's checkout path for both the script and the ROM, so it
+could only pass there, and on a relocated clone it silently read the *original*
+repository's files while running the relocated binary — reporting 2/2 passed on
+a tree containing no ROM at all. It now takes the ROM from `$SIMCITY_ROM` or
+finds one beside the build, and **skips with a clear message** if there is none,
+rather than reaching outside the tree. `make test-rom` and `make clock` are the
+gates that require a ROM and fail without one.
 
 `make clock` is the one that matters and the one that is red. The other three
 pass while the game is a still image, and they pass for the same reason each:
