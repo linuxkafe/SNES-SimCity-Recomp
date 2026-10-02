@@ -108,48 +108,40 @@ after the city loads. `$0DC7`, two instructions later, is dead too, which is
 independent corroboration of the same block. This build changes 53 WRAM
 addresses across 30,000 frames of a live city; the peer changes 102,158.
 
-**The open question, and the answer.** For twelve commits this was framed as an
-unbounded static question — how does control reach `$03:8026`, given no direct
-edge, no long pointer and no RAM jump table? It is bounded after all, and the
-bound is our own recompiler.
+**The open question — reopened, and the last answer was wrong.** For twelve
+commits this was framed as an unbounded static question — how does control reach
+`$03:8026`? — and then as a bounded one, in our own recompiler. **Both framings
+are now falsified by measurement on the Deck.**
 
-The reference implementation compiles **685 COP sites** as full hardware
-interrupt frames. We do not decode COP at all.
-`recompiler/snes65816.py:483` returns False for `BRK` and `COP` with the comment
-*"BRK or COP in game code is almost certainly data."*
-`recompiler/v2/program_analysis.py:298` then marks every function containing one
-as `structural_poison` and — the fatal part — **suppresses that function's
-outgoing demands**, so the whole COP-dispatched subtree is invisible to
-reachability analysis.
+**COP refusal is not the cause.** The theory was that we refuse to decode COP
+(`recompiler/snes65816.py:483`), poison every function containing one, and
+suppress their outgoing demands — so the COP-dispatched subtree is invisible to
+reachability, and `$03:8026` has no compiled body. The tier-2 discovery journal
+says otherwise:
 
-The consequence is measurable. Our `src/gen/dispatch_v2.c` has **no entry for
-`$03:8026` at all**; the reference has a compiled context for exactly that
-address. And this is not a corner case: the game's entire cross-bank call
-mechanism runs through COP, at `$00:8211` dispatching on `JSR ($8223,X)`. Three
-entries of that eleven-word dispatch table (`$008E43`, `$008E75`, `$008F82`) are
-among our eleven cop-poisoned manifest nodes.
+- `$03:8000–$03:8200` appears as a dispatch target or tier-down **zero times** in
+  12,000 frames. The guest never attempts the transfer.
+- The COP path is **not** broken. `$008211`/`$00821E` execute, and two of the
+  eleven poisoned nodes (`$008E43`, `$008E75`) were genuinely reached *through*
+  the `$8223` dispatch and interpreted to a clean exit. Suppressing outgoing
+  demands does not prevent execution.
+- And **no word anywhere in the ROM points into `$038000–$038220`** — zero, of
+  any form. Refusing to decode COP cannot cause a transfer that is never
+  generated.
 
-The CPU itself is correct. `interp816.c:1036` and the reference's frame
-construction agree byte for byte — same push order, same `$00:FFE4` vector,
-signature consumed rather than pushed, I set and D cleared. **The bug is in the
-static analysis that decides the CPU never sees COP.**
+**The world is stopped, not mis-dispatched.** After frame 3145 the guest produced
+**zero new tier-downs across 8,855 consecutive frames**, and frames 6000, 8750
+and 11500 are **byte-identical** — 0 of 75,264 pixels differ. Only 35 WRAM bytes
+move between frame 6000 and 11500. That is a halted machine, not a missing
+dispatch.
 
-Two further gaps found in the same review, both stated from source:
-
-- `interp_bridge_lle_took_quiescent()` (`interp_bridge.c:633`) is **never
-  called**. The guest's vblank wait is a read-only spin at `$00:9313`, the
-  quiescence detector fires, and the frame driver — which checks
-  `interp_bridge_lle_took_wai()` and nothing else — drops the signal and
-  re-enters the guest up to 64 times.
-- Our NMI is delivered as a host excursion that pushes a frame at a *host* static
-  and then rewrites `S`, `D`, `PB`, `DB` and the resume PC by fiat
-  (`game_rtl.c:190-202`). The AOT `RTI` discards the restored PC and PB
-  (`bank00_v2.c:371`). The reference takes the interrupt in-band and lets the
-  handler's `RTI` restore and continue.
-
-The reference has one more thing we lack: a **certified route**. Every unknown
-context is a hard stop carrying the failing `M=`, `X=`, `E=`. Ours converts every
-static-analysis failure into a silent runtime continuation.
+**The ambiguity this reopens.** No pointer exists in the ROM, yet the reference
+takes `$0B51` to `$006D`. So either a caller assembles bank `$03` and address
+`$8000` arithmetically, or **the reference never runs `$03:8026` at all** and
+advances `$0B51` some other way. We have been assuming the second half of that
+without evidence since the day we adopted the peer's clock as ground truth. The
+single measurement that separates them: take a PC trace of frames 3140–3150 and
+identify the last block that executes before silence.
 
 Two corrections to what this file previously claimed, both because the
 measurements were wrong rather than the reasoning:
