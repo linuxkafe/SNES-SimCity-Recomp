@@ -6,6 +6,83 @@
 > marked a non-goal in the same file. `aes/kanban.md` is the live tracker; this
 > file is the *shape* of the work, not the queue.
 
+---
+
+## CURRENT NEXT PATH — reconciled 2026-10-02 at `02bc55f`
+
+> **This section is the tracked mirror of `aes/kanban.md` + `aes/decisions/D013.md`.**
+> `aes/` is **gitignored permanently** (T078, DoD D4.3), so neither the board nor
+> the decision record is versioned and neither exists in a fresh clone. This is
+> the only place the reconciliation survives `git clone`. **If the two disagree,
+> this file is what a clone actually gets, and that is the whole reason it is
+> here.**
+
+### The recommendation
+
+**Extend our own run past the reference's first tick and count `$03:8026`
+executions. One Steam Deck run, 6 000 frames, `SNESRECOMP_COUNT_PC=038026` with
+`SNESRECOMP_PHASE_MS=1`, no new code.**
+
+C-041 measured the tick at **zero** executions over f0–f3700. **That window
+cannot answer the question it was used to answer**: the reference build's first
+`$03:8026` execution is at **f3857**, 157 frames past the end of it, so C-041's
+window contains **no frame in which the reference would have executed the tick
+even once**. Same logical shape as the f3301 bracket that became C-039 → C-039b.
+
+Chosen over `$0014` bit 7 / the bank-`$03` entry graph, over `$03:DBB3`, and over
+the "the framing is wrong" hypothesis, for four reasons in order of weight:
+
+1. it is the **only** candidate that closes an existing OPEN with a yes/no, and
+   **both answers are informative**;
+2. it cures a **known defect in an existing measurement** rather than adding a
+   new one;
+3. it costs **one run and zero new code** — the instrument exists and its one
+   documented trap (it prints nothing without `PHASE_MS`) is already known;
+4. it **gates the interpretation of everything else** — if the tick runs anyway
+   past f3857, then the f3271 boundary is not what stands between us and the
+   clock, and the bank-`$03` questions drop in value immediately.
+
+**What would falsify it, stated before running:** the counter printing nothing
+even with `PHASE_MS=1` (then the path is blocked on a seventh instrument trap
+and that is the honest outcome, not a substitute measurement); and a run that
+ends `SDL_QUIT` or short — **void regardless of the count**, because on this
+Deck `SDL_QUIT` means we signalled it and a truncated trace is not a smaller
+trace.
+
+### The reconciled queue
+
+| ticket | state |
+|---|---|
+| **T100** — does `$03:8026` run in ours past f3857 | **OPEN — the recommended path** |
+| **T101** — which peer run is right: does the reference simulate at all | **OPEN** (`produces: []`) |
+| **T086** — why does bank `$03` go silent | **RESCOPED, not closed.** *Where* is answered (f3271) and the mechanism is measured: `$03:D2AA` sets `$0012 = 1` one instruction before bank `$03`'s final `RTL`, and `$00:804D` is never executed again. The *why* is OPEN and is no longer the delivery question |
+| T087 — is `$03:8026` among the executing bank-`$03` PCs | **CLOSED** `4ba14c7`, caveated `940de2a` (C-041b); superseded in scope by T100 |
+| T092 — "the Deck cannot build this project" | **CLOSED** — false; both tiers link, `deck-trace-build.sh` refuses a mute build |
+| T093 — what advances `$0B51` in the peer | **CLOSED** `940de2a` — it is `$03:8026`, 27 executions, first f3857, **and the answer did not help** |
+| T094 — `check-causes` fires on its own header | **CLOSED** |
+| T089 — README asserts refuted claims | **CLOSED** `02bc55f` |
+| T095, T096, T097, T098, T099 | OPEN, not on the delivery path |
+| T069 — peer repo has no licence | **BLOCKED ON OWNER** |
+
+**Numbers this reconciliation corrected:** bank-`$03` boundary f3301 → **f3271** ·
+retraction count 22 → **26 of 34 rows** · bank-`$03` range `$03C63D`–`$03E57E` →
+**interpreted** `$03C63D`–`$03E57E` and **AOT** `$03B477`–`$03C463` (ledger
+R-033) · AOT total 1 430 539 → **1 430 540**, bank `$03`'s 18 = **15 in f3270 +
+3 in f3259**.
+
+### What is still OPEN and is not going to be closed by any of the above
+
+- **Why the city does not simulate** (C-006). No cause is asserted anywhere.
+- **Whether *any* route, in either project, reaches a simulating city.** Two
+  measured peer runs disagree — one at 23 months across 33 700 frames, one with
+  27 ticks and the year stuck at 1900 across 9 000 — and the routine's
+  `AND #$0003` arithmetic predicts ≈6 month advances in that second window and
+  finds none. **The premise "the reference simulates and we do not" is therefore
+  not currently available**, and until it is settled, fixing *our* tick is a fix
+  to something whose sufficiency has counterevidence.
+
+---
+
 ## Where the project is
 
 **The migration to static recompilation is done.** T031 closed it. The shipped
