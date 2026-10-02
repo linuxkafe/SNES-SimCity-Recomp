@@ -623,6 +623,22 @@ session does not pay for them again.
    `[aotblk]` count is non-zero, because a link that produces no trace output is
    not a working instrument.
 
+5. **On the Steam Deck, `exit: SDL_QUIT` means you signalled it — not that the
+   game did.** A SIGTERM reaching the host surfaces as `SDL_QUIT event after N
+   frames`, with no crash and no guest-side cause. Four runs died at 1 414, 1 425,
+   1 428 and 1 430 frames, and the death time tracked the supervising `timeout`
+   value to within 0.5 s in every case; a fifth, run in the foreground and killed
+   by the operator's own `timeout 130`, died at 129.997 s. **Only
+   `[host +T s] exit: RUN_FRAMES reached` is a clean completion.** A truncated
+   trace is not a smaller trace — every dead run above still produced 250 000+
+   `[aotblk]` lines and a plausible per-bank split, which is precisely how a
+   partial census gets reported as a whole one. Run long Deck measurements in the
+   foreground of a live ssh session with a `timeout` well clear of the expected
+   duration, and log to `/dev/shm` (tmpfs, 7.2 GB free) rather than `/home`, where
+   the same binary ran at ~4 300 lines/s against 154.2 s for the full 4 000 frames
+   to `/dev/null`. Measured in
+   `docs/measurements/2026-10-02-deck-aot-histogram.md` §4.
+
 Two knobs were added for this, dev-only behind `-DSNESRECOMP_INTERP_PROFILE`:
 `SNESRECOMP_INTERP_DUMP_BANK=03` prints **every** distinct PC in one bank with
 its step count (the top-60 list cannot answer "is this one address among
