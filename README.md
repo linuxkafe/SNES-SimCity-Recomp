@@ -8,27 +8,53 @@ and audio are read at runtime from a copy of the original ROM that **you**
 supply; the ROM and any ripped assets are never included. Built on the
 **snesrecomp** framework.
 
+> ### How to read this file
+>
+> Every causal sentence below carries its state — **[MEASURED]** (an instrument
+> observed it), **[INFERRED]** (deduced, not observed here), **[OPEN]** (asked,
+> not answered) — or is a **retraction**, marked where the claim was made. The
+> classification of *every* causal claim in this project, with the instrument
+> behind it, is [`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md); the standard of
+> proof is [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md), whose Rule
+> 0 is that **no criterion may be satisfied by a claim — only by a command that
+> exits 0**.
+>
+> This project has retracted **22** claims (computed, `make retraction-count` —
+> never a hand-written number). Where an old claim is quoted below it is
+> labelled **RETRACTED** and is printed as history, not as the answer.
+
 ### How much of it is actually native
 
-The honest answer, because "native recompilation" on its own oversells this:
+"Native recompilation" on its own oversells this, so the counts are given from
+the generated manifest in the working tree
+(`src/gen/program_manifest.json`; `src/gen/` is derived from your ROM and is
+never committed):
 
-- **204 of the game's 303 routines** are recompiled ahead of time into C++17.
-- The remaining **99 run in the bundled 65816 interpreter**. They hold only 605
-  of 9,813 static instructions (6.2%), but they are spin/wait loops that execute
-  about **1,427 opcodes per frame**, and a sampled CPU profile puts them at
-  **~7% of total process CPU — roughly 89% of the time actually spent executing
-  guest code**.
-- So by function count this is two-thirds native; by time spent running the
-  game, the interpreter is the larger half. **Neither figure is a measurement of
-  gameplay**: every workload measured so far is attract mode and menus, because
-  no script yet reaches a running city.
+| | measured |
+|---|---|
+| routines in the manifest | **302** |
+| recompiled ahead of time (`aot_eligible`) | **239** |
+| interpreter-only (`lle_only`) | **63**, holding **512 of 9 803** static instructions (**5.2%**) |
+| distinct AOT symbols emitted into `src/gen/*.c` | **186** |
 
-Measured with a `CLOCK_PROCESS_CPUTIME_ID` sampler validated against `addr2line`
-on the Debug build (agreement within 0.15 percentage points), with the profiled
-run's WRAM hash identical to the unprofiled one to show the sampler did not
-perturb the guest. Note the caveat the snesrecomp fork itself documents: AOT
-code never advances the PPU beam while the interpreter advances it every
-opcode, so a *time* share is not automatically a *correctness* claim.
+By function count this is roughly four-fifths native. By *time* it is not, and
+the honest time figure is workload-dependent — it is stated per workload
+below rather than as one number:
+
+- **A live city executes ~7 214 interpreted opcodes per frame** (2 308 599
+  steps over the 320-frame live window, banks 00+01 — measured on the Deck, see
+  the instrument note below). The earlier figure of ~1 427 opcodes/frame was
+  measured on **attract mode and menus** and is bounded to those.
+- The bank-03 tick and the task dispatcher are **not** the whole story of what
+  the interpreter runs; in a live city the interpreted time is dominated by the
+  **vblank spinlock** (`$009311`/`$009313`/`$009315`, ~1 800 iterations/frame)
+  plus the NMI handler once per frame.
+
+Both counts are **[MEASURED]**, both are blind to AOT, and neither is a
+measurement of *gameplay*: correctness is a separate question, and the snesrecomp
+fork documents the relevant asymmetry — AOT code never advances the PPU beam
+while the interpreter advances it every opcode, so a share of *time* is not
+automatically a claim about behaviour.
 
 ## About the Game
 
@@ -48,262 +74,203 @@ were added. This port reproduces that SNES release.
 
 ## Status
 
-✅ **Runtime stable**: 10,000+ frames headless without watchdog timeout  
-✅ **APU sync fixed**: No more startup timeout  
-✅ **Watchdog fixed**: VBlank wait loop at $00927C forced to interpreter  
-✅ **NMI handler stabilized**: Forced to interpreter at $0080B2  
-✅ **Deterministic replay**: Bit-identical state traces verified  
-✅ **Holds its frame rate**: 60.06 fps peak on an i5-8500T; 56.88 fps on a Steam
-   Deck, **frame-locked** (five runs identical to the millisecond, so that figure
-   cannot detect guest slowdown at all). Both are gross-regression floors, not
-   headroom figures — see the Performance section. 
+**The city renders and it does not simulate. `make clock` is red and must stay
+red.** One paragraph, because the rest of this section is the evidence:
+
+| | state |
+|---|---|
+| ROM boots to attract, menus, naming | **working** [MEASURED] |
+| A live city loads and is presented | **working** [MEASURED] — `$0B53 = 0x076C` (year 1900), `$0B55 = 1`, `$0B9D = 20000` |
+| The vblank token handshake (a former deadlock) | **fixed** [MEASURED] |
+| Date, population, treasury advance | **they do not** [MEASURED] — 34 WRAM bytes change across 2 599 frames of a live city |
+| **Why the simulation does not advance** | **OPEN** — no cause is asserted anywhere in this repository |
 
 ![SimCity title screen](docs/screenshots/title.png)
 
-⚠️ **The city loads and renders, but it does not simulate.** Not deliverable. The date stays
-`1900 JAN` forever — no month ever appears across 30,000 frames, the seasons
-never recolour the map, the population stays 0 — while the controller does
-nothing. `scripts/d_city.script` drives the game from boot into a live city
-headlessly and deterministically, so this is not a game-flow problem, and the
-renderer is proven live: poking a WRAM byte moves the presented picture on the
-very next frame.
+⚠️ **Not deliverable.** The date stays `1900 JAN` forever — no month ever appears
+across 6 000 frames, the seasons never recolour the map, the population stays 0 —
+while the controller does nothing. `scripts/d_city.script` drives the game from
+boot into a live city headlessly and deterministically, so this is **not** a
+game-flow problem, and the renderer is proven live: poking a WRAM byte moves the
+presented picture on the very next frame.
 
 ![A city at 1900 JAN, frozen](docs/screenshots/city-frozen.png)
 
-**Where it is stuck: NOT KNOWN, and here is what is actually measured.**
+### What was fixed: the vblank token handshake
 
-> **RETRACTED 2026-10-02 (review finding R-03).** This file used to say, in the
-> present tense and two lines below the honest status above: *"This is not a
-> compilation problem — the bank-03 tick is compiled to native C and still does
-> not run."* **That is false as stated.** Measured on 2026-10-02 over frames
-> 0–3700, bank 03 executes **921 distinct PCs and 515,043 interpreted steps** —
-> it is not code this build never reaches. What is true is much narrower and much
-> more interesting:
->
-> - bank 03 runs up to **f3300** (160,693 steps in f3100–f3300) and executes
->   **zero** steps from f3301;
-> - the live-city window (f3381–f3700) is confined to **banks 00 and 01**;
-> - the city is on screen from ≈f3378, so bank 03 goes silent roughly **78 frames
->   before** the city appears. That is a **correlation** and no cause is claimed
->   for it anywhere in this repository.
->
-> Instrument, raw counts and what the instrument cannot see:
-> [`docs/measurements/2026-10-02-deck-interp-histogram.md`](docs/measurements/2026-10-02-deck-interp-histogram.md).
-> Classification of every causal claim in this project:
-> [`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md).
-
-The chain below is the generation of hypotheses that was measured false on
-2026-10-02. It is printed here as history, not as the answer, because it is what
-this file asserted until then:
-
-**RETRACTED 2026-10-02 — every row of this table is history, not a diagnosis.**
-(The longer retraction is directly below the table; this line exists so that no
-row inside the block is more than a few lines from the word that refutes it.)
+The game's vblank wait is a **token handshake**, not a flag test. ROM bytes,
+bank 00, file offset `0x130F`. The mapper is **LoROM** — the SNES header sits at
+`0x7FC0` and reads `SIMCITY`, and `0xFFC0` is filler; the linear rule this project
+uses, `offset = bank*0x8000 + (addr & 0x7FFF)`, *is* the LoROM rule and is
+byte-verified on two independent labels (several tracked documents call this
+mapping "HiROM", which is wrong — see `docs/CONFLICTS.md` CONF-7). This ROM is
+exactly 524 288 bytes with no copier header:
 
 ```
-$009311  the guest waits on $B9, set by the NMI handler   $B9 = 0, $C7 spinning
-$03D287  the round-robin scheduler loop                    $14 does not advance
-$03D2F6  AND #$9000 gates INC $14            ROM 0x01D2F6  <-- THE GATE
-$03D2A3  sets $12 = 1                                       $12 = 0 in 13/13 samples
-$008061  the per-vblank body                               proven by pokefor
-$00825F  writes CODE_038000 into $1F7D..$1F7F               00 00 00 00 in play
-$038000  the task that increments the month                does not run
-$0B53/$0B55  the date                                       never leaves 0
+$00:930F  64 B9   STZ  $B9      $00:9311  E6 C7   INC  $C7
+$00:9313  A5 B9   LDA  $B9      $00:9315  F0 FA   BEQ  $9311
+$00:9317  60      RTS
 ```
 
-**RETRACTED 2026-10-02 — the block above is a retracted chain, in full.**
-Do not read it as the diagnosis. Its two
-load-bearing claims are both measured false:
+The only writer of `$B9` is the NMI handler at `$00:80B2` (`INC $B9` at
+`$00:80BC`). The host delivered NMI once at the top of the frame, **before** the
+guest ran: the handler set `$B9 = 1`, the guest's `STZ $B9` then cleared it, and
+the spin at `$9313` waited on zero forever. **[MEASURED]** — the handshake was
+structurally impossible, not merely slow.
 
-- `$12` **is not 0**. It reads `0001` at 5 of 5 frame-boundary samples spanning
-  2,599 frames of a live city, as does `$14` — so the "THE GATE" link rests on a
-  value that is not what the table says it is.
-- `CODE_008061 demonstrably does not run` is **OPEN, not established.** Its
-  evidence was `$12 == 0`, which is false. A false premise voids the inference
-  and establishes nothing in its place — which is *not* a claim that it does run.
+Two defects, both fixed in `afceeec`:
 
-The one solid result here is narrower than it looks: forcing `$12 = 1` with
-`pokefor 0012 01 400` does make `$1F7D..$1F7F` become `00 80 03`, so **the path
-through `CODE_00825F` exists**. That shows reachability, not causation; a causal
-claim needs the converse, and the converse was never measured.
+1. `recomp/bank00.cfg:44` carried `exclude_range 0x930D 0x9318` — a **missing
+   `& 0x7FFF` mask**, so the range was compared against unmasked addresses, `STZ $B9`
+   ran compiled inside `bank_00_930D_M0X0`, and the spinlock never yielded to the
+   interpreter. Corrected to `0x130D 0x1318`.
+2. `src/game_rtl.c:GameRunOneFrame` delivered NMI only at the top of the frame.
+   It now delivers NMI **inside the slice loop after the guest parks**, plus a
+   top-of-loop point armed for the case where the guest already burned the whole
+   frame.
 
-Also settled, and the reason the deadlock is gone: `$009311` no longer spins
-(`$B9 = 0001` at 5/5, `$C7` advancing). See `docs/RE_CITY_FREEZE.md` entry (q)
-and `docs/CLAIMS_REGISTER.md` §2, §13, §14.
+After the fix: `$00B9 = $01` at the frame boundary (it was `$00` in every prior
+sample) and `$00C7` is counting. **[MEASURED]**, 5/5 samples. This is why the
+vblank wait is no longer a candidate cause: fixing it left the city still not
+simulating, so "the vblank handshake causes the freeze" is **RETRACTED**
+(ledger R-005…R-008 territory; `docs/CAUSE_CLAIMS.md` C-012).
 
-**The current position:** the city loads and renders, and does not simulate — 34
-WRAM bytes change across 2,599 frames of a live city. **Why is not established.**
-The next measurement is a PC/block histogram over f3400-f3600. See
-`docs/DEFINITION_OF_DONE.md` for why "the root cause is known" is listed there
-under *Not criteria*.
+### What is not fixed, and what is actually measured about it
 
-**The reference that works, and what comparing against it proved.**
-`Junior-Jones/SimCity-SNES-Static-Recomp` recompiles the same ROM and its clock
-runs — 23 months across 33,700 frames. We drive it ourselves: `study/peer-linux/`
-builds its portable core on Linux and adds a windowed SDL2 frontend, because its
-own launcher is Windows-only and the core has no mouse. A city is reachable from
-the keyboard alone. Both cores were then traced at 100-frame intervals and
-diffed, and it reduces to a single fact.
+`$0B51` is the 16-bit master city tick counter (**[INFERRED]** — the role comes
+from the reference implementation's trace, never measured here). `INC.w $0B51`
+lives in bank 03 at ROM offset `0x18026` (`EE 51 0B`, SNES `$03:8026`).
+**Bank 03 is where the tick is *believed* to live, and that belief is inferred
+rather than measured.** What is measured is much narrower and much more
+interesting:
 
-`$0B51` is the 16-bit master city tick counter. `CODE_038016` does
-`INC.w $0B51`, accumulates tax into `$0DC7`, and only advances the month when
-`AND.w #$0003` is zero. In the peer it climbs `00 -> 006D`. In this build it is
-`0000` at every single sample from frame 3150 to 30000.
+- **Bank 03 executes.** 921 distinct PCs and 515 043 interpreted steps over
+  frames 0–3700. **[MEASURED]**, Deck-native instrumented build. It is not code
+  this build never reaches.
+- **Bank 03 goes silent at f3301.** 160 693 steps in f3100–f3300 (≈803/frame);
+  **zero** in f3300–f3380 and zero in the live-city window. **[MEASURED]**.
+- **The live-city window is confined to banks 00 and 01** — 813 + 415 distinct
+  PCs, 2 308 599 steps, nothing in `$02`, `$03`, `$05`. **[MEASURED]**.
+- **The city appears at ≈f3378, i.e. ≈78 frames *after* bank 03 falls silent.**
+  This is a **correlation**, recorded as a correlation in three places on
+  purpose, because the next session will want to write it as a cause and the
+  number is sitting there looking like evidence. **No cause is claimed for it.**
 
-> **RETRACTED 2026-10-02 (review finding R-02).** The paragraph above concluded:
-> *"Therefore `INC.w $0B51` executes zero times — the tick routine is never reached
-> after the city loads."* **That conclusion is withdrawn, not replaced.** Ledger
-> row **R-020** records the claim with status `invalidated-premise`: its premise
-> (`$0012 == 0`) is false, which voids the inference and establishes **nothing in
-> its place**. The arithmetic above is correct; the inference drawn from it is not
-> evidence.
->
-> What is measured, stated without inference:
->
-> | | |
-> |---|---|
-> | `$0B51` at f3600 | `0000` |
-> | `INC.w $0B51` = `EE 51 0B` at ROM offset | `0x18026`, occurring exactly once |
-> | **is `$03:8026` among the 921 bank-03 PCs that execute?** | **OPEN — unmeasured** |
-> | `$0DC7` at f3600 | `0000` |
-> | WRAM bytes changing across 2,599 frames of a live city | **34** (not 53 across 30,000 — ledger R-014) |
->
-> The histogram that counted those 921 bank-03 PCs prints only the top 60 by
-> host-time, so **the run that produced the count cannot answer whether this
-> particular instruction is among them.** It stays open rather than being
-> resolved in the convenient direction. Ticket T087; the single cheapest
-> remaining measurement.
+Whole-run per-bank histogram (Deck-native Release build with
+`-DSNESRECOMP_INTERP_PROFILE`, 4 000 frames, rc=0). Cells are
+`distinct PCs / interpreted steps`; the brackets partition exactly, to the unit:
 
-**The open question — reopened, and the last answer was wrong.** For twelve
-commits this was framed as an unbounded static question — how does control reach
-`$03:8026`? — and then as a bounded one, in our own recompiler. **Both framings
-are now falsified by measurement on the Deck.**
+| window | `$00` | `$01` | `$02` | `$03` | `$05` |
+|---|---|---|---|---|---|
+| boot 0–200 | 478 / 1 664 752 | 0 | 0 | 10 / 10 | 428 / 932 195 |
+| attract 201–1200 | 494 / 5 336 356 | 575 / 5 411 938 | 542 / 601 366 | 499 / 11 035 | 392 / 328 481 |
+| menus 1201–3380 | 1753 / 17 808 456 | 1231 / 56 967 | 0 | 532 / 503 998 | 191 / 250 260 |
+| city 3381–3700 | 813 / 2 046 776 | 415 / 261 823 | 0 | **0 / 0** | 0 |
+| **total 0–3700** | 1822 / 26 856 340 | 1814 / 5 730 728 | 542 / 601 366 | **921 / 515 043** | 956 / 1 510 936 |
 
-**COP refusal is not the cause.** The theory was that we refuse to decode COP
-(`recompiler/snes65816.py:483`), poison every function containing one, and
-suppress their outgoing demands — so the COP-dispatched subtree is invisible to
-reachability, and `$03:8026` has no compiled body. The tier-2 discovery journal
-says otherwise:
+Banks 04, 06 and 07: zero steps in every window above — **[MEASURED]**, and
+bounded by that window.
 
-- `$03:8000–$03:8200` appears as a dispatch target or tier-down **zero times** in
-  12,000 frames. The guest never attempts the transfer.
-- The COP path is **not** broken. `$008211`/`$00821E` execute, and two of the
-  eleven poisoned nodes (`$008E43`, `$008E75`) were genuinely reached *through*
-  the `$8223` dispatch and interpreted to a clean exit. Suppressing outgoing
-  demands does not prevent execution.
-- And **no word anywhere in the ROM points into `$038000–$038220`** — zero, of
-  any form. Refusing to decode COP cannot cause a transfer that is never
-  generated.
+> **Environment-fidelity caveat on every Deck number above and in every other
+> document in this tree.** The Deck's SteamOS rootfs is damaged in a way pacman
+> does not report: of the 504 paths `pacman -Ql glibc` claims under
+> `/usr/include`, **503 are absent from disk** while `pacman -Q base-devel` still
+> reports installed, and `echo '#include <stdio.h>' | gcc -E -` fails with
+> `fatal error: stdio.h: No such file or directory`. The Deck build therefore
+> resolves libc headers from a hand-assembled prefix at `/home/deck/sysroot`
+> (headers from `archive.archlinux.org`) via `-idirafter`. **So: the Deck binary
+> was compiled on the Deck, against a reconstructed header prefix, on a machine
+> whose rootfs is damaged. A figure measured under those conditions describes
+> those conditions.** This caveat travels with every Deck number cited anywhere.
 
-**The world is stopped, not mis-dispatched.** After frame 3145 the guest produced
-**zero new tier-downs across 8,855 consecutive frames**, and frames 6000, 8750
-and 11500 are **byte-identical** — 0 of 75,264 pixels differ. Only 35 WRAM bytes
-move between frame 6000 and 11500. That is a halted machine, not a missing
-dispatch.
+### The open question, and what it is not
 
-**The ambiguity this reopens.** No pointer exists in the ROM, yet the reference
-takes `$0B51` to `$006D`. So either a caller assembles bank `$03` and address
-`$8000` arithmetically, or **the reference never runs `$03:8026` at all** and
-advances `$0B51` some other way. We have been assuming the second half of that
-without evidence since the day we adopted the peer's clock as ground truth. The
-single measurement that separates them: take a PC trace of frames 3140–3150 and
-identify the last block that executes before silence.
+**Why does the city not simulate? [OPEN].** It is the only row in
+`docs/CAUSE_CLAIMS.md` with no instrument, and no cause for it is asserted
+anywhere in this tree. Specifically:
 
-Two corrections to what this file previously claimed, both because the
-measurements were wrong rather than the reasoning:
+- **"The bank-03 tick is compiled to native C and still does not run"** —
+  **RETRACTED 2026-10-02 (review finding R-03).** Bank 03 executed 515 043
+  interpreted steps. The surviving, much narrower form is the f3301 boundary
+  above, which is a location and not a cause.
+- **"Therefore `INC.w $0B51` executes zero times"** — **withdrawn, not
+  replaced** (review finding R-02; ledger R-020, `invalidated-premise`). Its
+  premise (`$0012 == 0`) is false, and a refuted premise voids an inference and
+  establishes **nothing in its place** — which is not a claim that it does run.
+- **"The main loop does not run at all in a city"** — **RETRACTED as stated**,
+  same measurement as R-03.
+- **"The gate is `$0012`"** — **RETRACTED.** `$0012 = 0001` and `$0014 = 8000` at
+  5/5 frame-boundary samples; its own stated evidence is what measurement refuted.
+- **"The city does not load"** — **RETRACTED.** It does load; the runs behind that
+  claim used a deliberately truncated `save.srm` from `scripts/clock-gate.sh`.
+- **"Refusing to decode COP is the cause"** — **RETRACTED.** No word anywhere in
+  the ROM points into `$038000–$038220`.
+- **`CODE_008061` "never runs"** — **OPEN, not established**, and *not*
+  retracted: its premise was false and its execution was never measured.
 
-- `$0B53` is the **absolute** year, not an offset from 1900: a live city reads
-  `1900` (`0x076C`). `$0B55` is the month index, 0-based. So `$0B53 = 0` means
-  **there is no city** — which is what our build reads at every sample. The date
-  here is not stuck, it has never been written.
-- `$0B51` was retracted twice in this file, in opposite directions. It was
-  **not** a free-running counter modulo 4 reading 0 one frame in four by design;
-  it is the 16-bit master city tick. The original claim that "`$0B51` stays 0, so
-  the tick never runs" was right, and retracting it was the error. Do not retract
-  it again without reading `CODE_038016`.
+A 9 000-frame settle protocol on the Deck (162.5 s wall, real save
+`24720bb57ff09426d588da564fea6c18`) read `1900/1` at **every** snapshot,
+`$0BA5` = 0, `$0B9D` = 20 000, with 19–34 bytes changing per snapshot (0.02%).
+**[MEASURED]** — a real save state does not advance the clock either.
 
-- `$0B12` was published here as the sharpest lead between a clock that runs and
-  this one. **It was noise.** It is `$00` across all 337 peer dumps over 33,700
-  frames and 23 months, and appears nowhere in the tick routine. One unrepeated
-  report was promoted to a lead; it should have been measured twice before being
-  written down.
+### Where the record lives
 
-`$02BF` is also not a pause flag — it is written once in the whole ROM. The vblank
-wait loop is not a livelock (the guest leaves it every frame), and the frame
-counter `$0406` is not "+1 per frame". `docs/RE_CITY_FREEZE.md` records both
-retractions with the evidence that overturned them, because this project has
-now published a wrong diagnosis twice and the corrections are worth more than
-the claims were.
-
-### Where the current position lives
-
-This file is the entry point, and it is **not** the maintained record. Four files
-are, and this section is the only place they are listed:
+This file is the entry point and is **not** the maintained record. Seven files
+are:
 
 | file | what it holds |
 |---|---|
 | [`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) | every causal claim in this project, classified MEASURED / INFERRED / RETRACTED / OPEN, with the instrument or the reason there is none |
 | [`docs/CONFLICTS.md`](docs/CONFLICTS.md) | every contradiction found between docs, code and git history, with the command that found it |
-| [`docs/RE_CITY_FREEZE.md`](docs/RE_CITY_FREEZE.md) | the chronology, with a 43-row index at the top and a per-entry state banner on each entry |
+| [`docs/RE_CITY_FREEZE.md`](docs/RE_CITY_FREEZE.md) | the chronology — 44 entries, each with a state banner, and a maintained index at the top |
 | [`docs/measurements/`](docs/measurements/) | raw measurements, the exact commands, and **what each instrument cannot see** |
 | [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) | the index of what is retracted, superseded or unverified |
 | [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) | the standard of proof — **no acceptance criterion may be satisfied by a claim** |
-
-**The one question this repository has not answered:** why the city does not
-simulate. It is labelled **OPEN** everywhere it appears, it is the only row in
-`docs/CAUSE_CLAIMS.md` with no instrument, and no cause for it is asserted
-anywhere in this tree.
+| [`docs/review/RUBRIC.md`](docs/review/RUBRIC.md) | the pre-registered review rubric (hash-pinned in `RUBRIC.sha256`) |
 
 ## Gates
 
-Every figure below names the machine and the date it was measured on. A gate
-result without a machine is not a measurement — see
-`docs/DEFINITION_OF_DONE.md` Rule 0.
+**Every figure names the machine and the date it was measured on.** A gate result
+without a machine is not a measurement — see `docs/DEFINITION_OF_DONE.md` Rule 0.
 
-| command | what it proves | dev host `seyon`, 2026-10-02 | Deck `steamdeck`, 2026-10-02 |
+Measured on the dev host `seyon` (i5-8500T, 6 threads, Ubuntu 24.04, gcc 13.3.0,
+cmake 3.28.3) on 2026-10-02, on the tree at `8a7340f` — this README change is
+documentation only and touches no source, script or generated file:
+
+| command | what it proves | result | exit |
 |---|---|---|---|
-| `make test` | the core replays deterministically (30 frames) | PASS (2/2) | not run |
-| `make test-rom` | the picture moves (frames 200–800) | PASS, **257** distinct crc32 | not re-run |
-| `make perf` | the frame rate holds (600 frames) | **PASS 51.52 / FAIL 48.38** — see below | PASS, 56.88 fps |
-| `make clock` | **the city actually simulates** (6000 frames) | **FAIL** | **FAIL** (identical) |
-| `make check-claims` | no retracted claim is asserted without a marker | PASS | not run |
+| `make build` | Release build | ok | 0 |
+| `make test` | deterministic replay (ctest) | **2/2 passed** | 0 |
+| `make test-rom` | the picture moves (frames 200–800) | **PASS, 257 distinct crc32** | 0 |
+| `make perf` | gross frame-rate floor (5 × 600 frames) | **PASS, median 54.50 fps, spread 9.6%** | 0 |
+| `make clock` | **the city actually simulates** | **FAIL — `1 distinct date images after f3600` (last change f3378 of 6000)**, `$0B53 = 076C` → year 1900 | **1** |
+| `make check-claims` | no retracted claim asserted without a marker | PASS | 0 |
+| `make check-causes` | every causal assertion carries provenance | **FAIL — 1 unlabelled assertion, in the guard's own header** (see below) | 1 |
+| `make check-claims-self-test` | the ledger guard has been seen to fail | PASS | 0 |
+| `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames | 0 |
+| `make review-check` | the review's BLOCKERs are closed | **17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 
-**`make perf` straddles its own threshold on this host.** The same binary, the
-same ROM, the same commit, measured twice in one session: **FAIL at 48.38 fps**
-and **PASS at 51.52 fps**, against a threshold of 50. That is host load, not a
-recompiler change, and it is the clearest available demonstration that this gate
-proves very little. On the Deck all five runs finished in exactly 10.549 s — to
-the millisecond, five times — so Deck pacing is **frame-locked** and the gate
-cannot detect guest slowdown there at all. It answers "does it still run".
+**`make clock` is the one that matters and the one that is red.** It fails
+identically on the Deck. It prints the guest's own year word as proof that a city
+object exists, so it **cannot report PASS on a build that loads no city** —
+verified by pointing it at a script that never reaches one, which it refuses with
+a distinct "no city was loaded" verdict.
 
-`make clock` is the one that matters and the one that is red. It fails
-identically on both machines: `1 distinct date images after f3600 (last change
-f3378 of 6000)`. It now also prints the guest's own year word as proof that a
-city object exists (`$0B53 = 0x076C` = 1900), so it **cannot report PASS on a
-build that loads no city** — verified by pointing it at a script that never
-reaches one, which it refuses with a distinct "no city was loaded" verdict.
+**The other gates pass while the game is a still image, and they pass for the same
+reason each: they all measure before the city exists.** The first three inspect
+frames 30–800 and are still on the attract screen and the menus.
 
-The determinism gate (`make test`) is now genuinely relocatable. It used to
-hardcode one developer's checkout path for both the script and the ROM, so it
-could only pass there, and on a relocated clone it silently read the *original*
-repository's files while running the relocated binary — reporting 2/2 passed on
-a tree containing no ROM at all. It now takes the ROM from `$SIMCITY_ROM` or
-finds one beside the build, and **skips with a clear message** if there is none,
-rather than reaching outside the tree. `make test-rom` and `make clock` are the
-gates that require a ROM and fail without one.
-
-`make clock` is the one that matters and the one that is red. The other three
-pass while the game is a still image, and they pass for the same reason each:
-they all measure before the city exists. The first three inspect frames 30–800
-and are still on the attract screen and the menus — they pass on the strength
-of motion that stopped 2,700 frames before their own window ended.
-
-`make clock` drives `scripts/d_city.script` into a live city and then reads the
-HUD date off the screen, because that is the claim under test and no WRAM
-address holding the month is known. Run `make clock-self-test` after changing
-anything in it: there is no build here where the clock advances, so the only
-way to know the detector still sees a live screen is to make it prove that on
-a window that is alive.
+**`make perf` is a floor, not a headroom figure.** It was reworked on
+2026-10-02 to use the **median** of five runs plus a spread check, because
+worst-of-N on a quantity whose noise is symmetric converts ordinary variance into
+failures: the same unchanged binary previously flapped **48.38 FAIL / 51.52 PASS
+/ 46.99 FAIL** against a threshold of 50. It still has a spread guard — over 10%
+is `INCONCLUSIVE` (exit 2), not PASS — and the run measured above sat at 9.6%,
+which is close enough to the guard to be worth stating: **that host had a load
+average of 7.55 on 6 threads while the gate ran**, and run 5 of 5 fell to 49.66
+fps. On the Deck, the five runs of the **previous** worst-of-5 method finished in
+exactly 10.549 s — to the millisecond, five times — so Deck pacing is frame-locked
+and that gate could not detect guest slowdown there at all.
 
 ### Performance
 
@@ -312,61 +279,152 @@ frames:
 
 | Machine | Build | fps | `guest` ms/frame | `upload-present` ms/frame |
 |---|---|---|---|---|
-| Steam Deck (Zen 2), **compiled on the Deck** | Release | 56.88 | **4.502** | **1.007** |
-| i5-8500T, cross-built binary | Release | 59.5 | 4.97 | 7.84 |
+| Steam Deck (Zen 2), **compiled on the Deck** — *environment-fidelity caveat above* | Release | 56.88 | **4.502** | **1.007** |
+| i5-8500T, built in place | Release | 54.50 median (5 runs) | 6.62–10.82 | — |
 | i5-8500T, cross-built binary | Debug (`-O0`) | 42.4 | 9.52 | 5.90 |
 
-**Every figure in that table is retracted or superseded, and the reason is
-instructive.**
+**Three claims about this table were retracted, and the reasons are instructive.**
 
 - The Deck row's `2.45` ms was **never re-measured** and is ledger **R-012/R-021**.
   The measured Deck figure is **4.502 ms**. The old row also claimed
-  `upload-present` **8.13 ms**, which on the Deck was measured at **1.007 ms** —
-  the opposite side of the guest by a factor of four and a half. Ledger R-012,
-  R-021.
-- **"The emulated 65816 is not the bottleneck" is RETRACTED** (ledger R-023,
+  `upload-present` **8.13 ms**, measured on the Deck at **1.007 ms** — the
+  opposite side of the guest by a factor of four and a half.
+- **"The emulated 65816 is not the bottleneck"** is **RETRACTED** (ledger R-023,
   R-025). It rested on `guest` being 2.45 ms against a large `upload-present`.
   Measured on the Deck the picture is the reverse: guest 4.502, upload-present
-  1.007, and **deadline-wait 11.275** — pacing dominates, not the CPU.
-- The "upload-present costs 6.8× the guest" figure that replaced it was an
+  1.007, **deadline-wait 11.275** — **pacing dominates, not the CPU** [MEASURED,
+  Deck].
+- The **"upload-present costs 6.8× the guest"** figure that replaced it was an
   artifact of `SDL_VIDEODRIVER=dummy` **on the dev host**, not a property of the
   code. Neither number survives.
-- The `-O0` row (42.4 fps, `-O0` costing 24% of the frame rate) is the one part
-  that still stands, and it is why `make build` ships Release.
-
-> ⚠ **ENVIRONMENT-FIDELITY CAVEAT on the Deck row.** The Deck's SteamOS rootfs is
-> **damaged in a way pacman does not report**: 503 of 504 glibc headers under
-> `/usr/include` are absent from disk while `base-devel` reports installed, and
-> `echo '#include <stdio.h>' | gcc -E -` fails with `No such file or directory`.
-> There is no sudo and no cached glibc, so it cannot be repaired. The Deck build
-> resolves libc headers from a hand-assembled prefix at `/home/deck/sysroot`
-> (headers from `archive.archlinux.org`) with **`-idirafter`** — deliberately
-> not `-isystem`, which sorts before `/usr/include` and breaks libstdc++'s
-> `#include_next <stdlib.h>`. It also needs `SDL_UNIX_CONSOLE_BUILD=ON`,
-> `OPENGL_INCLUDE_DIR`, and `OpenGL_GL_PREFERENCE=LEGACY`.
->
-> **So: the Deck binary was compiled on the Deck, against a reconstructed header
-> prefix, on a machine whose rootfs is damaged.** A performance figure measured
-> under those conditions describes those conditions. This caveat travels with
-> every Deck number cited anywhere in this repository.
+- The `-O0` row (42.4 fps) is the one part that still stands, and it is why
+  `make build` ships Release.
 
 The per-stage split comes from `SNESRECOMP_HOST_PROFILE=1`, which writes
 `video profile: stage=...` lines into `last_run_report.json`. `guest` is the
 emulated CPU; `upload-present` is the host's present path. They are different
 costs with different owners.
 
-Note that a healthy build is vsync-capped at 60 fps and so has **no headroom
-visible in the fps figure at all** — faster hardware would not move it. `guest`
-ms/frame is the number that shows headroom.
+A healthy build is vsync-capped at 60 fps and so has **no headroom visible in the
+fps figure at all** — faster hardware would not move it. `guest` ms/frame is the
+number that shows headroom.
+
+## Requirements
+
+### Any Linux (Debian/Ubuntu, Fedora, Arch, SteamOS)
+
+- `base-devel` equivalent — a C/C++ toolchain and `make`:
+  **Debian/Ubuntu** `build-essential`; **Arch/SteamOS** `base-devel`
+- **`cmake`** ≥ 3.20 (measured: 3.28.3 on Ubuntu 24.04, 4.0.3 on the Deck)
+- **`git`** — the `snesrecomp` submodule is required
+- **`pkgconf`** (`pkg-config` on Debian/Ubuntu) — SDL3's configure probes it
+
+**No SDL package is needed.** `snesrecomp/runner/runner.cmake` looks for an SDL3
+package, finds none, and **fetches and builds SDL 3.4.10 from source, static**
+(`SNESRECOMP_SDL3_FETCH=ON`, tarball hash-pinned). Pass
+`-DSNESRECOMP_SDL3_FETCH=OFF` to require an installed SDL3 instead.
+
+**`libxtst-dev` is not needed** as long as `-DSDL_X11_XTEST=OFF` is passed, which
+`make build` already does. Without it a clean build directory stops with
+`Couldn't find dependency package for XTEST`, because SDL3 enables XTEST — its
+synthetic-input extension — by default and nothing here uses it.
+
+For a **windowed** build on X11, the SDL3 configure additionally resolves the
+X11, Xcursor, Xrandr, XInput, XFixes, Wayland, EGL/GL, ALSA, libudev and D-Bus
+development packages through `pkg-config`. All of them were present on the dev
+host (measured: `x11 1.8.7`, `xext 1.3.4`, `xcursor 1.2.1`, `xrandr 1.5.2`,
+`xi 1.8.1`, `xfixes 6.0.0`, `wayland-client 1.22.0`, `egl 1.5`, `gl 1.2`,
+`alsa 1.2.11`, `libudev 255`, `dbus-1 1.14.10`). The headless configuration
+below needs **none** of them.
+
+### SteamOS / Arch, and the damaged-rootfs caveat
+
+Measured on the Deck on 2026-10-02: `base-devel 1-2`, `cmake 4.0.3-1`,
+`git 2.50.1-3`, `pkgconf 2.5.1-1` — and that is the whole dependency list for the
+headless build. `libxtst-dev` is **not** installed and not needed.
+
+⚠️ **The Deck's rootfs is damaged in a way pacman does not report.** `pacman -Q
+base-devel` and `pacman -Ql glibc` both report success, but **503 of the 504
+paths pacman claims under `/usr/include` are absent from disk**, and
+
+```
+$ echo '#include <stdio.h>' | gcc -E -
+<stdin>:1:10: fatal error: stdio.h: No such file or directory
+compilation terminated.
+```
+
+(`gcc -x c -E -` fails identically; only the *file* `/usr/include` directory entry
+itself still exists.) There is no sudo and no cached glibc, so it cannot be
+repaired there. The Deck build works around it with a hand-assembled header
+prefix at `/home/deck/sysroot` and `-idirafter` — deliberately **not**
+`-isystem`, which sorts *before* `/usr/include` and breaks libstdc++'s
+`#include_next <stdlib.h>`. **Every Deck number in this repository inherits that
+caveat.**
+
+### macOS / Windows
+
+Not measured on either; the framework carries the paths and nothing in this
+repository has been verified on them. Treat this section as untested rather than
+as support.
+
+### The ROM
+
+`SimCity (USA).sfc`, **user-supplied and never committed**. MD5
+`23715fc7ef700b3999384d5be20f4db5`, exactly **524 288 bytes**; `rom_identity.txt`
+carries the digests and the build turns them into `snesrecomp_rom_identity.h`.
+`git ls-files | grep -ci '\.sfc$'` must be `0`.
 
 ## Building
 
 `build/` is **not** committed — it holds a full SDL3 build and no binary belongs
-in the repository. Build from source first:
+in the repository.
 
 ```bash
+git clone --recurse-submodules https://github.com/linuxkafe/SNES-SimCity-Recomp
+cd SNES-SimCity-Recomp
 make build
 ```
+
+`make build` is Release (`-DCMAKE_BUILD_TYPE=Release`) and already passes
+`-DSDL_X11_XTEST=OFF`; by hand that is:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSDL_X11_XTEST=OFF
+cmake --build build --parallel
+```
+
+`make debug` is the same with `-O0`. The two were proven byte-identical on the
+guest before the default changed — same 128 KB WRAM image and same presented-crc32
+column across attract, menu and naming at 3 000 frames, with cartridge SRAM
+pinned cold on both sides. **That equivalence is proven for those paths, not for
+all time and all input**, so keep `test_deterministic_replay` in the loop if you
+switch back and forth.
+
+### Headless build (no X11, no Wayland)
+
+For a machine with no display server, or one whose window-system headers are
+missing, add:
+
+```bash
+-DSDL_X11_XTEST=OFF \      # no libxtst-dev: XTEST is unused (synthetic input)
+-DSDL_X11=OFF \            # no X11 headers/libs: no window on this machine
+-DSDL_WAYLAND=OFF \        # no wayland-protocols / wayland-scanner
+-DSDL_UNIX_CONSOLE_BUILD=ON # console (not launcherd) SDL backend on Unix
+-DOPENGL_INCLUDE_DIR=/home/deck/sysroot/usr/include \  # where GL/gl.h actually is
+-DOpenGL_GL_PREFERENCE=LEGACY  # GL headers shipped for this box, not the newest profile
+```
+
+`SDL_UNIX_CONSOLE_BUILD=ON`, `OPENGL_INCLUDE_DIR` and `OpenGL_GL_PREFERENCE=LEGACY`
+are the three the Deck needed *in addition* to the display-system switches, and
+they are the ones whose reason is a property of the machine rather than of this
+project. On an intact Linux box the first four are enough; the last two are for
+the damaged-rootfs case above.
+
+Note: the `snesrecomp` submodule is pinned to a small fork
+(`linuxkafe/snesrecomp`) with the SimCity host runtime additions
+(debug/watchdog globals, recomp stack depth).
+
+### Running it
 
 Then run with your own `SimCity (USA).sfc`, **by absolute path**: the host chdirs
 to the executable directory, so a bare relative filename resolves there, not in
@@ -376,55 +434,16 @@ your shell's working directory.
 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 ```
 
-## Requirements
-
-- SimCity (USA).sfc ROM (user provided, not included)
-- Linux/macOS/Windows with SDL3
-- CMake 3.20+, C++17 compiler
-
-## Building
-
-```bash
-git clone --recurse-submodules https://github.com/linuxkafe/SNES-SimCity-Recomp
-cd SNES-SimCity-Recomp
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
-```
-
-`make build` does the same thing and is the supported path. Two notes that
-matter if you configure by hand:
-
-- **`libxtst-dev` is not required.** A clean build directory otherwise stops at
-  `Couldn't find dependency package for XTEST`, because SDL3 enables XTEST
-  (its synthetic-input extension) by default and nothing here uses it. Pass
-  `-DSDL_X11_XTEST=OFF`; `make build` already does.
-- **`make build` is Release and `make debug` is `-O0`.** The two were proven
-  byte-identical on the guest before the default changed — same 128 KB WRAM
-  image and same presented-crc32 column across attract, menu and naming at
-  3000 frames, with the cartridge SRAM pinned cold on both sides. The
-  equivalence is proven for those paths, not for all time and all input, so
-  keep `test_deterministic_replay` in the loop if you switch back and forth.
-
-Note: the `snesrecomp` submodule is pinned to a small fork
-(`linuxkafe/snesrecomp`) with the SimCity host runtime additions
-(debug/watchdog globals, recomp stack depth).
-
 ## Running
 
 ```bash
-# Place your SimCity (USA).sfc in the project root
-./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
-
 # Resolution presets — pin the window to a fixed display size
 SNESRECOMP_RESOLUTION=720p ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"   # 1280x720
 SNESRECOMP_RESOLUTION=800p ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"   # 1280x800
 SNESRECOMP_RESOLUTION=1080p ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"  # 1920x1080
 SNESRECOMP_RESOLUTION=2560x1440 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"  # raw WxH also works
 
-# Debug flags
-SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
-
-# Headless test
+# Headless
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/SimCitySNESRecomp "$PWD/SimCity (USA).sfc"
 
 # SNES Mouse on player 2 (opt-in; host cursor hidden, guest cursor takes over)
@@ -486,9 +505,46 @@ documented in the framework at `snesrecomp/docs/MOD_PACKAGES.md`.
 
 ## Debug Flags
 
-- `SIMCITY_DEBUG_WATCHDOG=1` - Watchdog handler with CPU state dump
-- `SIMCITY_DEBUG_DMA=1` - DMA transfer logging with source validation
-- `SIMCITY_DEBUG_APU=1` - APU sync timing logs
+- `SIMCITY_DEBUG_WATCHDOG=1` — watchdog handler with CPU state dump
+- `SIMCITY_DEBUG_DMA=1` — DMA transfer logging with source validation
+- `SIMCITY_DEBUG_APU=1` — APU sync timing logs
+- `SNESRECOMP_HOST_PROFILE=1` — per-stage host cost (`guest`, `upload-present`,
+  `deadline-wait`) into `last_run_report.json`
+
+### Instruments, and three traps in them
+
+The three facts below are the most transferable result in this repository, and
+every one of them cost a wrong conclusion first. They are here so the next
+session does not pay for them again.
+
+1. **`CYC_WATCH` is blind to AOT.** Its hook,
+   `snesrecomp/runner/src/snes/interp_bridge.c:2034`, sits inside
+   `_interp_run_core` (`:1009`), the per-interpreted-opcode loop, and compares
+   against `pc_before`; the AOT side lives in `cpu_trace_block`, which is a
+   **no-op** unless `SNESRECOMP_TRACE=1`
+   (`snesrecomp/runner/src/cpu_trace.h:1316`) — the default is off.
+   Blindness test: `CYC_WATCH=1C700-1C7FF` logged 28 002
+   hits, all in f3094–f3103, and **zero** in f3400–f3410, while `AOTBLK=3400-3410`
+   logged 11 267 entries at overlapping PCs in exactly those frames.
+   **A zero from `CYC_WATCH` proves nothing about AOT execution.**
+2. **`AOTBLK` was never mute — it takes a frame window, not a PC range.**
+   `snesrecomp/runner/src/cpu_trace.c:1244` `sscanf`s `"%ld-%ld"` against
+   `snes_frame_counter`; `CYC_WATCH` (`interp_bridge.c:2036`) `sscanf`s
+   `"%lx-%lx"` against `pc_before`. Passing `38000-381FF` asked for frames
+   38000–381FF.
+3. **`SNESRECOMP_INTERP_PROFILE` was exposed by no CMake option**, which is why
+   the interpreted histogram had never been run in a normal build. Configure with
+   `-DCMAKE_C_FLAGS="-DSNESRECOMP_INTERP_PROFILE=1"`. Note also that its
+   `[interp_profile] … top 60 by host-ms` list prints **nothing** unless
+   `SNESRECOMP_INTERP_MS_PROF=1` is set: without it every entry's `ms` is `0.0`
+   and the leading sort slots are unused hash-table entries.
+   **A section header with no rows under it is not a negative result.**
+
+The interpreted histogram itself is also **blind to AOT**: a bank-03 routine that
+runs as a compiled block contributes zero to every number it prints. There is
+still **no whole-run AOT histogram**, so "bank 03 executes no AOT blocks anywhere"
+is **[OPEN]**, not measured and not claimed. Complement it with
+`SNESRECOMP_AOTBLK="lo-hi"` (a **frame** window).
 
 ## Architecture
 
@@ -549,6 +605,14 @@ study: do not publish or redistribute it. A keyboard reaches a city on its own �
 the naming screen's cursor walks on the d-pad and **B** confirms from a character
 key. See `study/peer-linux/README.md`.
 
+**What comparing against it proved, and what it did not.** The peer recompiles
+the same ROM and its clock runs — 23 months across 33 700 frames. Both cores were
+traced at 100-frame intervals and diffed. The arithmetic on our side is
+measured (`$0B51 = 0000` at every sample from f3150 to f30000); the *role* of
+`$0B51` is **[INFERRED]** from the peer and has never been measured here; and the
+comparison has **not** established where control fails to reach the tick routine.
+Do not read the peer's working clock as a measurement of ours.
+
 ## Development
 
 ```bash
@@ -574,23 +638,23 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | Native widescreen (336 px, game-native renderer) | ✅ Done |
 | Game-native graphics (terrain, buildings, font) | ✅ Working (verified interactively) |
 | Headless capture | ✅ Fixed (T039) — `make test-rom` gates it |
-| AOT compilation of declared functions | ✅ Done (187 functions, T057) |
+| AOT compilation of declared functions | ✅ Done (239 `aot_eligible` nodes in the current manifest) |
 | Config bar over the game | ✅ Done (T054) |
 | SNES Mouse on player 2 (`SNESRECOMP_MOUSE=1`, bsnes-exact protocol) | ✅ Device-level done (T042, ROM-free verified) |
 | Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
 | Quick save/load (10 slots), save-state menu, rewind, turbo | ✅ Working |
-| **City simulation runs (date, population, treasury advance)** | ❌ **T058 — the city view loads and then zero simulation ticks run** |
+| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red; the city view loads and then zero simulation ticks run — cause [OPEN]** |
 | Scenarios (all 5 US) | ⏳ T011 — confirm ENT step is the gate (see `docs/RE_SCENARIO_NAV.md` step 10) |
 | Building/visual verification (headless capture) | 🔄 T033 — unblocked by T039 |
 
 The city view renders correctly and the frame loop runs once per frame
 throughout; the game state never leaves its initial values, so the date,
 population and treasury never change. **The cause is OPEN** — see
-[`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) node C-006. (This line
-previously pointed at `aes/tickets/T058-city-clock-does-not-advance.md`. `aes/`
-is gitignored **permanently and by rule** — DoD D4.3 — so that path resolves in
-no fresh clone. Pointing a tracked file into an uncommittable directory is the
-same rule breaking itself; the pointer now names a tracked file.)
+[`docs/CAUSE_CLAIMS.md`](docs/CAUSE_CLAIMS.md) node C-006. (An earlier version of
+this file pointed at `aes/tickets/T058-city-clock-does-not-advance.md`. `aes/` is
+gitignored **permanently and by rule** — DoD D4.3 — so that path resolves in no
+fresh clone. Pointing a tracked file into an uncommittable directory is the same
+rule breaking itself; the pointer now names a tracked file.)
 
 ## License
 

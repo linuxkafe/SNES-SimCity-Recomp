@@ -205,6 +205,62 @@ e2 20 64 b9 e6 c7 a5 b9 f0 fa 60 e2
 `e6 c7` = `INC $C7`. The comment is accurate about the addressing mode and states
 the over-exclusion. **Closed, verified against the ROM bytes.**
 
+## 8. `docs ↔ ROM bytes` — the mapper is named wrong in four tracked files
+
+**CONF-7 · severity MEDIUM · `docs/CLAIMS_REGISTER.md:238,409`, `docs/CAUSE_CLAIMS.md:37`, `docs/review/RUBRIC.md:32`**
+
+Every tracked document that states the ROM→file offset rule calls the mapping
+**HiROM**. The ROM's own header says otherwise:
+
+```
+$ python3 -c "
+d=open('SimCity (USA).sfc','rb').read()
+print('0x7FC0', d[0x7FC0:0x7FD5])
+print('0xFFC0', d[0xFFC0:0xFFD5])
+print('len   ', hex(len(d)))"
+0x7FC0 b'SIMCITY              '
+0xFFC0 b'\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff'
+len    0x80000
+```
+
+The SNES header sits at `0x7FC0` in a **LoROM** image and at `0xFFC0` in a
+**HiROM** one. It is at `0x7FC0`, and `0xFFC0` is filler — so this cartridge is
+**LoROM**, which is what `rom_identity.txt:24` says (`mapper = lorom`) and what
+`src/main.c` derives at runtime.
+
+**The arithmetic is nevertheless correct**, because
+`offset = bank*0x8000 + (addr & 0x7FFF)` *is* the LoROM 32 KiB-bank linear rule;
+the documents attached the wrong mapper's name to the right formula. Byte proof,
+two independent labels:
+
+```
+$ python3 -c "
+import re
+d=open('SimCity (USA).sfc','rb').read()
+print('0x130F ->', d[0x130F:0x1318].hex(' '))       # \$00:930F vblank wait
+print('0x18026 ->', d[0x18026:0x18029].hex(' '))    # \$03:8026 INC.w \$0B51
+print('EE 51 0B occurs at', [hex(m.start()) for m in re.finditer(b'\xee\x51\x0b', d)])"
+0x130F -> 64 b9 e6 c7 a5 b9 f0 fa 60
+0x18026 -> ee 51 0b
+EE 51 0B occurs at ['0x18026']
+```
+
+`64 B9 / E6 C7 / A5 B9 / F0 FA / 60` is exactly the vblank token handshake, and
+`EE 51 0B` occurs **once** in the whole 524 288-byte image, at `0x18026`. So the
+labels and the mask are right; only the noun is wrong.
+
+**Why it matters beyond tidiness.** "HiROM mask" reads as an optional hardware
+detail. It is not: it is the `& 0x7FFF` that makes a 16-bit CPU address a file
+offset, and `afceeec` shipped a live deadlock because that mask was missing from
+one config line. A reader who trusts the mapper name over the formula can
+"simplify" the mask away.
+
+**Deliberately not fixed in the prose.** `docs/review/RUBRIC.md` is
+hash-pinned (`RUBRIC.sha256`) and pre-registered; editing criterion C-02 to
+repair a noun would invalidate the pin and rewrite the standard after the fact.
+`README.md` and `docs/CAUSE_CLAIMS.md` now state LoROM with the header evidence
+and name this conflict; the rubric keeps the historical wording.
+
 ## Summary
 
 | # | severity | axis | one line |
@@ -215,6 +271,7 @@ the over-exclusion. **Closed, verified against the ROM bytes.**
 | CONF-4 | MEDIUM | docs↔docs | `CLAIMS_REGISTER.md` §9 ticks a row its own §14 calls false |
 | CONF-5 | MEDIUM | tracked↔gitignored | eleven tracked references into `aes/`, which is uncommittable by rule |
 | CONF-6 | LOW | aes↔docs | seven stale `docs/*.md` references from local artefacts |
+| CONF-7 | MEDIUM | docs↔ROM bytes | the mapper is **LoROM** (header at `0x7FC0`); four tracked files call it HiROM. The **formula** is right — it is the LoROM rule |
 | — | verified | docs↔code | `CODE_009311` = `$03:7649`, a real trap, not a contradiction; F-12 closed |
 
 **Not a conflict, and deliberately not filed as one:** the 78 frames between bank

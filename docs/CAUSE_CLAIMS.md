@@ -34,7 +34,7 @@ another of opposite sign is the mechanism behind the paired `$0B51` retraction.
 | C-002 | The vblank token handshake works | **MEASURED** | `$00B9 = 0001` in 5/5 | entry (q) |
 | C-003 | NMI was delivered before the guest, and the guest cleared the token | **MEASURED** | ROM bytes at `0x130D` + `$B9` before/after, `d2dbcbc` | entry (p) |
 | C-004 | The guest executes every frame | **MEASURED** | `$00C7` differs in 5/5 successive samples | entry (q) |
-| C-005 | The `exclude_range` HiROM mask was missing, so the spinlock never yielded to the interpreter | **MEASURED** | config diff + ROM offset arithmetic | entry (p) |
+| C-005 | The `exclude_range` mask (`& 0x7FFF`) was missing, so the spinlock never yielded to the interpreter | **MEASURED** | config diff + ROM offset arithmetic, byte-verified | entry (p) |
 | **C-006** | **Why does the city not simulate?** | **OPEN** | — | T086 |
 | C-007 | `$0B51` is the 16-bit master city tick | **INFERRED** | deduced from the peer's trace, never measured here | register §13 |
 | **C-008** | **`INC.w $0B51` executes zero times in a live city** | **OPEN** | premise (`$0012 == 0`) refuted; execution never counted with an AOT-capable instrument | ledger R-020 |
@@ -61,7 +61,7 @@ another of opposite sign is the mechanism behind the paired `$0B51` retraction.
 | C-043 | Banks 04, 06, 07 execute zero steps over f0–f3700 | **MEASURED** (bounded) | same run; the bound is in the claim | entry (s) |
 | C-044 | `[interp_profile]`'s top-60 list prints nothing without `SNESRECOMP_INTERP_MS_PROF=1` | **MEASURED** | observed directly: "6055 distinct PCs" then zero lines | register §17 |
 | C-045 | The Deck compiles this project natively | **MEASURED** | the `build-instr` binary that produced C-038…C-043 | entry (r) |
-| C-030 | HiROM offset arithmetic | **MEASURED** | 4 independent byte-verified labels | D007 |
+| C-030 | LoROM offset arithmetic, `offset = bank*0x8000 + (addr & 0x7FFF)` | **MEASURED** | header at `0x7FC0` reads `SIMCITY` (`0xFFC0` is filler) => LoROM, not HiROM as four tracked files say; the formula is the LoROM rule and is byte-verified on 4 labels. CONF-7 | D007, CONF-7 |
 | C-031 | `EE 51 0B` occurs once, at `0x18026` | **MEASURED** | byte search. **Occurrence, not execution** | D007 |
 | C-032 | The peer's API carries no PC or block trace | **MEASURED** | enumeration of its public surface | register §6 |
 | C-033 | SRAM does not carry the city, so the cross-load script cannot work | **MEASURED** | 32,746 bytes of `0xFF`; identical md5 from two sessions | register §4 |
