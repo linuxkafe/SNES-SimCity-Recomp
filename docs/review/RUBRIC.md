@@ -2,6 +2,12 @@
 
 **Candidate under review:** the clock investigation and the working tree it lives in.
 **Pre-registered before review.** A review against an unregistered rubric is invalid.
+**Hash:** see `RUBRIC.sha256`, same directory, committed with this file.
+
+**Why this lives in `docs/` and not `aes/`.** `aes/` is local project management
+and is gitignored, permanently and by rule. The protocol wants a committed,
+hashed rubric; putting the rubric inside `aes/` would have meant force-adding it
+past that rule to satisfy a process. The process yields to the rule.
 
 This rubric replaces nothing. It exists because the only other rubric available
 (`templates/review-rubric.md` in the AES skill) is `NARRATIVE-INTEGRITY-SUITE`,

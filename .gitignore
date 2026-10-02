@@ -18,20 +18,8 @@ src/gen/
 *.sav
 *.srm
 
-# AES internal - local project management, never committed.
-#
-# BUT: the peer-review protocol requires a pre-registered rubric committed with
-# its hash, and an un-reviewable protocol is worse than a slightly untidy tree.
-# The aes-peer-review skill ships only SKILL.md - the protocol spec and rubric
-# templates live in the sibling `aes` skill - so the rubric for this project is
-# authored here and must be committable.
-#
-# `aes/*` rather than `aes/` because git cannot re-include a subdirectory whose
-# parent is excluded. Everything under aes/ stays ignored except the rubric and
-# the review record.
-aes/*
-!aes/templates/
-!aes/peer-reviews/
+# AES internal (never committed - local project management only)
+aes/
 .aes/
 
 # snesrecomp specific
