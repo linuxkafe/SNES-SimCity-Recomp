@@ -75,8 +75,9 @@ The gate's own header states:
 
 **False since `9624f0e`.** The Deck compiles this project natively (gcc 15.1.1,
 cmake 4.0.3, `make test` 2/2). The rootfs damage is real and still true; the
-inference from it was not. Measured in
-`aes/decisions/D009.md`; ledger row for the retraction is pending.
+inference from it was not. Measured in `aes/decisions/D009.md`. Ledger rows
+**R-028**, **R-029**, **R-030** now cover the three phrases; `make retraction-count`
+is the authority on how many retractions there are.
 
 **No ledger row covers this claim**, so `check-retracted-claims.sh` cannot catch
 it at this or any other site. A guard only guards what the ledger names.
@@ -328,3 +329,42 @@ ticket (**T096**) rather than into a commit whose message says "docs".
 03 going silent (f3301) and the city appearing (≈f3378). It is a correlation with
 no mechanism attached, and turning it into a cause is the seventeenth retraction
 waiting to happen.
+## 10. `docs ↔ build flags` — a trace build that "cannot link" because a flag was passed to one compiler and not the other
+
+**CONF-9 · severity MEDIUM · `docs/measurements/2026-10-02-c041-bank03-pc-dump.md`**
+
+This is the third instance of one shape, and the shape is what makes it worth
+filing rather than fixing and forgetting. A real machine defect — the Deck's
+rootfs really is missing 503 of 504 glibc headers — was observed correctly, and
+then a *second, unrelated* defect was attributed to it.
+
+| | claim | measured on the Deck, gcc 15.1.1 |
+|---|---|---|
+| stated | the sysroot prefix does not satisfy a translation unit that includes `<cstdlib>`, so the trace tier cannot link | `g++ -idirafter /home/deck/sysroot/usr/include` compiles `<cstdlib>`, `<cstdint>`, `<cstring>`, `<cstdio>`: rc 0. `stdlib.h` and `features.h` are both **PRESENT** in the prefix (1483 files under `~/sysroot`) |
+| actual | the prefix was passed to `CMAKE_C_FLAGS` and not to `CMAKE_CXX_FLAGS` | every `.c` unit compiled; the first `.cc` unit (`debug_server.c`) did not |
+
+```
+$ grep '^CMAKE_CXX_FLAGS:STRING=' ~/simcity/build-instr-tr/CMakeCache.txt
+CMAKE_CXX_FLAGS:STRING=                     <-- empty; this is the whole bug
+$ grep '^CMAKE_CXX_FLAGS:STRING=' ~/simcity/build/CMakeCache.txt
+CMAKE_CXX_FLAGS:STRING=-idirafter /home/deck/sysroot/usr/include
+```
+
+The reported symptom was real and the diagnosis was wrong. Under it sat an
+unlicensed substitution: the host-only AOT histogram was kept, labelled
+host-only, and the open question — *does bank 03 run AOT anywhere* — was left open
+on the grounds that the machine that could answer it could not run the
+instrument. It can. Ledger row **R-032**.
+
+Fixed: `scripts/deck-trace-build.sh` carries the measured configure line and ends
+in a guard that refuses to call a mute build a success (`[aotblk]` count must be
+non-zero — trap 3). Run on the Deck from a clean `build-tr`, it configures,
+links, and reports **9771** `[aotblk]` lines in f1–f50.
+
+**The generalisable part**, and it is the same as CONF-2 and as the paired
+`$0B51` retraction: *a verified observation plus an unsupported conclusion about
+a second thing.* A damaged rootfs is a real, measurable, hard-to-ignore
+condition; it is therefore an attractive explanation, and it will keep absorbing
+the next build failure that happens to occur on the same machine. A second
+failure on a broken machine is not evidence that the machine's breakage caused
+it — that is a measurement, and it takes one command to make.

@@ -420,6 +420,16 @@ prefix at `/home/deck/sysroot` and `-idirafter` — deliberately **not**
 `#include_next <stdlib.h>`. **Every Deck number in this repository inherits that
 caveat.**
 
+> ⚠️ **The prefix must be passed to BOTH compilers.** An earlier revision of this
+> file attributed the Deck trace tier's failure to link to the prefix being
+> "partial … not a libstdc++ one" (ledger row **R-032**, CONF-9). That is false:
+> `g++ -idirafter /home/deck/sysroot/usr/include` compiles `<cstdlib>` with rc 0,
+> and `stdlib.h` is **present** in the prefix. The actual defect was that
+> `-DCMAKE_C_FLAGS` carried `-idirafter` and `-DCMAKE_CXX_FLAGS` was left empty,
+> so every `.c` unit built and the first `.cc` unit did not. If you see a Deck
+> build fail in a C++ file only, diff the two flag variables before you blame the
+> rootfs. The measured recipe is `scripts/deck-trace-build.sh`.
+
 ### macOS / Windows
 
 Not measured on either; the framework carries the paths and nothing in this
@@ -607,6 +617,11 @@ session does not pay for them again.
    added. A knob that accepts its variable and prints nothing is worse than one
    that is absent. `-DSNESRECOMP_TRACE_BUILD=ON` (default **off**) now adds
    `debug_server.c` and links pthreads, which is what makes trap 4 avoidable.
+   **And it is avoidable on the Deck too** — that was long believed otherwise on a
+   false cause; see the warning in *Steam Deck* above, ledger row **R-032**, and
+   CONF-9. `scripts/deck-trace-build.sh` builds it there and asserts the
+   `[aotblk]` count is non-zero, because a link that produces no trace output is
+   not a working instrument.
 
 Two knobs were added for this, dev-only behind `-DSNESRECOMP_INTERP_PROFILE`:
 `SNESRECOMP_INTERP_DUMP_BANK=03` prints **every** distinct PC in one bank with
