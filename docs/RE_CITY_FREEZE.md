@@ -3237,3 +3237,107 @@ carregar, a verificar data, população e fundos. E uma leitura directa de `$B9`
 imediatamente antes e depois do handler, para converter a inferência
 ("$B9=1 depois do handler, 0 à fronteira" → agora "$B9=1 **e** à fronteira") em
 medição.
+
+---
+
+## 2026-10-02 (r) — O Deck compila nativamente, e a cidade viva nunca toca a bank 03
+
+O Deck deixou de ser uma máquina de binários copiados. Compila nativamente, com
+gcc 15.1.1, cmake 4.0.3, git 2.50.1, Zen 2 8 threads. `make test` 2/2.
+
+### O rootfs do SteamOS está danificado, e vale registar
+
+`base-devel` está instalado mas **503 dos 504 ficheiros de glibc sob `/usr/include`
+não existem em disco**, e o pacman ainda reporta o pacote como instalado. O mesmo
+com `linux-api-headers 6.15-1`. `echo '#include <stdio.h>' | gcc -E -` dá
+`fatal error: stdio.h: No such file or directory`. Não há sudo e não há glibc em
+`/var/cache/pacman/pkg`, portanto o sistema não pôde ser reparado.
+
+A build usou os headers exactos extraídos de `archive.archlinux.org` para um
+prefixo de utilizador, com `-idirafter` — **não** `-isystem`, que ordena antes de
+`/usr/include` e parte o `#include_next <stdlib.h>` da libstdc++. Três bloqueios
+mais precisearam flag explícita: `SDL_UNIX_CONSOLE_BUILD=ON` (a fuga que a
+própria mensagem de erro do SDL3 nomeia), `OPENGL_INCLUDE_DIR`, e
+`OpenGL_GL_PREFERENCE=LEGACY` porque este sistema é GLVND e o
+`runner.cmake:953` liga `OpenGL::GL`.
+
+**Isto é um FACTOR DE RISCO DE AMBIENTE para qualquer resultado de Deck, e
+qualquer número de performance apurado num prefixo de headers reconstruído à mão
+tem de ser lido com essa reserva.**
+
+### Performance no Deck: o pacing domina, não o guest
+
+56.4 fps (1200 apresentações / 21.275 s). guest **4.502 ms/frame**,
+upload-present **1.007 ms/frame**, deadline-wait **11.275 ms/frame** — ~7.7 s de
+CPU em 21.3 s de parede. Isto **contradiz** tanto o número de ontem
+(`upload-present` 6.8× o guest, que era o bottlenecks num `SDL_VIDEODRIVER=dummy`
+no host) como a leitura anterior de que o caminho de apresentação é o problema.
+Nenhum dos dois se sustenta no Deck.
+
+### O histograma: **bank 03 não executa na janela da cidade viva**
+
+f3400–f3600, dois caminhos de instrumentação, ambos de acordo:
+
+- interpretar: 1228 PCs distintos — bank 00 com 813 PCs / 1 287 069 passos,
+  bank 01 com 415 PCs / 164 460. **Zero PCs na bank 03 (ou 02).**
+- AOT (`SNESRECOMP_AOTBLK=3400-3600`): 206 806 entradas de bloco, **só 30 PCs
+  distintos**, bank 00 com 6 432 e bank 01 com 200 374. Zero na 03.
+
+A janela inteira da cidade viva está confinada às banks 00 e 01.
+
+### Três coisas que este agente descobriu sobre as ferramentas, e que são o achado mais valioso
+
+**1. `CYC_WATCH` é cego ao AOT — medido, não inferido.** `interp_bridge.c:2034`
+põe o filtro dentro de `_interp_run_core`, o loop por opcode interpretado.
+`cpu_trace.h:1316` confirma a divisão. Teste de cegueira: `CYC_WATCH=1C700-1C7FF`
+deu 28 002 hits mas **todos em f3094–3103, zero em f3400–3410**, enquanto
+`AOTBLK=3400-3410` deu 11 267 entradas em PCs sobrepostos exactamente nesses
+frames. **Um zero do `CYC_WATCH` não prova nada sobre execução AOT.** Várias das
+minhas afirmações passadas se apoiavam exactamente nessa cegueira.
+
+**2. `AOTBLK` não está mudo — recebe uma janela de FRAMES, não um intervalo de
+PC.** `cpu_trace.c:1243` faz `sscanf("%ld-%ld")` comparado com
+`snes_frame_counter`; o `CYC_WATCH` faz `"%lx-%lx"` contra `pc_before`. Passar
+`38000-381FF` pedia frames 38000–381FF. Com janela de frames emits 206 806
+linhas.
+
+**3. `SNESRECOMP_INTERP_PROFILE` não é Exposure por nenhuma opção de CMake.** O
+histograma interpretar **nunca existiu** numa build normal deste projecto — e é
+por isso que nunca tinha sido corrido.
+
+### Protocolo de assentamento no Deck: os três falham
+
+9000 frames, **162.5 s de parede (2.7 min)**, rc=0, save **real**
+(`24720bb57ff09426d588da564fea6c18`, o `saves/save.srm` do host).
+
+| frame | `$0B53` | pop | fundos |
+|---|---|---|---|
+| 3400 | 1900 | 0 | 20000 |
+| 5500 | 1900 | 0 | 20000 |
+| 7500 | 1900 | 0 | 20000 |
+| 9000 | 1900 | 0 | 20000 |
+
+**Zero de três condições.** Só 19–34 bytes mudam entre snapshots (0.02%) — longe
+de uma cidade a simular.
+
+**E a origem da retractação fica identificada:** `scripts/clock-gate.sh:139`
+**trunca deliberadamente o `save.srm`**. Foi essa truncagem, e não um save real,
+que produziu o "a cidade não carrega" — confirmado agora pelo save real.
+
+### O que as claims abertas passam a significar
+
+`INC.w $0B51` está nos bytes do ROM no offset `0x18026` (`EE 51 0B`). **Não
+corre.** Mas `INC.w $0B51 executes zero times` e `CODE_008061 never runs` continuam
+**ABERTAS**, e agora pelo motivo oposto ao assumido: não porque o instrumento as
+refutou, mas porque **esta build nunca chega à bank 03** nesta janela. Uma
+instrumento cego não pode refutar, e um zero do instrumento cego não é um zero da
+execução.
+
+### Medição seguinte, e é gratuita
+
+Correr o histograma interpretar sobre **a run inteira** em vez da janela viva:
+`SNESRECOMP_INTERP_PROFILE_START=0 SNESRECOMP_INTERP_PROFILE_END=3700`. O
+instrumento já está compilado, é uma run headless de 6000 frames, sem código
+novo. A bracket provou que a bank 03 está ausente *ali*; a questão em aberto é
+se a bank 03 executa **algum dia** nesta build (boot/attract) ou **nunca**. Esse
+facto único decide se "a cidade simula por outro caminho" sequer está disponível.
