@@ -2770,3 +2770,69 @@ isso seria um bug de *correcção*, não de performance.
 de facto. Se o máximo observado for, digamos, 4, o limite de 64 tem uma margem
 de 16× e ninguém precisa de lhe tocar. Se estiver perto de 64, é um cliff real
 e tem de ser tratado antes de qualquer optimização.
+
+---
+
+## 2026-10-01 (n) — o cliff dos slices não existe; e o `AOTBLK` não funciona sequer no build de trace
+
+Duas medições, uma boa e uma má.
+
+### Os slices: 64× de margem
+
+`SNESRECOMP_FRAME_SLOG=1`, 3200 frames, a contar `slice<N> enter` por frame:
+
+```
+  frames observados     : 3200
+  slices por frame, min : 1
+  slices por frame, max : 1
+  slices por frame, med : 1
+  GAME_MAX_SLICES_PER_FRAME = 64
+  MARGEM                : 64.0x
+```
+
+**Um slice por frame, em todos os 3200 frames.** O limite de 64 nunca pode ser
+atingido, portanto o cliff decorrectness que eu temia **não é um cliff**. Ninguém
+precisa de lhe tocar, e não é uma preocupação para optimizações futuras.
+
+E isto reforça o diagnóstico: o guest entra **uma vez** por frame, rende o
+controlo, e não é re-entrado. Combinado com `resume=009311/009313`, o guest não
+está a ser privada de tempo — está parado **dentro** do spin, à espera de um
+token que o handler de NMI nunca põe porque o jogo toldo a sua própria flag.
+
+### O `AOTBLK` não dispara — nem no `build-tr/`
+
+O mecanismo devia dar-nos a sequência ordenada de blocos AOT, que é a
+pergunta que ainda importa. Não dá:
+
+```
+  build-tr/SimCitySNESRecomp   contem a string "aotblk"   (1)
+  build/SimCitySNESRecomp      nao contem                   (0)
+```
+
+O `build-tr/` é o binário certo, e a condição em `cpu_trace.c:1246-1250` é
+`ab_lo >= 0 && snes_frame_counter >= ab_lo && <= ab_hi`, com `sscanf(_e, "%ld-%ld")`.
+Com `SNESRECOMP_AOTBLK="60-61"` e `SNESRECOMP_RUN_FRAMES=70` — uma janela
+cedo, inequivocamente dentro do range — a saída é **zero linhas**.
+
+Não é a janela, não é o parse, e não é a flag. `cpu_trace.c:5` abre
+`#if SNESRECOMP_TRACE` e fecha em `:2679`; `cpu_trace_block` está em `:1233`,
+dentro. O código gerado chama-o sem guarda (`emit_function.py:533, 586, 2123`) e
+`src/gen/bank04_v2.c:40` mostra a chamada a `cpu_trace_func_entry` presente. **Não
+estabeleço porque é que não dispara** — e não vou adivinhar, que é a lição de
+doze retractações.
+
+Registado como ticket, não como conclusão. A alternativa que o agente proposeu
+continua por testar: `SNESRECOMP_CYC_WATCH` vê opcodes interpretados e está em
+todos os binários — mas é cego para um bloco AOT em bank 00, que é onde estamos.
+
+### O que isto deixa
+
+O slice cap está resolvido. O trace de blocos **não está**, e é o instrumento de
+que a próxima medição precisa. Se o Deck voltar, `build-tr/` + `AOTBLK` é o
+caminho e está definido; se não voltar, `CYC_WATCH` com uma janela que apanhe
+o lado do interpretador, ou um breakpoint no debug server (que exige build de
+trace e tem `invoke_recomp` desligado em v2).
+
+**A pergunta continua a mesma e continua a ser uma run:** qual dos quatro
+`ORA #$80` em `$03:C8D7`, `CB4D`, `CBEB`, `CE6C` executou por último, e qual dos
+quatro `AND #$7F` devia tê-lo seguido.
