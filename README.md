@@ -191,13 +191,24 @@ than that premise deserves:
   Deck-native]** — `[count] pc watched: 0 executions over 6000 frames`,
   `exit: RUN_FRAMES reached`. See
   [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md).
-- **The date is frozen because *nothing writes it*.** A 16-bit bus write watch
-  on the whole clock block `$0B51`–`$0B5F`, 6 000 frames, Deck-native: **66
-  byte-writes in 8 events, and not one after f3259** — 0 writes in the 2 741
-  frames that follow. That is strictly stronger than "34 WRAM bytes change across
-  2 599 frames", which is a statement about a *diff*; this is a statement about
-  the **writer**. It is the first mechanism-level measurement of the freeze in
-  this project and it still names **no cause**. **[MEASURED, Deck-native]**
+- **The city-state block is written once, at f3259, by a creation routine, and
+  never written again.** Two disjoint windows, watched as a 16-bit bus write
+  census (which sees both engines, so none of the tier blindness that retracted
+  C-039c applies): `$0B51`–`$0B5F` takes **66 writes in 6 000 frames** and
+  `$0DC0`–`$0DD0` takes **61 in 9 000**, each in 4–8 events, **none after
+  f3259** — 5 741 frames of silence on the second. The date is not rewritten with
+  the same value and the tick counter is not failing to change; the whole block
+  is initialised and abandoned. The f3259 event decodes as one *new-city*
+  routine: `LDA #$076C / STA $0B53`, `LDA #$0001 / STA $0B55`,
+  `LDA #$0007 / STA $0DC5`, `STZ $0DC7`, `STZ $0DC3/$0DC9/$0DCB`, and the
+  straight-line `STZ.w $0B51`. **[MEASURED, Deck-native.]**
+  **`INC.w $0B51` is still 0 executions at f9000**, so the tick *routine* does not
+  run either, not merely the increment: `$0DC7`, the accumulated tax it feeds two
+  instructions later, is never accumulated into either. **This is where the
+  evidence now points and it is not a cause** — it names what does not write the
+  city state, not which code would have. The f3271 gate and the bank-`$03` death
+  are both still measured, and **neither has been shown to be why the block is
+  abandoned.**
 - **`1900 / January` is *written*, once, at f3259.** `$03:C63F` `LDA #$076C` /
   `STA $0B53`, `$03:C646` `LDA #$0001` / `STA $0B55`, and then `$03:C77E`
   `STZ.w $0B51` — a straight-line 16-instruction clear of the city-state block.
@@ -352,7 +363,7 @@ comparison this project was leaning on.
 
 **And that next measurement has now been made — [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md), Deck-native.** Over 6 000 frames, a window containing **12** of the reference's own ticks, `$03:8026` executes **zero** times. So the tick genuinely does not run here — that part is now a measurement rather than a window artefact — and **the fix-shaped story is correspondingly weaker, not stronger**: making it run is a necessary-looking change whose sufficiency has counterevidence in the reference build.
 
-What the same run established instead is a mechanism the project had never seen: **the date field takes 66 byte-writes in 6 000 frames and none after f3259.** Nothing rewrites it with the same value; nothing writes it at all. That is a measurement of *where* the freeze lives and **still not a cause** — a write census cannot see the code that would have written.
+What the same runs established instead is a mechanism the project had never seen: **the city-state block is written once, at f3259, by a creation routine, and never written again** — 66 writes in 6 000 frames on `$0B51`–`$0B5F`, 61 in 9 000 on `$0DC0`–`$0DD0`, none of either after f3259. Nothing rewrites the date with the same value; nothing writes it at all. That is a measurement of *where* the freeze lives and **still not a cause** — a write census cannot see the code that would have written.
 
 The retracted claims, each marked where it was made:
 
