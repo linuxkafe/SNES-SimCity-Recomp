@@ -104,7 +104,8 @@ frame-0 hits:
 | `$0B40`–`$0B7F` | 64 | **64** | `$00:8025` |
 | `$0B00`–`$0BFF` | 256 | **256** | `$00:8025` |
 
-**No 65816 instruction writes 256 consecutive bytes.** `STA dp,x` writes one. The
+**No 65816 instruction writes 256 consecutive bytes.** (The instruction this
+was read as — a one-byte-operand direct-page indexed store — writes one.) The
 frame-0 hits are a **block memory initialisation pass** — every byte of the
 watched span written once, in order, from whatever the CPU happened to be parked
 at. `$0B51` was not written by an instruction at all; it was covered by a sweep.

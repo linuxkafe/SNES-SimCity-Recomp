@@ -639,6 +639,19 @@ session does not pay for them again.
    to `/dev/null`. Measured in
    `docs/measurements/2026-10-02-deck-aot-histogram.md` §4.
 
+6. **`SNESRECOMP_COUNT_PC` prints nothing unless `SNESRECOMP_PHASE_MS` is also
+   set.** It counts executions of one 24-bit PC and the counter works; the only
+   `fprintf` that reports it sits inside `interp_profile_dump_atexit()`, whose
+   first statement is `if (!HostGetenv("PHASE_MS")) return;`
+   (`snesrecomp/runner/src/desktop/host_main.c:2535`). So the knob alone produces
+   a clean-looking no-op run. With `SNESRECOMP_PHASE_MS=1` it prints
+   `[count] pc watched: N executions over F frames`. And
+   `SNESRECOMP_COUNT_PC_FRAME`, documented at `interp816.c:196` as printing the
+   count per frame, is **dead code**: `s_interp_pc_frame` is declared at `:200`
+   and read nowhere in the tree. This is trap 3 and trap 4's shape again — a
+   *different* knob, the same mistake. Measured in
+   `docs/measurements/2026-10-02-f3271-entry-gate.md` §6.
+
 Two knobs were added for this, dev-only behind `-DSNESRECOMP_INTERP_PROFILE`:
 `SNESRECOMP_INTERP_DUMP_BANK=03` prints **every** distinct PC in one bank with
 its step count (the top-60 list cannot answer "is this one address among
