@@ -367,28 +367,42 @@ if not `$03:8026`?" is now ANSWERED and it does not help.** The answer is
 on the host. And in that same run **the date never moved.** So the framing
 "our tick does not run, the reference's does, therefore that is the difference"
 is **refuted by the reference build itself**: the reference reaches the city
-through the keyboard route, ticks 27 times, and simulates nothing.
+through the keyboard route, ticks 27 times, and — **this was read wrong, see
+below** — appeared to simulate nothing.
 
-> **REFUTED, not merely unproven: the premise that `$03:8026` running would fix
-> the clock has counterevidence.** Any fix of that shape would be aimed at a
-> target that the one build which reaches the target does not pass through.
+> **RETRACTED (R-036): the premise that `$03:8026` running would NOT fix the
+> clock had counterevidence, and the counterevidence was our own instrument.**
+> `$03:8026` running **does** fix the clock. In the reference it is what moves
+> the date. The story it was used to kill is the story the evidence now supports.
 
-Two peer runs disagree about whether the reference simulates at all, and **both
-are measured, on the same ROM**:
+Two peer runs appeared to disagree about whether the reference simulates at all.
+**They never did.** Reconciled, Deck-native, in
+[`2026-10-02-t101-reference-simulates.md`](docs/measurements/2026-10-02-t101-reference-simulates.md):
 
 | peer run | script | window | `$0B51` | date | population |
 |---|---|---|---|---|---|
-| older WRAM trace | a live city reached by that route | f30000 | `0000 -> 006D` | `076C -> 076E`, **23 months** | changing |
-| T093 write-watch | `scripts/d_city_kbd.script`, 41 presses | f9000 | `0000 -> 001B`, 27 ticks | **`076C` never moves** | **0** |
+| older WRAM trace | a live city reached by that route | f33700 | `0000 -> 0080` | `076C -> 076E`, **23 months** | 0 |
+| T093 write-watch | `scripts/d_city_kbd.script`, 41 presses | f9000 | `0000 -> 001B`, 27 ticks | `$0B55 = 07` — **six month advances** | **0** |
+| **T101, clean core, same script as T093** | `scripts/d_city_kbd.script` | f30000 | `0000 -> 0071` | **`076C` → `076E`, 28 month rolls, 29 date images** | 0 |
 
-**[MEASURED]** — and **unreconciled**, which is a finding, not a nuisance. The
-route differs and the window differs; the arithmetic in the routine
-(`AND #$0003` gates the month on every 4th tick, 197 frames per tick) predicts
-roughly **6 month advances inside 9 000 frames**, which the T093 run does not
-show. **At least one of these two rows is explained by something neither row
-measured, and which one is OPEN.** Until it is settled, "the reference simulates
-and we do not" is **not** available as a premise — which removes the single
-comparison this project was leaning on.
+**[MEASURED, Deck-native]** The T093 row was reproducible byte for byte —
+`master_clock = 3216243544`, `insns = 107365572`, identical to its own record —
+so it is the **same execution**. At f9000 the true `$0B55` is `07` (AUGUST). The
+log printed `076C` because **`study/peer-linux/jjhead.c` clobbered the month
+column and printed `$0B53` under its label** (`c4923de`). The month advanced six
+times inside the disputed window; `AND #$0003` extracts the quarter, so **27 ticks
+are `6 × 4 + 3`**, which is exactly where the predicted ≈6 came from.
+
+The write-watch is **not** the cause: the clean and watched cores produce
+**byte-identical** 30 000-frame timelines under `cmp`, with the watch
+demonstrably live (230 rows, f0→f29967). f9 000 *is* too short — **for the
+year**, whose first rollover is at f13080. That half of the old reading was right
+and was over-read.
+
+**"The reference simulates and we do not" is therefore available as a premise,
+and it holds.** It is no longer an assumption this project is leaning on.
+**[MEASURED, Deck-native]** — the reference row is a measurement; the "we do not"
+half is C-041c/C-058.
 
 **And that next measurement has now been made — [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md), Deck-native.** Over 6 000 frames, a window containing **12** of the reference's own ticks, `$03:8026` executes **zero** times. So the tick genuinely does not run here — that part is now a measurement rather than a window artefact — and **the fix-shaped story is correspondingly weaker, not stronger**: making it run is a necessary-looking change whose sufficiency has counterevidence in the reference build.
 

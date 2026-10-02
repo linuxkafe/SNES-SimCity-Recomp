@@ -4001,15 +4001,24 @@ antigos.**
 
 ## 2026-10-02 (u) — T093: quem escreve `$0B51`, medido no peer. E a janela do C-041 não chega
 
-> **STATE (2026-10-02, from the index at the top of this file): CURRENT** — the
-> newest measurement. It answers the index's open question 1, and it opens a
-> window problem with C-041 that is now the single next measurement.
+> **STATE (2026-10-02, from the index at the top of this file): SUPERSEDED by
+> entry (v)** — and **§2 and §3 below are RETRACTED (R-035, R-036)**. Do not read
+> them as current. They are kept as written because the retraction is the
+> finding.
+>
+> ~~It answers the index's open question 1, and it opens a window problem with
+> C-041 that is now the single next measurement.~~
+>
+> **Machine label corrected.** This banner used to read **Host-only.** That was
+> already false when it was written: `…-t093-peer-0B51-writer-deck.md` is a
+> Deck-native run of this same measurement. **This entry is Deck + host.**
 >
 > Full data, hook, and the two corrections the hook needed before it told the
-> truth: `docs/measurements/2026-10-02-t093-peer-0B51-writer.md`.
+> truth: `docs/measurements/2026-10-02-t093-peer-0B51-writer.md` and
+> `…-deck.md`.
 >
-> **Host-only.** O peer foi compilado e corrido na dev box. Nenhum número desta
-> entrada tem suporte do Deck.
+> **Deck-native.** O peer foi compilado e corrido na dev box **e no Deck**. Todos
+> os números das execuções do tick têm suporte Deck; ver a página `-deck`.
 
 **1. O escritor é `$03:8026` = `INC.w $0B51`. E no peer ELE CORRE.**
 
@@ -4027,32 +4036,49 @@ contador mod-4 livre que lê 0 um frame em quatro por desenho. Medido: sobe
 afirmação do README está **REFUTADA** e registada em
 `scripts/retracted-claims.tsv` (R-031).
 
-**2. E subir não é simular. Esta é a frase que mais pesa nesta entrada.**
+**2. ~~E subir não é simular. Esta é a frase que mais pesa nesta entrada.~~
+**RETRACTADO — R-036. Ver entrada (v) §2 e §3.**
+
+**REFUTADO, e é a única correção que importa nesta entrada.** A tabela abaixo
+está certa no que diz e **incompleta no campo que decide**: falta o mês. `$0B55`
+em f9000 é `07` — AGOSTO. O log desta run imprimiu `d0B55 = 076C` porque o
+**nosso próprio driver** clobberava a coluna (`c4923de`). O mês avançou seis
+vezes dentro desta janela.
 
 No mesmo run, `$0B51` sobe 27 vezes enquanto nada mais se mexe:
 
-| campo | f3000–f9000 |
-|---|---|
-| ano `$0B53` | `1900`, parado |
-| população `$0BA5` | `0`, parada |
-| fundos `$0B9D` | `20000`, parados |
-| bytes de WRAM que mexem | 50–500 por 120 frames |
+| campo | f3000–f9000 | ver (v) |
+|---|---|---|
+| ano `$0B53` | `1900`, parado | correcto — a 1ª virada de ano é f13080 |
+| **mês `$0B55`** | **`07`, seis viradas** | **a tabela omite isto; era `076C` por bug nosso** |
+| população `$0BA5` | `0`, parada | correcto, e também no peer em 452 amostras |
+| fundos `$0B9D` | `20000`, parados | correcto, e também no peer |
+| bytes de WRAM que mexem | 50–500 por 120 frames | correcto |
 
-**27 execuções do incrementador do tick não compraram nada.** Qualquer história
+~~**27 execuções do incrementador do tick não compraram nada.** Qualquer história
 causal da forma "fazer `$03:8026` correr e o relógio avança" está refutada por
-esta run. O papel de `$0B51` fica corroborado **para o contador** e **OPEN para
-a data**.
+esta run.~~
 
-**3. A rota de teclado não chega a uma cidade a correr — em NENHUM dos dois
-projectos.**
+**Isto está REFUTADO.** Os 27 ticks são `6 × 4 + 3` (C-060): seis meses e três
+trimestres. A história da forma *"fazer `$03:8026` correr e o relógio avança"*
+**deixa de estar refutada** — é a forma para onde a evidência aponta. O papel de
+`$0B51` fica **[MEASURED] no peer, para o contador e para a data**, e continua
+**[INFERRED] para o NOSSO build**.
 
-O peer carrega a cidade em ~f2985 e depois não simula. O nosso build chega ao
-*mesmo* estado carregado (`$0B53 = 0x076C`, fundos 20000, pop 0) e também não
-simula. `scripts/d_city_kbd.script` é uma rota para "cidade carregada", não para
-"cidade a correr". **O peer deixou de ser referência para "uma build onde o
-relógio avança demonstravelmente"** — por este script. O que o peer é, medido:
-alcaça o estado carregado **e executa o tick 27 vezes**, que é exactamente o que
-o nosso não faz.
+**3. ~~A rota de teclado não chega a uma cidade a correr — em NENHUM dos dois
+projectos.~~** **RETRACTADO — ver (v).** É a frase mais perigosa desta entrada,
+porque mandava a próxima sessão abandonar o peer como referência.
+
+~~O peer carrega a cidade em ~f2985 e depois não simula. […] **O peer deixou de
+ser referência para "uma build onde o relógio avança demonstravelmente"** — por
+este script.~~
+
+**Isto está REFUTADO, e é o recuo mais consequente de T101.** `scripts/d_city_kbd.script`
+— **a mesma rota** — leva o peer a uma cidade que **simula**: f3000, 28 viradas
+de mês, dois anos, **29 imagens de data distintas** em 30000 frames, todas
+Deck-native. **O peer é exactamente "uma build onde o relógio avança
+demonstradamente", e é a melhor referência que temos.** O nosso build é que não
+avança: 1 imagem.
 
 **4. As janelas não se sobrepõem. E isso é uma arma contra o C-041.**
 
@@ -4102,3 +4128,102 @@ RETRACTADO (linha R-034).**
   **[MEASURED] no peer, para o contador**; continua **[OPEN] para a data**,
   porque no peer ele corre e a data não se mexe.
 - **Porque é que a bank 03 se cala em f3271.** Esta entrada não toca nisso.
+
+---
+
+## 2026-10-02 (v) — T101: o peer SIMULA. E a premissa comparativa sobrevive
+
+> **STATE (2026-10-02): CURRENT** — a medição mais recente do ficheiro, e a que
+> fecha a pergunta que a entrada (u) abriu por engano.
+>
+> Dados completos, método, e as quatro variáveis que se confundiam:
+> `docs/measurements/2026-10-02-t101-reference-simulates.md`.
+>
+> **Deck-native.** Todos os números vêm de `ssh deck@steamdeck`. Nenhum é
+> host-only. O peer foi compilado lá (gcc 15.1.1, `RelWithDebInfo`) contra o
+> prefixo reparado em `/home/deck/sysroot` via `-idirafter` — o rootfs do
+> SteamOS continua danificado, e esse é o rótulo que acompanha cada número.
+
+**1. A resposta: sim.**
+
+| | |
+|---|---|
+| cidade aparece | **f3000**, 1900 JAN (`$0B53=076C`, `$0B55=01`) |
+| primeira virada de mês | **f4440** (1900 FEV) |
+| cadência | ~780 frames; **28 viradas** em 30000 frames |
+| ano 1900 → 1901 | **f13080** |
+| ano 1901 → 1902 | **f24600** |
+| em f30000 | **1902 MAI**, `$0B51 = $0071` |
+| imagens de data distintas | **29** |
+| `$0BA5` população | **0** em 452 amostras |
+| `$0B9D` fundos | **20000** em 452 amostras |
+| saída | `EXIT=0`, `failed=0`, 211 s |
+
+Reproduzido numa **segunda rota** (`route.script`: f3720 → 1902 ABR em f30000).
+
+"Simula" quer dizer aqui: **o tick corre**. A população e os fundos também não se
+movem no peer, em nenhuma amostra, e não se afirma que se movam.
+
+**2. As duas runs discordantes nunca discordaram sobre o peer.**
+
+A run contestada foi reproduzida e dá **byte a byte** o mesmo resultado:
+`master_clock=3216243544 insns=107365572`, os valores do registo T093. É a
+mesma execução. E em f9000 essa run lê **`$0B55 = 0007` — AGOSTO**. O log
+contestado imprimiu `d0B55 = 076C`: **o nosso próprio driver** tinha uma coluna
+clobbered (`c4923de`).
+
+O mês avançou seis vezes dentro da janela que foi lida como "não avança":
+**f4440, f5220, f6000, f6780, f7560, f8400**. A aritmética do `AND #$0003`
+estava certa; o instrumento não conseguia lê-la.
+
+**O write-watch NÃO perturba o peer** (C-063). R1 (limpo) e R2 (vigiado),
+mesmo script, `cmp` sobre o log inteiro de 30000 frames → **IDÊNTICO**. E o
+instrumento estava vivo: 230 linhas, f0→f29967, reproduzindo o zero de f2985 e
+os ticks de f3857/f4009/f4262/f4402 do T093.
+
+**f9000 é curto demais — para o ANO.** A primeira virada de ano é f13080. Essa
+metade da observação antiga era correcta e foi lida em excesso.
+
+**3. `$0B51` está descodificado.** Em **1344 amostras de cidade, três runs
+independentes, zero violações**:
+
+> **`$0B51` = 4 × (meses decorridos desde a criação da cidade) + (0…3)**
+
+Logo `AND #$0003` extrai **o trimestre dentro do mês**, e os 27 ticks da run de
+9000 frames são `6 × 4 + 3`: seis meses e três trimestres. É de onde vinha o ≈6
+previsto. A relação é **[MEASURED]**; que aquele opcode seja a instrução que faz
+a extracção é **[INFERRED]**.
+
+**4. O peer não tem f3259.** Nos seus 342 dumps de WRAM (f100–f33700): **34491
+endereços distintos** mexem na janela da cidade; o churn por 100 frames nunca
+colapsa, ~60–110 bytes, com a mesma forma em 1900, 1901 e 1902. Eventos de
+mudança: `$0B51` 128, `$0B53` 2, `$0B55` 32, **`$0DC7` 128**, `$0B9D` 0,
+`$0BA5` 0.
+
+**`$0DC7` é o campo que o C-057 provou que o NOSSO build nunca acumula.** O peer
+escreve-o 128 vezes. É o diferencial cross-build mais limpo do projecto: mesmo
+campo, comportamento oposto, duas máquinas, dois cores.
+
+**5. Retraccões. Duas frases caem, e as duas eram load-bearing.**
+
+- **R-035** — *"o peer também deixa de tickar produtivamente"* (README, e a nota
+  do f3271). Refutado.
+- **R-036** — *"subir não é simular"*. Refutado. E a consequência vai ao
+  contrário do uso que lhe deram: a história da forma *"fazer `$03:8026` correr
+  e o relógio avança"* **deixa de estar refutada**. É a forma para onde a
+  evidência aponta agora.
+
+**6. O que NÃO muda.**
+
+- **C-006 continua OPEN.** Nenhuma causa é afirmada.
+- **`$0B51` continua [INFERRED]** como o tick do NOSSO build. O que mudou é o
+  comportamento no peer, que passou de observado para descodificado.
+- **`make clock` não é afrouxado.** Exige ≥2 imagens de data; o peer produz 29
+  em 30000 frames, medido no Deck. O critério deixou de ser herdado de uma
+  suposição e passou a ser calibrado contra um comportamento medido.
+
+**7. A próxima medição.** Contar execuções de `$03:8026` no NOSSO build, Deck,
+sobre **f3000–f13080** — a janela em que o peer roda o mês **dezasseis vezes**.
+O C-041c provou zero em f0–f6000; essa janela já contém uma virada. A próxima tem
+de conter muitas. Se o zero se confirmar aí, os dois builds estão separados **na
+instrução**, e não no sintoma.

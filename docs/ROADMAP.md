@@ -20,8 +20,21 @@
 ### The recommendation
 
 **Extend our own run past the reference's first tick and count `$03:8026`
-executions. One Steam Deck run, 6 000 frames, `SNESRECOMP_COUNT_PC=038026` with
+executions. One Steam Deck run, `SNESRECOMP_COUNT_PC=038026` with
 `SNESRECOMP_PHASE_MS=1`, no new code.**
+
+**DONE at 6 000 frames (`1b099ce`, 0 executions — C-041c), and the bracket is now
+too small again.** T101 measured the reference's month rolls at **f4440, f5220,
+f6000, f6780, f7560, f8400, f9180, f9960, f10740, f11520, f12300** — so a 6 000
+frame window contains **two**. The next bracket must be wide enough to contain
+many:
+
+> **T102 (the single next measurement): count `$03:8026` over f3000–f13080,
+> Deck-native — the window in which the reference rolls its month sixteen times.**
+
+If the count is zero there, the two builds are separated **at the instruction**,
+not at the symptom, and there is nothing left to explain at the level of "does
+our clock run".
 
 C-041 measured the tick at **zero** executions over f0–f3700. **That window
 cannot answer the question it was used to answer**: the reference build's first
@@ -53,33 +66,38 @@ trace.
 
 | ticket | state |
 |---|---|
-| **T100** — does `$03:8026` run in ours past f3857 | **OPEN — the recommended path** |
-| **T101** — which peer run is right: does the reference simulate at all | **OPEN** (`produces: []`) |
+| **T100** — does `$03:8026` run in ours past f3857 | **CLOSED `1b099ce`** — no: 0 executions over 9 000 frames, a window containing 12 of the reference's own ticks. **Superseded in scope by T102 below** |
+| **T101** — does the reference simulate at all | **CLOSED `9069182` — YES, and decisively.** Deck-native, clean core, cold SRAM, real save: city f3000, **28 month rolls**, year turns f13080/f24600, **1902 MAY at f30 000**, **29 distinct date images**. Reproduced on a second route. The two "disagreeing" runs were one execution read through a broken column of **our own** driver (`c4923de`) — `$0B55` printed `$0B53`; the month had advanced six times inside the disputed window. The write-watch is **inert** (C-063). **The comparative premise is available and it holds.** R-035, R-036 retracted |
 | **T086** — why does bank `$03` go silent | **RESCOPED, not closed.** *Where* is answered (f3271) and the mechanism is measured: `$03:D2AA` sets `$0012 = 1` one instruction before bank `$03`'s final `RTL`, and `$00:804D` is never executed again. The *why* is OPEN and is no longer the delivery question |
 | T087 — is `$03:8026` among the executing bank-`$03` PCs | **CLOSED** `4ba14c7`, caveated `940de2a` (C-041b); superseded in scope by T100 |
 | T092 — "the Deck cannot build this project" | **CLOSED** — false; both tiers link, `deck-trace-build.sh` refuses a mute build |
-| T093 — what advances `$0B51` in the peer | **CLOSED** `940de2a` — it is `$03:8026`, 27 executions, first f3857, **and the answer did not help** |
+| T093 — what advances `$0B51` in the peer | **CLOSED** `940de2a` — it is `$03:8026`, 27 executions, first f3857. **Its "and the answer did not help" rider is RETRACTED (R-036):** the 27 ticks are `6 × 4 + 3` — six whole months (C-060). The answer helps; the premise it was read against was broken |
 | T094 — `check-causes` fires on its own header | **CLOSED** |
 | T089 — README asserts refuted claims | **CLOSED** `02bc55f` |
 | T095, T096, T097, T098, T099 | OPEN, not on the delivery path |
 | T069 — peer repo has no licence | **BLOCKED ON OWNER** |
 
 **Numbers this reconciliation corrected:** bank-`$03` boundary f3301 → **f3271** ·
-retraction count 22 → **26 of 34 rows** · bank-`$03` range `$03C63D`–`$03E57E` →
+retraction count 22 → **28 of 36 rows** (R-035, R-036 added by T101 `9069182`) · bank-`$03` range `$03C63D`–`$03E57E` →
 **interpreted** `$03C63D`–`$03E57E` and **AOT** `$03B477`–`$03C463` (ledger
 R-033) · AOT total 1 430 539 → **1 430 540**, bank `$03`'s 18 = **15 in f3270 +
-3 in f3259**.
+3 in f3259** · reference month rolls **28 in 30 000 frames**
+(Deck-native) · `$0B51` decoded as **4 × (months elapsed) + quarter**, 1 344 samples,
+zero violations.
 
 ### What is still OPEN and is not going to be closed by any of the above
 
 - **Why the city does not simulate** (C-006). No cause is asserted anywhere.
-- **Whether *any* route, in either project, reaches a simulating city.** Two
-  measured peer runs disagree — one at 23 months across 33 700 frames, one with
-  27 ticks and the year stuck at 1900 across 9 000 — and the routine's
-  `AND #$0003` arithmetic predicts ≈6 month advances in that second window and
-  finds none. **The premise "the reference simulates and we do not" is therefore
-  not currently available**, and until it is settled, fixing *our* tick is a fix
-  to something whose sufficiency has counterevidence.
+- ~~**Whether *any* route, in either project, reaches a simulating city.**~~
+  **RESOLVED (2026-10-02, T101 `9069182`) — the question was an artefact.** The
+  two peer runs never disagreed about the peer: the 9 000-frame run is
+  reproducible byte for byte (`master_clock=3216243544 insns=107365572`), and at
+  f9000 it reads `$0B55 = 07` (AUGUST). It printed `076C` because
+  `study/peer-linux/jjhead.c` clobbered the month column — **our instrument, not
+  the peer**. The month advanced six times in that window; `AND #$0003` extracts
+  the quarter, so 27 ticks are `6 × 4 + 3`. **The premise "the reference simulates
+  and we do not" IS available**, and the reference is now the strongest reference
+  we have: 29 date images in 30 000 frames, Deck-native.
 
 ---
 

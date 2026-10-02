@@ -60,7 +60,12 @@ commit and it was the right call, and this row set is the reason it now carries 
 | C-004 | The guest executes every frame | **MEASURED** | `$00C7` differs in 5/5 successive samples | entry (q) |
 | C-005 | The `exclude_range` mask (`& 0x7FFF`) was missing, so the spinlock never yielded to the interpreter | **MEASURED** | config diff + ROM offset arithmetic, byte-verified | entry (p) |
 | **C-006** | **Why does the city not simulate?** | **OPEN** | — | T086 |
-| C-007 | `$0B51` is the 16-bit master city tick | **INFERRED** | deduced from the peer's trace, never measured here. **And now weakened, not strengthened:** in the peer `$0B51` rises `0000→001B` over 9 000 frames — 27 ticks — while the year stays 1900, the population stays 0 and the funds stay 20000. **Ticking is not simulating**, so the premise's own evidence does not support the conclusion it was drawn for | register §13, measurement `2026-10-02-t093-*` |
+| C-007 | `$0B51` is the 16-bit master city tick | **INFERRED** — and its reference-side behaviour is now **decoded** (C-060) | deduced from the peer's trace, never measured *in our build*. **The rationale this row used to carry is RETRACTED (R-036).** It read: *"in the peer `$0B51` rises `0000→001B` over 9 000 frames — 27 ticks — while the year stays 1900, the population stays 0 and the funds stay 20000. **Ticking is not simulating**."* The month did advance six times inside that window (f4440…f8400); the log could not show it because our own driver printed `$0B53` under the label `$0B55` (`c4923de`). Population 0 and funds 20000 are still true of the reference, at every sample, and still mean that an empty city does not grow — but they do not make the tick inert | register §13, measurement `2026-10-02-t101-*` |
+| **C-059** | **The reference build's city clock runs: 28 month rolls and two year rollovers in 30 000 frames, and it never stops writing city state** | **MEASURED (Deck-native)** | clean core, cold SRAM, `scripts/d_city_kbd.script`, 30 000 frames, `EXIT=0`. City f3000 (1900 JAN); month rolls every ~780 frames; 1900→1901 at f13080, 1901→1902 at f24600; f30 000 reads 1902 MAY. **29 distinct date images.** Independently reproduced on a second route (`route.script`: f3720 → 1902 APR at f30 000). Population 0 and funds 20 000 in every sample, so "simulates" means *the tick runs*, not *an economy grows* | measurement `2026-10-02-t101-reference-simulates` |
+| **C-060** | **`$0B51` = 4 × (months elapsed since the city was created) + (0…3)**, so `AND #$0003` extracts the quarter within the month | **MEASURED (Deck-native)**; the mapping onto that opcode is **INFERRED** | **1 344 city samples across three independent runs, zero violations.** Observed at every R1 roll: f3000 `m=01 b51=0000`, f4440 `m=02 b51=0004`, f5220 `m=03 b51=0008`, f6000 `m=04 b51=000C`, f12300 `m=0C b51=002C`, f13080 `y=076D m=01 b51=0030`. **This decodes the old "27 ticks in 9 000 frames" as `6 × 4 + 3`** — six whole months and three quarters — and explains where the predicted ≈6 came from | measurement `2026-10-02-t101-reference-simulates` |
+| **C-061** | **The reference has no f3259: its city state is never abandoned** | **MEASURED (Deck-native)** | its own 337 WRAM dumps, f100–f33700: **34 491 distinct addresses change** in the city window (f3800–f33700); per-100-frame churn never collapses, sitting at ~60–110 bytes with the same shape in 1900, 1901 and 1902. Change events: `$0B51` 128, `$0B53` 2, `$0B55` 32, `$0DC7` 128, `$0B9D` 0, `$0BA5` 0. **This is the reference-side counterpart of C-058**, and the contrast is the finding | measurement `2026-10-02-t101-reference-simulates` |
+| **C-062** | **`$0DC7` — the accumulated tax C-057 proves our build never accumulates — is written 128 times by the reference.** The cleanest cross-build differential in the project: same field, opposite behaviour, two machines, two cores | **MEASURED (Deck-native)**, both sides | reference: 128 change events over f3800–f33700, final `$00E0`. ours: 61 writes in 9 000 frames, **0 after f3259**, never accumulated into (C-057). **The first branch of the fork is not merely taken — it is now contrasted against a build that takes the other one** | measurement `2026-10-02-t101-reference-simulates`; `2026-10-02-t100-tick-past-f3857` §8 |
+| **C-063** | **The peer write-watch does not perturb the reference.** Its 30 000-frame timeline is byte-identical to the unwatched core's | **MEASURED (Deck-native)** | R1 clean vs R2 watched, same script, `cmp` over the whole log → IDENTICAL; `master_clock` and `insns` equal. **The instrument was demonstrably live** — 230 watch rows spanning f0→f29967, reproducing T093's f2985 zeroing (`A=$0007`) and its f3857/f4009/f4262/f4402 ticks — so this is an inertness result and not a silent no-op. Kills "the write-watch perturbs the reference" as an explanation for the two disagreeing runs | measurement `2026-10-02-t101-reference-simulates` |
 | **C-008** | **`INC.w $0B51` executes zero times** | **MEASURED** | 0 hits in the full 921-entry bank-03 dump **and** 0 AOT entries, both machines, f0-f3700. Reached by counting execution, not by inferring from `$0012` — the inference that previously stood here had a refuted premise (ledger R-020) and was withdrawn | measurement `2026-10-02-c041`, entry (t) |
 | C-009 | The gate is `$0012`; `$0012` waits on `CODE_03D287` exiting, which needs bit 7 of `$0014` | **RETRACTED** | its own stated evidence: `$0012 = 0001` 5/5, `$0014 = 8000` 5/5 | ledger R-005..R-008 |
 | C-010 | `$0012 = 0001`, `$0014 = 8000` at every sampled boundary | **MEASURED** | 5 WRAM samples | D003 |
@@ -167,6 +172,55 @@ rather than answering it: the code that was believed to advance the clock is
 provably not running, so the open question is no longer "why does bank 03 stop"
 but **"what advances `$0B51` in the reference build, if not `$03:8026`"** — and
 C-007, the premise that `$0B51` is the tick at all, remains **INFERRED**.
+
+**T101 closed the second half of that question and it closed in the opposite
+direction to the way it was posed.** The reference's clock runs — C-059, 28 month
+rolls and two year rollovers in 30 000 frames, Deck-native. So:
+
+- **The comparative premise is available.** "The reference simulates and we do
+  not" was, until f30 000 was measured, an assumption this investigation was
+  framed against. It is now a measurement, and it holds. **Nothing here retracts
+  the premise.**
+- **`$03:8026` *is* what advances `$0B51` in the reference**, and C-060 says
+  exactly how much: four increments per month, plus the quarter. The old worry —
+  that `$0B51` rises without the city ageing — is answered, and it was raised by
+  a broken column in our own driver.
+- **Our failure is narrower and sharper than "we do not simulate".** It is not
+  that our tick runs and the date does not follow; **the tick never runs at
+  all** (C-008, C-041, C-041c), **the routine that would accumulate `$0DC7`
+  never runs** (C-057), and **the city-state block is written once at f3259 and
+  never again** (C-058) — while the reference does all three, indefinitely
+  (C-061, C-062). The two builds are separated **at the instruction**, not at
+  the symptom.
+- **What remains OPEN is unchanged in kind and smaller in scope**: what causes
+  bank `$03` to stop at f3271, and what closes the `$0012` gate in the same
+  frame. No cause is asserted.
+
+### `make clock`'s criterion is justified on its own terms
+
+The gate requires **≥2 distinct date images** after the city frame. It used to
+be defensible only as "a floor somebody chose". It is now **calibrated against a
+measured behaviour of the reference implementation on the machine this project
+ships to**:
+
+| | distinct date images |
+|---|---|
+| `make clock` requires | **≥ 2** |
+| reference, 30 000 frames, Deck-native | **29** |
+| our build | **1** |
+
+The criterion is **not weakened, and must not be.** It is not inherited from an
+assumption about the reference — the assumption has been replaced by a
+measurement, and the measurement is comfortably above the floor. If anything the
+number now argues the floor is *generous*; that is an observation, not a reason
+to raise it.
+
+**What our build is actually being asked to do**, stated plainly: reach a live
+city (it does, f3259), and then keep running that city's tick indefinitely, the
+way the reference does for at least 33 700 frames. The gap is not "our clock is
+slower" or "our date field is written once"; it is that after f3259 the code
+which performs the per-tick update does not execute in our build, and the exact
+instruction is known.
 
 The gap between bank 03's last execution (f3271) and the city's arrival (≈f3378)
 is now **≈107 frames**, and it is a **correlation**, recorded as one in three
