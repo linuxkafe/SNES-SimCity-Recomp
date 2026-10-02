@@ -2936,3 +2936,122 @@ A pergunta é agora: **o host chama o handler, mas o corpo do handler não execu
 o `INC`, ou executa e a escrita em WRAM não sobrevive?** São dois bugs
 completamente diferentes, e distinguem-se por uma leitura de `$B9` imediatamente
 depois do handler correr, dentro do mesmo frame.
+
+---
+
+## 2026-10-01 (p) — A CAUSA: a NMI é entregue **antes** do guest, e o guest limpa o token
+
+Não é (A) nem (B). Ambas as hipóteses foram falsificadas por medição directa no
+Deck. A causa é uma **de ordenação no nosso frame model**, mais a máscara errada
+do `exclude_range`.
+
+### O mecanismo, frame a frame
+
+`SNESRECOMP_CYC_WATCH=0080b2-0080c5`, 3300 frames:
+
+```
+  $0080B2 SEI        3291     $0080BC INC $B9    335
+  $0080B6 LDA long   3291     $0080C0 (negativo) 2956      335+2956=3291
+```
+
+E `SNESRECOMP_CYC_WATCH=00930d-009317`:
+
+```
+  $9311/$9313/$9315/$9317   2509 cada
+  $00930D / $00930F          ZERO
+```
+
+**Portanto, frame a frame, esta é a sequência:**
+
+1. o host entrega a NMI **no topo do frame, antes do slice loop**
+   (`game_rtl.c:223-229`);
+2. o handler corre e faz **`INC $B9`** → `$B9 = 1`;
+3. o guest entra em `$930D` e faz **`STZ $B9`** → `$B9 = 0`;
+4. o guest gira em `$9313` a ler `0`, para sempre.
+
+**A assinatura de vblank é estruturalmente impossível.** O token é entregue
+*antes* de o guest o limpar, e não volta dentro do mesmo frame. Nenhum valor de
+`$B1` resolve isto — e é por isso que o `forcepoke` de ontem "não fez nada":
+não fez nada porque **não há nada a fazer.**
+
+O peer entrega a NMI **in-band**, verificada antes e depois de cada instrução, e
+o guest desbloqueia-se a si próprio porque as suas instruções continuam a avançar
+o feixe. É a diferença estrutural, e já estava registada na revisão de código de
+quatro decisões — eu é que não a liguei a isto.
+
+### Falsificação (A): o corpo executa
+
+`$00:80B2` é **LLE, não AOT** — `recomp/bank00.cfg:25` tem `force_lle 0x0080B2`, e
+o binário contém `bank_00_{86A4,86C8,90DD,926D,930D,9479}` e **nenhum
+`bank_00_80B2`**. Por isso `AOTBLK` e `break_add` são cegos aqui por construção;
+`CYC_WATCH` é o instrumento certo. E `INC $B9` corre em 335 frames — em blocos
+contíguos f9–f50, f269–f298, f521–f563, f582–f1108, f3037–f3127 — **e depois
+nunca mais, f3128→f3299.**
+
+### Falsificação (B): a escrita sobrevive
+
+Com `forcepoke 00B1 01` inserido no primeiro `wait 600`:
+
+```
+  INC $B9 executou em TODOS os frames f3909..f5999 (2100/2100)
+  e mesmo assim $00B9 = 00 em f4000, f5000, f6000
+```
+
+Controlo positivo: `$B9 = $01` ao f3024 nas corridas não forçadas, e `STZ` só
+pode escrever zero. E nada em `game_rtl.c:197-202` toca `g_ram` — só `g_cpu.S/D/
+PB/DB` e o `g_resume_pc` do host.
+
+`SNESRECOMP_NMI_PRESERVE_S=0`: WRAM **byte-idêntico** com e sem. Não envolvido.
+
+### E eu tinha uma premissa errada sobre o `BMI`
+
+`interp816.c:820-828`: `LDA long` com m=0 faz `cpu->a = readWord(...)` — **16
+bits**, e o byte de banco é descartado. `interp816.c:1324-1326`: `BMI` ramifica
+por `cpu->n`. Logo **`N` = bit 7 de `$B1`, e `$B2` é irrelevante.** A minha
+entrada (o) dizia que `$B1=01,$B2=00` dava bit 15 limpo e que o `INC` devia
+correr — e **ele corre**, o que torna a minha "falsificação" de ontem inválida
+como prova. O branch corria; o token era limpo a seguir.
+
+### Protocolo de assentamento — os três falham
+
+Cidade verificada viva (`$0B53`=1900, `$0B55`=1, frame 3024, só teclado).
+f3024→f11000 = 8000 frames / **183 s de parede**:
+
+| | f3024 | f11000 | |
+|---|---|---|---|
+| data | 1900/1 | 1900/1 | **não avança** |
+| população `$0BA5` | 0 | 0 | **não muda** |
+| fundos `$0B9D` | 20000 | 20000 | **não muda** |
+
+Com `forcepoke $B1=01` (f4000→f6000): os três continuam iguais.
+
+### Dois defeitos, e a máscara confirmada à parte
+
+`exclude_range 0x930D 0x9318` em `recomp/bank00.cfg:44` está **sem máscara**, e
+HiROM bank 00 dá `0x130D`. Confirmado por bytes: offset `0x130D` =
+`e2 20 64 b9 e6 c7 a5 b9 f0 fa 60`. E `$00930D`/`$00930F` **nunca** executam,
+porque `STZ $B9` corre compilado dentro de `bank_00_930D_M0X0`.
+
+**Cuidado com o alcance:** corrigir a máscara deixa o spin ceder, mas a NMI
+continua a ser entregue uma vez por frame no topo — a assinatura pode continuar
+impossível. **Os dois defeitos têm de ser corrigidos juntos.**
+
+### Performance: o gargalo não é o 65816
+
+```
+  fps = 11000 / 183.325628 s = 60.01
+  guest          1.589 ms/frame  (max 7.636)
+  upload-present 10.734 ms/frame (max 15.551)   <-- 6.8x o guest
+  raster-capture 1.022 ms
+```
+
+Isto **corrige o meu número de ontem** (9.579 ms de guest) — esse media o spin a
+queimar ciclos. O caminho de apresentação do SDL é o dominante, e é um problema
+diferente do emulador.
+
+### A correcção
+
+`game_rtl.c:223-229` — entregar a NMI **depois** do guest ter cedido, ou
+reentregá-la dentro do slice loop, em vez de uma vez no topo do frame. Mais a
+máscara em `recomp/bank00.cfg:44`. **Medição de confirmação, uma run:** `$B9`
+deve ficar não-zero na fronteira de frame depois de o spin ceder.
