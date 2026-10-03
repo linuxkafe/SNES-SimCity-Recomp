@@ -693,3 +693,135 @@ satisfaction; a proxy number is not.**
   manufacturing the evidence the trigger exists to require.
 - **`aes/epistemic-proof/`** written with `sat_run_performed: false` and every
   unevaluable conjunct marked as such.
+
+## S5. `aes-conflict` — **FAIL**: 1 of 5 checks fails, 3 of 5 have no input
+
+Record: `aes/conflict/CONFLICT-2026-10-03.md` (gitignored).
+
+`make conflict-check` → `No rule to make target 'conflict-check'.  Stop.` exit **2**.
+Harness dir holds `SKILL.md` only; the machinery is in `/opt/aes/scripts/`
+(`conflict-detection.py`, `migrate-access-log.sh`, `verify-access-log.sh`,
+`write-access-log.sh`).
+
+| # | check | substrate | verdict |
+|---|---|---|---|
+| 1 | orphan access entries | `access.log` | **UNEVALUABLE** — no log |
+| 2 | epistemic state contradictions | docs + log | **UNEVALUABLE as specified** (residue measured below) |
+| 3 | causality violations | `access.log` | **UNEVALUABLE** — no log |
+| 4 | session action conflicts | `access.log` | **UNEVALUABLE** — no log |
+| 5 | stale ticket references | tickets + shadow dir | **FAIL — 10 dangling** |
+
+### S5.1 Check 5 is the FAIL, and it is not resolvable as documented
+
+Tickets cite **20** distinct SD ids; **10** have no file:
+
+| dangling | cited by |
+|---|---|
+| `SD-CI-003` | T031-learn |
+| `SD-CI-005` | T007-plan, T008-plan, T004-learn |
+| `SD-CI-006` | T008-learn |
+| `SD-META-007` | T031-learn |
+| `SD-META-017` … `SD-META-022` | T007-plan, T008-plan, T004-learn, T008-learn |
+
+The ids stop dead at **`SD-META-006`** — the corpus ceiling. Everything past it is
+referenced and absent.
+
+**SKILL.md's fix is "update the ticket to reference current SD IDs", and that is
+impossible: the missing ids have no current counterpart.** The only two honest
+options are author the 10 docs, or delete the references. **Authoring them is
+rejected — that would manufacture the evidence this skill exists to demand.**
+Deleting references from 5 historical learn artefacts is a content decision outside
+this chain. **Left as an open FAIL, escalated.**
+
+### S5.2 Check 2: the corpus is internally consistent and externally unverifiable
+
+`epistemic_state`: **8 SUPORTADA, 2 HIPÓTESE.** The check as written is unfalsifiable
+here — without the log there is no *time* of verification, and two docs verified at
+different times are not a contradiction.
+
+What *is* measurable underneath, and it is not flattering:
+
+```
+$ grep -hoE 'content_hash:.*' aes/shadow/*.md | sort | uniq -c
+     10 content_hash: ""
+$ grep -c '^last_verified:'  aes/shadow/*.md   →  0 across all 10
+$ grep -c '^access_count:'   aes/shadow/*.md   →  0 across all 10
+```
+
+Every doc names its source ticket, **all 10 targets exist**, and
+`provenance.generated_by` agrees with `pointer.path` in **10 of 10**. So the corpus is
+internally tidy and **MEASURED externally unverifiable**: the one field that would
+show whether the pointed-to ticket had drifted is `content_hash`, and it is `""` in
+**10 of 10**. **UNVERIFIED — no check in this project can detect a shadow doc going
+stale.**
+
+And `aes-sleep`'s rule — `last_verified > 30d AND access_count < 3` → `STALE` —
+has **both** inputs at zero occurrences. **It cannot demote and cannot confirm.**
+
+### S5.3 What is currently protecting the corpus is the calendar, not a control
+
+Only **6 distinct learn tickets** (T009, T021, T026, T027, T031) produced the 10
+docs — **`T009`–`T031` of 159 project tickets.** 138 tickets produced none.
+All 10 docs are **19 days old** (3× 2026-09-13, 7× 2026-09-14), so **not one is yet
+>30d stale.** The corpus is unmarked only because **30 days have not elapsed.**
+
+### S5.4 The error class is now three-for-three, and the substrate is not "not built yet"
+
+| phase | rule names an input | this project produced | what got used instead |
+|---|---|---|---|
+| 3 · narrative | per-doc **composite scores** | two constants (`0.0`, `1.0`) | claim-state distribution, scored 2 |
+| 4 · epistemics | an **UNSAT core** | none — no solver | population count, 51 of 56 |
+| 5 · conflict | **`last_verified`** + **`access_count`** | none — 0 occurrences | nothing; check skipped |
+
+In phase 4 I wrote that two occurrences "is not yet a pattern", and named the obvious
+counter-hypothesis: **a fresh project legitimately has not built its substrate yet.**
+That counter-hypothesis is now **testable and false for this project**, which is not
+fresh: **159 tickets**, **26,020 bytes** of debt log, **5** narrative reports, a
+**43-row** retraction ledger, **10** shadow docs, and this is **chain run #2**.
+
+**So the pattern is not onboarding. It is that three skills, run in sequence against
+the same mature project, each found the named input missing and each did not
+manufacture it — which is correct — while the chain still produced three verdicts that
+read as if the input existed.** In phase 3 that produced `5/10 HIGH`; in phase 4 a
+confident trigger reading; here a skip. The correction is the same each time and is
+already written down: **`docs/DEFINITION_OF_DONE.md` Rule 0 — a command exiting 0 is
+satisfaction, a proxy number is not.**
+
+What would actually break the pattern is one substrate, built once: an `access.log`
+with `created`/`accessed` events. It would make checks 1, 3 and 4 runnable, give
+narrative dimension 3 a denominator, and supply `access_count` to `aes-sleep`. **It is
+a change to the AES install, not to this project** — same disposition D017 and D018
+reached. Recorded for the operator, not built here.
+
+### S5.5 A gate failed once and then would not fail again — recorded, not explained away
+
+While running the S5 gates, `make check-claims` returned **exit 2 / `RESULT: FAIL`**
+with a violation on `docs/CLAIMS_REGISTER.md:132` (R-021, `2.45 ms`, *"asserted
+without a retraction marker"*). **It has not reproduced in 11 subsequent runs.**
+
+```
+run1..run6 after the event : EXIT=0  RESULT: PASS   (6/6)
+S5 edit stashed, re-run    : EXIT=0  RESULT: PASS
+```
+
+What is established, and what is not:
+
+- **Established:** the violation is **not** caused by the S5 text. With the S5 block
+  stashed the gate still passes, and the S5 block matches **zero** of the 43 ledger
+  phrases. The reported line, `docs/CLAIMS_REGISTER.md:132`, carries its marker
+  (`RETRACTED as stated`) on **line 131** — one line above, against a documented
+  six-line window (`scripts/check-retracted-claims.sh:260`).
+- **Not established:** the cause. The failing invocation is distinguishable only in
+  that it ran a full CMake configure **in the same `make` call**; the passing runs
+  did not. I could not reproduce it on demand and I am **not** going to name a cause
+  I have not proven.
+- Failing output preserved verbatim at
+  `aes/evidence/check-claims-FAIL-once-2026-10-03.log` (gitignored).
+
+**This is a real defect regardless of cause: a gate that can report FAIL on
+correctly-marked committed content cannot be used as evidence in either direction.**
+Every PASS in this chain is therefore reported as *"passed on N of N runs",* not as
+a single observation. **Confidence in today's green is qualified, and the
+qualification travels with it.** `scripts/check-retracted-claims.sh:266` — its own
+comment says the cost of a false positive "is one line to read"; this run shows the
+cost is occasionally a false *alarm* on a line that is already marked.
