@@ -89,10 +89,58 @@ edges : 6    (measured; the brief's 19 does not reproduce)
 ```
 
 **Counted, not estimated.** `grep -cE '^\s*(from|to|source|target):'` → 6.
-**Edges also inherit no epistemic state** — this is a live structural gap, not a
+**Edges also inherit no state** — this is a live structural gap, not a
 counting dispute: a graph whose edges carry no state cannot express "this claim
 was refuted *because of* that one", which is the only reason an island graph is
 better than a list. Recorded, not fixed (§4).
+
+> #### ⚠️ CORRECTION 2026-10-03 (later session, head `cfc7a99`) — **both numbers
+> are grep artefacts, and the real ones are 56 nodes / 25 edges**
+>
+> The text above is left exactly as it stood. The claim in it is **false**, and
+> the `grep` printed beside it is **why** — it is the fourth instance of this
+> project's most productive failure shape (see `docs/CONFLICTS.md` CONF-24:
+> *"an identifier that looks like the thing you want is not the thing you want"*).
+>
+> ```
+> $ grep -cE '^\s*- id:' aes/graph/island-clock.yaml      -> 64   # nodes + INVARIANTS
+> $ grep -cE '^\s*(from|to|source|target):' …             ->  6   # block-style edges ONLY
+> $ python3 -c "import yaml;d=yaml.safe_load(open('aes/graph/island-clock.yaml'));
+>               print(len(d['nodes']), len(d['edges']), len(d['invariants']))"
+>   56 25 8
+> ```
+>
+> | quoted | what it actually counts | truth |
+> |---|---|---|
+> | **64 nodes** | `- id:` at any indent — **matches `nodes:` (56) *and* `invariants:` (8)**, since both use `- id:` | **56 nodes** |
+> | **6 edges** | only the 6 edges written in block style (`- from:` … `note:`) | **25 edges** |
+> | the brief's **19** | only the 19 edges written inline (`- {type: … why: …}`) | same 25 edges |
+>
+> **So three artefacts have quoted three different numbers for one file and none
+> of them is the count.** `docs/AES_CHAIN_RUN.md:84` says 64/6;
+> `aes/epistemics/EPIGMIF-2026-10-03c.md:71` says "64 nodes, **19** edges";
+> `aes/decisions/D017.md:133` derives "**47 of 64** nodes (73%)" from it. The true
+> figures are **56 nodes / 25 edges**, and the 19/6 split is not a dispute at all —
+> it is the two YAML styles the file happens to use for its explanatory key
+> (`why` inline, `note` in block form).
+>
+> **The orphan count is wrong for the same reason, and this is the part that
+> mattered:** the graph has **25 orphans of 56 nodes = 45%**, not "47 of 64 =
+> 73%". The claim "most of the graph is unconnected" survives — it is still the
+> largest structural gap — but the numbers attached to it did not, and the
+> overstated figure was the one doing the arguing.
+>
+> **This is recorded here rather than fixed in place because `aes/` is gitignored
+> (D4.3) and never survives a clone.** The wrong number lived in this tracked
+> file, so the correction had to live here too. **No gate would have caught it:**
+> `make check-claims`, `check-causes`, `check-entrypoints` and `retraction-count`
+> all exit 0 on the uncorrected text — measured before this edit.
+>
+> **And no gate is added for it, on purpose.** The subject is a gitignored file,
+> so a guard that validates prose counts against `aes/graph/island-clock.yaml`
+> would have **nothing to read in a fresh clone** and would exit 0 — the
+> "passes on an absent file" defeat, in a new costume. See
+> `docs/RE_CITY_FREEZE.md` for the two known-real defeats of that shape.
 
 ### 1.5 `aes-debt` cannot be run — its own "How to run" block is empty
 
