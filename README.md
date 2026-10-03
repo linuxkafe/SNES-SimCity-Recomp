@@ -1203,8 +1203,8 @@ scanlines names the source offset. Not done here, and not guessed.**
    (42)` where it now consistently prints `(34)`. **Eight subsequent runs — five
    with the file untracked, one staged, two earlier — all printed `census: 42
    rows = 34 refuted`, heading `(34)`, `RESULT: PASS`, no violations.** (Those are
-   the numbers the guard **printed at the time** — the ledger now holds 43 rows /
-   35 refuted, which the same command prints; **a historical transcript is not
+   the numbers the guard **printed at the time** — the ledger has since grown past
+   them (it holds 44 rows / 36 refuted today); **a historical transcript is not
    re-baselined**, and that is why this one still says 34.) **So it
    does not reproduce, no cause was established, and none is offered**; the
    candidate (a partial or stale read of the ledger or of a file in scope) is
@@ -1391,7 +1391,7 @@ is that re-run, not a carry-over:
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
-| `make retraction-count` | the retraction count, computed | **43 rows = 35 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+| `make retraction-count` | the retraction count, computed | **44 rows = 36 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
 **⚠️ Read the two PASS rows at the top of that table with the preamble above in
 hand.** `make check-claims` and `make check-causes` **both passed on a 0-byte

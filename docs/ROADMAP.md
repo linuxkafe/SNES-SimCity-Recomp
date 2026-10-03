@@ -108,7 +108,7 @@
 | T069 — peer repo has no licence | **BLOCKED ON OWNER** |
 
 **Numbers this reconciliation corrected:** bank-`$03` boundary f3301 → **f3271** ·
-retraction count 22 → **35 of 43 rows** (R-035, R-036 by T101 `9069182`; R-037 by T102; **R-038 by T104; R-039 by T105; R-040/R-041 by T106 — which retract R-039 in turn; R-042 by T106; R-043 by T109**) · bank-`$03` range `$03C63D`–`$03E57E` →
+retraction count 22 → **36 of 44 rows** (R-035, R-036 by T101 `9069182`; R-037 by T102; **R-038 by T104; R-039 by T105; R-040/R-041 by T106 — which retract R-039 in turn; R-042 by T106; R-043 by T109; R-044 by T110 — the reference's headless renders are tile data, not a game screen** ) · bank-`$03` range `$03C63D`–`$03E57E` →
 **interpreted** `$03C63D`–`$03E57E` and **AOT** `$03B477`–`$03C463` (ledger
 R-033) · AOT total 1 430 539 → **1 430 540**, bank `$03`'s 18 = **15 in f3270 +
 3 in f3259** · **R-039** by T105 · reference month rolls **28 in 30 000 frames**

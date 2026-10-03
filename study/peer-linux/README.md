@@ -136,10 +136,37 @@ and `$0B55` stays `0` forever. That is correct behaviour, not a failure.
 
 ## Reading the output
 
-- `frame.f*.bgra` — rendered frames, 256x210 BGRA. `bgra2png.py` converts them.
+- `frame.f*.bgra` — **RETRACTED (R-044): these are not a game screen.** This
+  file used to say *"rendered frames, 256x210 BGRA"*. Both halves are false.
+  The geometry is **240×224**, and the content is **tile data** — rows of
+  repeating 8×8 patterns, never a HUD, never a map, never text. Measured
+  Deck-native over R1's 100 renders (mean luma ~110 on every one) and over 301
+  consecutive frames spanning the `f5190` month roll, in which the month rolls
+  in WRAM (`$0B55 0002 → 0003`) and the picture does not move at all.
+  **Whether the peer's PPU is misrendering or the windowed frontend supplies
+  state `jjhead` does not is NOT ESTABLISHED.** What is established is that
+  `jjhead`'s framebuffer cannot be used as evidence about anything on screen —
+  including the reference's date, whose on-screen behaviour is **unmeasured**.
+  `bgra2png.py` still converts the files; what comes out is not the game.
+  Full data: `docs/measurements/2026-10-03-t110-clock-gate-false-green.md` §3.
 - `timeline.log` — per-sample frame, master clock, instruction count, and the
   WRAM fields that matter for the clock.
 - `wram.f*.bin` — full 128 KiB WRAM snapshots.
+
+**`jjhead` renders every 300 frames by default, and that cadence cannot see the
+date.** A simulating reference changes thousands of pixels between any two
+300-frame samples, so a month roll is indistinguishable from ordinary city
+growth — at 300-frame cadence the `f5190` roll showed *nothing at all*. Pass an
+optional `[render_from render_to]` window to render every frame in it instead:
+
+```
+jjhead <rom> cold.srm out.srm 5400 s.script . 5100 5400
+```
+
+**"29 distinct date images in 30 000 frames" is a WRAM figure, not a picture
+figure.** T101's table reads *distinct `($0B53,$0B55)` pairs | 29* — those are
+WRAM word pairs. No document has measured 29 distinct images, because the only
+instrument that could measure them does not render.
 
 Sanity numbers for a healthy run:
 

@@ -588,15 +588,15 @@ The honest finding is that **the retraction discipline was already good** — th
 file retracts in place, at the point of claim, and the previous review's "asserted
 at 12 further sites, retracted at zero" described a state that `3959cb6` fixed.
 The defect that remained was **discoverability**: 98% of the file predates its own
-newest entry and not one of the 43 entries said what state it was in.
+newest entry and not one of the entries said what state it was in.
 
 ### What was changed
 
-1. **An INDEX OF ENTRIES at the top**, all 43 rows, each with the entry's headline
+1. **An INDEX OF ENTRIES at the top**, every row, each with the entry's headline
    verbatim, an epistemic state, and a one-line reason. It states which way a
    conflict resolves: the index is right, the entry is wrong, and the entry says
    so at its own header.
-2. **A per-entry `> **STATE …**` banner** under every one of the 43 headers, so the
+2. **A per-entry `> **STATE …**` banner** under every header, so the
    label is visible **at the entry** and not only in the index. A reader who
    arrives at any entry by search, anchor link or scroll now learns its state
    without going back to the top.
@@ -868,5 +868,6 @@ under "what this does NOT establish". T105 traces X to **`$8DF3`** over 36 340
 strictly monotonic iterations. **`$14FF` was a `WLOG_ADDR` 16-bit range limit,
 not a property of the loop** — an instrument ceiling presented as a bound.
 
-Ledger: **43 rows, 35 refuted** (R-040, R-041, R-042 added by T106; **R-043 by
-T109**).
+Ledger: **44 rows, 36 refuted** (R-040, R-041, R-042 added by T106; **R-043 by
+T109; R-044 by T110** — the reference build's headless renders are not a game
+screen, so its on-screen date behaviour is unmeasured).

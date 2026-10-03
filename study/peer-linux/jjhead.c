@@ -50,8 +50,27 @@ int main(int argc, char **argv) {
     /* scheduled presses: frame -> mask, sparse table */
     uint32_t *press_at = 0; uint16_t *press_mask = 0; uint32_t n_press = 0, cap = 0;
 
+    /* Optional 7th and 8th arguments: render EVERY frame in [rf_from, rf_to].
+     * The default 300-frame cadence exists so a 30 000-frame run leaves a
+     * readable trail. It is far too coarse to isolate the HUD date, because a
+     * simulating city changes thousands of pixels between any two samples, so
+     * a month roll cannot be told apart from ordinary growth. This window is
+     * how the date's own transition gets captured frame by frame. Absent, the
+     * cadence is exactly what it always was. */
+    uint32_t rf_from = 0, rf_to = 0; int rf_window = 0;
+
     if (argc < 7) {
-        fprintf(stderr, "usage: %s rom srm_in srm_out frames script dumpdir\n", argv[0]);
+        fprintf(stderr, "usage: %s rom srm_in srm_out frames script dumpdir"
+                        " [render_from render_to]\n", argv[0]);
+        return 2;
+    }
+    if (argc >= 9) {
+        rf_from = (uint32_t)strtoul(argv[7], NULL, 0);
+        rf_to  = (uint32_t)strtoul(argv[8], NULL, 0);
+        rf_window = 1;
+    } else if (argc != 7) {
+        fprintf(stderr, "usage: %s rom srm_in srm_out frames script dumpdir"
+                        " [render_from render_to]\n", argv[0]);
         return 2;
     }
     dumpdir = argv[6];
@@ -130,8 +149,10 @@ int main(int argc, char **argv) {
         run_frame++;
         done = run_frame;
         /* Render every 300 frames so the run is self-documenting: a frozen
-         * date in the log means nothing if we cannot see the screen. */
-        if (done % 300u == 0u || done == total_frames) {
+         * date in the log means nothing if we cannot see the screen. With a
+         * [render_from, render_to] window, render every frame in it instead. */
+        if (rf_window ? (done >= rf_from && done <= rf_to)
+                      : (done % 300u == 0u || done == total_frames)) {
             char rp[512]; FILE *rf;
             if (simcity_recomp_render_current_frame(inst, err, sizeof err)) {
                 uint32_t w = simcity_recomp_frame_width(inst);
