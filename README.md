@@ -270,9 +270,15 @@ the retraction ledger is the source of truth where this prose and it disagree.
   retracted my "the HUD does not render the raw value" premise). What `1952` is
   from `$0FA0` is **NOT ESTABLISHED**.
 - **Bank `$03` stops executing at f3271** and is the code that would derive the date
-  words. In the **peer** it stays alive: `$03:8222` spans **f3068–f8881** (56 logged
-  writes, the tail of the COP/RTI dispatcher) and `$03:8029` — the tick itself —
-  spans **f3857–f8990** (54).
+  words. In the **peer** it stays alive: **`STZ $0E15` at `$03:8222` executes 28 times,
+  f3068–f8881** (56 bus writes, 2 per execution because `M=0` makes the store 16-bit),
+  and `$03:8029` — the tick itself — spans **f3857–f8990** (54).
+- **The divergence is measured, and the attribution is now settled.** The bytes at
+  `$03:8222` are `9C 15 0E` = **`STZ abs`, 3 bytes**, from this repository's own
+  declarative opcode table (`snesrecomp/recompiler/snes65816.py:369`,
+  `(0x9C,'STZ',ABS,3)`) — T116's `64 15` was refuted (R-048) and its "56 times" too
+  (R-050). **In our build that write never happens:** 0 bank-`$03` writes to `$0E15` in
+  9 000 frames, tier-independently.
 - **Our per-frame engine is NOT broken.** In f3400–f9000 it executes **1228 distinct
   PCs** across banks `$00`/`$01`, ~40.4M steps, at a control rate of
   **17 483 747 / 9000 = 1942.6 per frame** against a known-good 1929.9/f (**+0.66%**).
@@ -296,17 +302,22 @@ the retraction ledger is the source of truth where this prose and it disagree.
 
 **What remains OPEN, and it is narrower than it was:**
 
-> **Why does `$03:8222` execute in the peer and never in ours?** The peer is the
-> control that makes this decisive, and **its own evidence is not yet established** —
-> every peer write-watch to date covered only `$0010-$001F` or `$0B51-$0B52`, while
-> `$03:8222` writes `STZ $0E15`. **No peer watch has ever covered that address.** A
-> `$0E15` peer watch is the single next measurement.
+> **Why does `STZ $0E15` at `$03:8222` execute in the peer (28 times, f3068–f8881) and
+> never in ours?**
 >
-> **OPEN, and not answered by any run in this tree:** the 273-frame timing difference
-> (the peer latches `$0012` at f2998, we do at f3271) — whether that is the gate or
-> merely a correlate; why `$03:8222` logs only 56 writes across 5814 frames in the
-> peer; whether `$03:8007` is the city-creation routine the peer takes and we do not;
-> and why `S` is never restored.
+> The peer side of this is now **measured** — T116 ran the `$0E15` watch that had never
+> been run (every earlier peer watch covered only `$0010-$001F` or `$0B51-$0B52`), and
+> T117 corrected its own attribution against the repository's own opcode table. So the
+> observation stands and the explanation is no longer in doubt: the instruction really
+> is `STZ $0E15`, absolute, 3 bytes.
+>
+> **What is still OPEN, and no run in this tree answers it:** what makes bank `$03`
+> re-enter in the peer after the one-shot city-creation phase, given that its latch
+> `$0012` fires **273 frames earlier** (peer f2998, ours f3271) — whether that timing is
+> the gate or merely a correlate; why the peer logs only **28 executions across 5 814
+> frames** there (roughly one per 200 frames, so most iterations must be no-store);
+> whether `$03:8007` is the city-creation routine the peer takes and we do not; and why
+> `S` is never restored after `$018907`.
 
 **Where the evidence lives:** `docs/measurements/2026-10-03-t112-0012-is-a-latch-not-a-gate.md`,
 `…-t113-init-hardware-stalls-at-jsl-018907.md`,
@@ -1311,7 +1322,7 @@ scanlines names the source offset. Not done here, and not guessed.**
    with the file untracked, one staged, two earlier — all printed `census: 42
    rows = 34 refuted`, heading `(34)`, `RESULT: PASS`, no violations.** (Those are
    the numbers the guard **printed at the time** — the ledger has since grown past
-   them (it holds 47 rows / 39 refuted today); **a historical transcript is not
+   them (it holds 50 rows / 42 refuted today); **a historical transcript is not
    re-baselined**, and that is why this one still says 34.) **So it
    does not reproduce, no cause was established, and none is offered**; the
    candidate (a partial or stale read of the ledger or of a file in scope) is
@@ -1498,7 +1509,7 @@ is that re-run, not a carry-over:
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
-| `make retraction-count` | the retraction count, computed | **47 rows = 39 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+| `make retraction-count` | the retraction count, computed | **50 rows = 42 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
 **⚠️ Read the two PASS rows at the top of that table with the preamble above in
 hand.** `make check-claims` and `make check-causes` **both passed on a 0-byte
