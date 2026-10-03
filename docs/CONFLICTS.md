@@ -1030,3 +1030,46 @@ while the identical claim in an untracked `.md` was already caught.**
 alternative is a permanently red gate. It is bounded: the only unmarked refuted
 phrases in the guard are its own quoted fixtures, and they are identifiable by
 being inside comment or heredoc blocks.
+
+---
+
+**CONF-18 · severity LOW · `README.md` stated `make clock`'s exit code as 1; it is 2**
+
+**Found by running the gate instead of quoting it, 2026-10-03, at `1adede1`.**
+
+`README.md` carried, in bold, *"**`make clock` exits 1, not 2**"* — and the
+distinction was called load-bearing. It is wrong **about `make`**. All four
+measured:
+
+| command | exit | why |
+|---|---|---|
+| `scripts/clock-gate.sh --frames 6000` | **1** | the FAIL verdict |
+| **`make clock`** | **2** | GNU Make 4.3 maps any failed recipe to exit 2 |
+| `scripts/clock-gate.sh --help` | 0 | usage |
+| `scripts/clock-gate.sh --nonsense` | 2 | unknown flag |
+
+**`scripts/clock-gate.sh` is correct and has no exit-2 path of its own.** The 2
+is make's. The error was in the most-quoted sentence in the file about the
+project's most important gate, and it failed in the direction that matters: it
+invited a reader to treat a **`make` failure as evidence about the gate**.
+
+**Why it survived so long, and why this one is not a retraction.** It is not a
+cause claim about the guest, so `check-retracted-claims.sh` correctly has no
+ledger row for it and correctly stayed silent — **the guard is not a fact-checker
+and was never supposed to be**. It is also not in `docs/CAUSE_CLAIMS.md`. **No
+gate in this repository recomputes a prose claim about a gate's own exit code,
+and `docs/review/validate-findings-c041.sh` says so explicitly** — *"no command
+recomputes README's numbers"* — which is the D3.3/D3.4 retirement showing its
+cost a second time.
+
+**Cost:** four commands, ~4 minutes. It was found in the last twenty minutes of
+the session by doing the one thing the brief and the `aes-project-manager` skill
+both insist on and this file had not been doing: **running the thing and reading
+its status, instead of transcribing it.**
+
+**Corrected in place in `README.md` and `docs/DECK_RUNBOOK.md`,** with all four
+codes recorded rather than one. Not entered in the ledger: a retracted claim is a
+claim about the *guest*, and inventing a row for a claim about the build would
+make the retraction count mean two different things — which is precisely how
+CONF-14's "26 refuted" and a prose "two retractions" in a script header came to
+disagree.

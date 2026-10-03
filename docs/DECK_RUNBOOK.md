@@ -54,9 +54,20 @@ Leaving the CXX one empty is what broke the trace tier before, and it is
 no `SIMCITY_ROM` variable in it — `grep -n "SIMCITY_ROM" scripts/clock-gate.sh`
 returns nothing. **[MEASURED, dev host 2026-10-03]**
 
-**`make clock` must stay red.** It exits **1**, not 2. Red is the correct state
-of this project and a Deck run that reports otherwise is the finding, not the
-goal.
+**`make clock` must stay red.** Red is the correct state of this project and a
+run that reports otherwise is the finding, not the goal.
+
+**Exit codes, measured 2026-10-03 — read the script's, not make's:**
+
+| command | exit |
+|---|---|
+| `scripts/clock-gate.sh --frames 6000` | **1** — the FAIL verdict |
+| **`make clock`** | **2** — GNU Make 4.3 maps any failed recipe to 2 |
+| `scripts/clock-gate.sh --help` | 0 |
+| `scripts/clock-gate.sh --nonsense` | 2 — usage |
+
+`scripts/clock-gate.sh` has **no exit-2 path of its own**; the 2 you see from
+`make clock` is make's.
 
 ## Running headless
 

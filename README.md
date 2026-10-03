@@ -652,7 +652,7 @@ is that re-run, not a carry-over:
 | `make test` | deterministic replay (ctest) | **2/2 passed** (`test_deterministic_replay` 1.32 s, `test_display_aspect` 0.00 s) | 0 |
 | `make test-rom` | the picture moves (frames 200–800) | **PASS, 800 frames presented, 257 distinct crc32, peak luma 41.751** | 0 |
 | `make perf` | gross frame-rate floor (5 × 600 frames) | **PASS, median 53.30 fps, spread 2.9%** (52.03 … 53.59) | 0 |
-| `make clock` | **the city actually simulates** | **FAIL — `1 distinct date images after f3600 (last change f3378 of 6000)`**, `$0B53 = 076C` → year 1900 | **1** |
+| `make clock` | **the city actually simulates** | **FAIL — `1 distinct date images after f3600 (last change f3378 of 6000)`**, `$0B53 = 076C` → year 1900. Re-measured 2026-10-03: `scripts/clock-gate.sh` exits **1**, `make clock` exits **2** (make's code for a failed recipe) | **2** via make, **1** via the script |
 | `make check-claims` | no retracted claim asserted without a marker | PASS | 0 |
 | `make check-causes` | every causal assertion carries provenance | PASS | 0 |
 | `make check-causes-self-test` | the guard still fires on the tree it was written for | PASS | 0 |
@@ -662,13 +662,29 @@ is that re-run, not a carry-over:
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
 | `make retraction-count` | the retraction count, computed | **37 rows = 29 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
-**`make clock` exits 1, not 2**, and the distinction is load-bearing: the gate
-uses exit 1 for "a city is loaded and its date did not advance" and a *different*
-exit-1 verdict with its own message for "no city was loaded at all". There is no
-exit-2 path in `scripts/clock-gate.sh` — exit 2 belongs to `make perf`'s
-`INCONCLUSIVE` and to `clock-gate.sh --help` on an unknown flag. **Red is red;
-the exact code is recorded here so nobody has to guess which failure they are
-looking at.**
+**CORRECTION, measured 2026-10-03: this file said "`make clock` exits 1, not
+2", and that is wrong about `make`.** The gate script is right; the wrapper is
+not. All three, measured:
+
+| command | exit | why |
+|---|---|---|
+| `scripts/clock-gate.sh --frames 6000` | **1** | the FAIL verdict |
+| **`make clock`** | **2** | **GNU Make 4.3 maps any failed recipe to exit 2** |
+| `scripts/clock-gate.sh --help` | 0 | usage |
+| `scripts/clock-gate.sh --nonsense` | 2 | unknown flag |
+
+So **`scripts/clock-gate.sh` has no exit-2 path of its own**: exit 1 is "a city
+is loaded and its date did not advance", exit 1 is *also* "no city was loaded at
+all" but with its own distinct message, and exit 2 is only the usage path. **The
+2 that `make clock` returns is make's, not the gate's**, and a CI job reading
+`make clock`'s status as the gate's verdict is reading make's opinion.
+
+**Red is red; this file records all four codes so nobody has to guess which
+failure they are looking at.** The old sentence was wrong in the direction that
+matters most here — it invited a reader to treat a *make* failure as evidence
+about the *gate*. Found by running the gate instead of quoting it, which is the
+`aes-project-manager` skill's own first rule: **do not answer a question a command
+can answer.**
 
 **`make check-causes` was red for four commits and said so nowhere.** It fired on
 the bare word `date` inside "candi**date**" on line 30 of its own header, so it
