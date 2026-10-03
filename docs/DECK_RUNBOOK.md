@@ -292,3 +292,91 @@ two did not trip it either, because its trigger set is narrower than
 "any sentence that could mislead". **The gap is real and it is named rather than
 papered over: a new failure *shape* needs a new ledger row before any lexical
 guard can see it, and writing that row is a human act.**
+---
+
+## The picture instruments — and the one-line rule that has to precede them
+
+Two knobs write the presented framebuffer, and they are the same code path
+(`host_main.c:1601-1668`):
+
+| knob | what it writes |
+|---|---|
+| `SNESRECOMP_PRESENT_LOG=<csv>` | `present,frame,alpha,crc32,luma` — **one row per present, no pictures** |
+| `SNESRECOMP_SCREENSHOT_DIR=<dir>` | `present_NNNNNN.ppm` **plus** `presents.csv` with the same columns |
+
+Both are gated by `SNESRECOMP_SCREENSHOT_FROM=<a>` / `_TO=<b>`, which filter on
+**`g_present_frame`** — so a range picks a scene the way a per-frame dump would.
+
+> ### ⚠️ **Per present, not per frame, and that is the whole point.**
+> `host_main.c:1601-1620` says it, and T108 is the run that made it matter: a
+> whole 5 000-frame session was scanned with `PRESENT_LOG` — **no pictures at
+> all** — to find the 17 presents where the picture actually moves, and only then
+> were those 17 dumped. **Do not dump 5 000 PPMs to find a 17-sample event.**
+>
+> `crc32` is over the **presented** buffer (`w*4` bytes per row, `w =
+> g_snes_width * render_scale`), and `luma` is the mean of R+G+B over the same
+> pixels — so both are properties of **what the host presented**, not of the
+> guest's VRAM.
+
+### `SCREENSHOT_FROM` / `_TO` are `strtol(v, NULL, 0)` — base 0 (CONF-15's family)
+
+`host_main.c:1627-1630` (`from = v ? strtol(v, NULL, 0) : 0;`). A plain decimal
+`3360` is unambiguous and safe. **Write them without a leading zero.** `03360`
+would be read as **octal** and silently give you a different range. This is the
+same `strtol(…, 0)` family as `COUNT_PC` and `WRAM_DUMP_LO/HI`, and it is a
+**sixth** knob to add to the per-knob table in `README.md` instrument trap 8 —
+**not** to the `WRAM_DUMP_AT` row, which is base 10 (CONF-22).
+
+### The measured recipe — the 17 presents
+
+```bash
+ssh deck@steamdeck
+cd /home/deck/simcity
+rm -rf /dev/shm/pics && mkdir -p /dev/shm/pics
+env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+    SNESRECOMP_RUN_FRAMES=3400 \
+    SNESRECOMP_SCREENSHOT_DIR=/dev/shm/pics \
+    SNESRECOMP_SCREENSHOT_FROM=3360 SNESRECOMP_SCREENSHOT_TO=3390 \
+    SNESRECOMP_COUNT_PC=0x009311 SNESRECOMP_PHASE_MS=1 \
+    timeout 900 build-instr/SimCitySNESRecomp \
+      --script "$HOME/simcity/scripts/d_city.script" \
+      "/home/deck/rom/SimCity (USA).sfc" 2>&1 | tail -20
+echo "EXIT=$?"
+```
+
+**Every line of that is load-bearing and three of them have cost this project a
+run:**
+
+- **`--script "$HOME/simcity/scripts/d_city.script"`** — **absolute**, and
+  **before** the ROM. A relative path silently no-ops and a misplaced flag is
+  *silently ignored* (exit 0, output identical to an unscripted run).
+- **`SNESRECOMP_COUNT_PC=0x009311` and `SNESRECOMP_PHASE_MS=1` together.** The
+  `0x` prefix or the count is octal (CONF-15); `PHASE_MS` missing and the
+  reporting `fprintf` never runs, so the run is a clean-looking no-op (trap 7).
+  **A run whose control is missing produced no measurement.**
+- **`/dev/shm`, and foreground.** `setsid nohup … &` from an `ssh` command line
+  has killed three runs with no error, no core and no exit status (CONF-13). Read
+  `EXIT=` **before** you read the log, and accept the run only on
+  `exit: RUN_FRAMES reached`.
+- **`tail -20` on the output** loses the `[count]` line if the run is long — pipe
+  to a file in `/dev/shm` and grep it, do not scroll.
+
+### Reading the pictures back
+
+The files are **binary PPM (`P6`)**, one per present, named
+`present_000000.ppm` … **numbered from 0 at the first in-range present** — so the
+number is an index into the window, *not* a frame number. **The frame number is
+in `presents.csv`, third column.** Pairwise-diffing them is ordinary work on the
+dev host and needs no emulator:
+
+```bash
+scp deck@steamdeck:/dev/shm/pics/presents.csv /tmp/opencode/
+scp 'deck@steamdeck:/dev/shm/pics/*.ppm' /tmp/opencode/pics/
+```
+
+`python3 -c "import PIL"` is **not** assumed to exist; a `P6` header is
+`P6\n<w> <h>\n255\n` and the rest is raw RGB, so `numpy` or `bytes` is enough.
+**Report the bounding box and the pixel count of each transition, not a
+subjective description of the pictures** — this project has retracted eight
+findings and every one of them was the instrument, and "it looks like the date"
+is the exact shape of the claim that has to be replaced by a coordinate.

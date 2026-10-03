@@ -49,6 +49,88 @@ supply; the ROM and any ripped assets are never included. Built on the
 > `make retraction-count`. Do not type it.* If a document must state it, state it
 > as `N rows = M refuted + …` and re-read it **after** running the command.
 
+### ⚠️ This file was shipped empty once, and every gate in the project passed
+
+**Read this before trusting any green verdict in this repository, including the
+ones below.** Commit **`5cbf5fd`** ("T108: the per-present crc32 timeline")
+committed **`README.md` as 0 bytes** — `git show --numstat 5cbf5fd -- README.md`
+is `0  1895  README.md`: **1 895 lines deleted, nothing added.**
+
+```
+$ git cat-file -s 5cbf5fd:README.md        -> 0
+$ git cat-file -s 5cbf5fd~1:README.md      -> 120899
+$ git cat-file -s 3094650:README.md        -> 121482
+```
+
+**Every gate passed on the empty file.** Re-measured on this tree, 2026-10-03,
+by truncating `README.md` to 0 bytes and running the guards with it tracked:
+
+| guard | verdict on a **0-byte** `README.md` |
+|---|---|
+| `make check-claims` | **`RESULT: PASS`**, exit 0 |
+| `make check-causes` | **`RESULT: PASS`**, exit 0 |
+| `make check-cheat-gate` | **`RESULT: PASS`**, exit 0 |
+| `make check-claims-self-test` | **PASS** |
+| `make check-causes-self-test` | **PASS** |
+| `make check-cheat-gate-self-test` | **`SELFTEST PASS: 5/5`** |
+| `make retraction-count` | unchanged — it reads the ledger, not this file |
+
+**[MEASURED, dev host `seyon`, 2026-10-03 — reproduced here, not quoted.]**
+`make build` and `make test` (2/2) also pass, and they never read this file at
+all. The file was restored in **`3094650`**.
+
+**The cause was one Python expression, and it is worth writing down exactly
+because it is short and because it is a mistake anyone can make:**
+
+```python
+open(p, 'w').write(open(p).read() + new_text)      # WRONG
+```
+
+Python evaluates the **arguments** before the call, left to right, and
+`open(p, 'w')` is the first argument — so the file is **truncated to zero, and
+the handle is created**, before `open(p).read()` on the second argument ever
+runs. It then reads back **nothing** and writes `new_text` into a file that is
+already empty. **The truncation is not a race and not a partial write; it is
+guaranteed by the evaluation order.**
+
+**The safe forms, and this repository now uses only these:**
+
+```python
+new = open(p).read() + new_text                   # read fully FIRST
+open(p, 'w').write(new)                            # then open for write
+# or, atomically:
+import os, tempfile
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p))
+os.write(fd, new.encode()); os.close(fd)
+os.replace(tmp, p)
+```
+
+**Now, what this is and is not.** It is **not** a defect in
+`check-retracted-claims.sh`, `check-cause-claims.sh` or `check-cheat-gate.sh`.
+Each of those is doing exactly what it was written to do, and each of them would
+have caught a retracted claim *if the claim were still there to be caught*. What
+`5cbf5fd` demonstrates is **the class of failure they are all defeated by**, shown
+on this project's own entry point: **`git ls-files` says a file is in scope, so
+every guard reads it, and an empty file satisfies "no violations" perfectly.**
+That is CONF-20's structural half (a guard that checks *existence* is not a
+guard that checks *content*) arriving as a real, shipped, self-inflicted wound.
+
+**And the hole is still open at the time of writing: there is no gate anywhere in
+this repository that asserts `README.md` is non-empty, or that it parses.**
+
+```
+$ grep -rn "README" scripts/*.sh | wc -l          -> 8 matches, 3 files
+$ grep -rn "README" scripts/*.sh | grep -ci size  -> 0
+```
+
+Three scripts *mention* the file — `check-cause-claims.sh:166,181`,
+`check-retracted-claims.sh:178,338,451` — and **not one of them looks at its
+size, its line count, or whether it has a heading.** **So a green
+`make check-claims` says nothing about whether this file has any content in it.**
+That hole is specified, and the guard specified to close it is named, in
+[`docs/CONFLICTS.md` CONF-23](docs/CONFLICTS.md) — **and at the time of writing
+it is still open.** See the note under the gate table below.
+
 ### How much of it is actually native
 
 "Native recompilation" on its own oversells this, so the counts are given from
@@ -893,6 +975,100 @@ dirty-flag never set, a DMA never triggered — in which case **`make clock` may
 measuring a display path rather than the simulation**, and the finding belongs to
 the display.
 
+### T108: the freeze is a **17-present event**, not a 3 000-frame diff
+
+**Deck-native**, `build-instr`, `scripts/d_city.script`, **5 000 frames**,
+`EXIT=0` and `exit: RUN_FRAMES reached after 5000 frames`, positive control
+`COUNT_PC=0x009311` → **9 855 088** = **1971.0/frame**, inside the established
+1929.9–2007.9 band. **Host-only: none.** Instrument: `SNESRECOMP_PRESENT_LOG`,
+which writes `present,frame,alpha,crc32,luma` — **one row per present, no
+pictures** — from the same code path `SNESRECOMP_SCREENSHOT_DIR` uses.
+**[MEASURED, Deck-native]** —
+[`docs/measurements/2026-10-03-t108-present-crc-timeline.md`](docs/measurements/2026-10-03-t108-present-crc-timeline.md).
+
+| | |
+|---|---|
+| presents | **5 000**, frames **1…5000** — one present per frame, no decimation |
+| distinct `crc32` values in order of first appearance | **165** (206 changes; some states recur) |
+| **last picture change** | **frame 3381** |
+| **presents after it, all bit-identical** | **1 619** |
+
+**Then: a 106-frame gap, then 17 consecutive changes, f3365 → f3381, then 1 619
+identical presents.** The city does something visible for **17 consecutive
+presents** and then stops, abruptly, and the run is bit-identical for 1 619
+presents afterwards. **That is the shape of the freeze and it is a
+frame-resolved, 17-sample event** — which is why the next measurement is
+**17 pictures, not another 5 000-frame diff.**
+
+Three structures fall out of the gap histogram, each cross-checked against
+something already committed:
+
+- **A `+96` signature: f1302, 1307, 1398, 1403, 1494, 1499, 1590, 1595, 1686,
+  1691** — period **exactly 96**, five times, each event with a 5-frame visible
+  tail. **That is C-055's bank-`$03` updater seen from the picture side**; C-055
+  measured the **writer** at f1205, 1301, 1397, 1493, 1589, 1685. **Two
+  instruments, two tiers of the same system, agreeing on the period to the frame
+  and on where it stops to within 2 frames.**
+- **The dense run f2637–f3259**, gaps of 1, 2, 6, 7, 8, 16. **It ends on f3259**
+  — exactly the frame C-052/C-053/C-058 measure as the one and only write of the
+  city-state block. **The city's creation animation and the city-state
+  initialiser stop on the same frame.**
+- **The +96 updater stops too.** C-055's writer stops at f1685; the picture stops
+  showing it at f1691. **The picture side and the writer side stop within 6
+  frames of each other, and this is the second boundary in this project where
+  two independent instruments agree on where something stopped.**
+
+**And `make clock` independently reports the date crop's last change at f3378** —
+which lands **inside** the f3365–f3381 burst. **Two instruments — a
+full-framebuffer `crc32` per present, and the gate's own date-crop hash — agree
+on the same boundary to within 3 frames.**
+
+**A correction to T107's reasoning, carried here because T107's conclusion is
+still live and one of its two legs was void:**
+
+| T107's reason | status |
+|---|---|
+| the framebuffer is pixel-identical for 3 400+ frames | **DOES NOT SUPPORT THE CONCLUSION.** A display path reading `$0B53` *live* would also produce an unchanging picture, **because `$0B53` itself never changes** — C-068 measures 66 writes to `$0B51`–`$0B5F` in 14 000 frames and **none after f3259**. A frozen source and a frozen display are indistinguishable from the framebuffer alone |
+| `$0B53`/`$0B54` read `$0FA0` continuously f4260→f4899 while the picture is unchanged | **SUPPORTS IT, decisively.** This is the poke — *a change to the source with no change to the display* |
+
+**The conclusion is right on the second leg alone, and the first leg should not
+be carried.** **[Derived, Deck-native, from two measurements already committed]**
+— no new run was needed for it and none was taken.
+
+**Named as a lead for C-006 with no claim attached.** This says *when* the picture
+stops and that the stopping is abrupt. **It does not say why**, it is **not** a
+cause, and C-006 stays **OPEN**.
+
+#### Three discrepancies T108 did **not** resolve — recorded, not smoothed
+
+1. **f1459 vs f3381 are two different routes and must not be compared.** T107's
+   `md5` put the last picture change at **f1459**; T108 puts it at **f3381**.
+   T107 ran `scripts/cheat_probe.script`, T108 ran `scripts/d_city.script`. Which
+   route reaches the city sooner is **not measured**. *This project nearly made
+   that comparison itself before reading which script each run used — CONF-13's
+   lesson, learned a third time.*
+2. **1 877 presents over f0–f4890 does not reconcile with 5 000 presents over
+   5 000 frames.** `SCREENSHOT_DIR`/`PRESENT_LOG` is **per present**, and T108's
+   run shows presents tracking frames **1:1**, so T107's run either presented
+   fewer times than it simulated frames or covered a narrower range than its text
+   says. **Not established, and not guessed. OPEN.**
+3. **`scripts/check-retracted-claims.sh` was observed to flip once and did not
+   reproduce.** One `make check-claims` printed
+   `VIOLATION docs/RE_CITY_FREEZE.md:47  R-002 (refuted) asserted without a
+   retraction marker`, on a line that reads *"The city does not load" … is
+   RETRACTED* — i.e. **the phrase sits inside its own retraction marker**. A
+   separate invocation printed section 3's heading as `… disagrees with the ledger
+   (42)` where it now consistently prints `(34)`. **Eight subsequent runs — five
+   with the file untracked, one staged, two earlier — all printed `census: 42
+   rows = 34 refuted`, heading `(34)`, `RESULT: PASS`, no violations.** **So it
+   does not reproduce, no cause was established, and none is offered**; the
+   candidate (a partial or stale read of the ledger or of a file in scope) is
+   **UNVERIFIED**. **Filed rather than dismissed because the guard that produced
+   it is the one whose absence let a run of retractions stand unchecked, and its
+   self-test covers seeded phrases, not this.** Interim rule: **run
+   `make check-claims` at least twice before believing a green, and if it ever
+   fires on a line carrying its own marker, keep the output.**
+
 #### DoD Rule 0b, and the guard that enforces it
 
 > **A cheat must never make `make clock` pass.** The delivery gate must keep
@@ -1064,10 +1240,17 @@ is that re-run, not a carry-over:
 | `make check-causes` | every causal assertion carries provenance | PASS | 0 |
 | `make check-causes-self-test` | the guard still fires on the tree it was written for | PASS | 0 |
 | `make check-claims-self-test` | the ledger guard has been seen to fail | PASS — both seeded violations confirmed detected | 0 |
+| `make check-cheat-gate` | no gate script can turn a WRAM write into a clock result (Rule 0b) | PASS | 0 |
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
 | `make retraction-count` | the retraction count, computed | **42 rows = 34 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+
+**⚠️ Read the two PASS rows at the top of that table with the preamble above in
+hand.** `make check-claims` and `make check-causes` **both passed on a 0-byte
+`README.md`** when that was measured on 2026-10-03. What they prove is that no
+*present* claim is retracted or unprovenanced — **not** that the document
+carrying those claims exists, has content, or parses. CONF-23.
 
 **CORRECTION, measured 2026-10-03: this file said "`make clock` exits 1, not
 2", and that is wrong about `make`.** The gate script is right; the wrapper is
@@ -1122,7 +1305,15 @@ down:** line 22 read *"retracted **29** claims out of **37** ledger rows"* while
 pattern is forward-only and that sentence puts the number *after* the word.
 **CONF-14 is not closed and nothing in this file should be read as closing it.**
 
-**The phrase guard has a second, independent hole (CONF-20), also OPEN.**
+> **The phrase guard has a second, independent hole (CONF-20), also OPEN.**
+> **And a third, which is not a hole in either guard but in what both of them are
+> being asked for (CONF-23): neither asserts that the files it reads are
+> non-empty.** `5cbf5fd` shipped this file at **0 bytes** and `check-claims`,
+> `check-causes` and `check-cheat-gate` all printed `RESULT: PASS` on it —
+> re-measured, see the preamble above. **`git ls-files` says a file is in scope;
+> an empty file satisfies "no violations" perfectly.** **No gate asserts
+> non-emptiness yet**, so **the PASS rows below say nothing about whether this
+> file has content in it.**
 `docs/CAUSE_CLAIMS.md` asserted R-038's refuted `$03C87F` clause as present-tense
 fact — a faithful **paraphrase**, not a quotation — and **both** `make
 check-claims` and `make check-causes` printed `RESULT: PASS`. The ledger's
@@ -1176,7 +1367,7 @@ frames:
 - **"The emulated 65816 is not the bottleneck"** is **RETRACTED** (ledger R-023,
   R-025). It rested on `guest` being 2.45 ms against a large `upload-present`.
 
-> #### ⚠️ The Deck row above has now been measured **three** times with **three**
+> #### ⚠️ The Deck row above has now been measured **five** times with **five**
 > different answers, and the register does not say so. This is the most
 > important caveat on this page.
 >
@@ -1186,20 +1377,22 @@ frames:
 > | taken at `ec4cabe`, **never re-measured** | **4.511** | **6.540** | **5.916** | `docs/CLAIMS_REGISTER.md` §3 — the register's own re-measurement of the same stage. **This is the row that produced "the frame is oversubscribed"** (4.511+6.540+5.916 = **16.97 ms > 16.67 ms**), and **that sum is itself retracted** — it added *work* to *sleep*. **See the correction below** |
 > | **2026-10-03, T104** | **7.619** | **1.538** | **6.930** | `docs/measurements/2026-10-03-t104-c87x-scan-loop.md` §7 — Deck, **solo**, 600 presents in 10.552694 s, median **56.86 fps**, spread **0.1%**. raster-capture 1.390 |
 > | **2026-10-03, T105** | **4.572** | **1.006** | **11.131** | `make perf`, Deck, **solo**, load average 0.13 before, 600 presents in **10.548473 s**, median **56.88 fps**, spread **0.0%**. raster-capture **0.785** |
+> | **2026-10-03, T108 — five readings from one `make perf` invocation** | **4.480 / 4.506 / 4.524 / 4.484 / 4.499** — **range 4.480–4.524** | — | — | Deck, **SOLO**, **load average 0.26** recorded before the run, `PERF: PASS — median 56.88 fps over 5 runs, spread 0.0% (limit 10%)`. This is the run every commit since has quoted as its baseline, and it is the **fifth** `guest` reading, not a fourth |
 >
-> **All four stand. None is retracted by any other, and the reason is the reason
-> for four rows rather than one:** they are **different builds and different
-> instrument configurations**, not four readings of one thing. Collapsing them to
+> **All five stand. None is retracted by any other, and the reason is the reason
+> for five rows rather than one:** they are **different builds and different
+> instrument configurations**, not five readings of one thing. Collapsing them to
 > a single number would be exactly the error this ledger exists to prevent, and
 > the honest statement is that **the variance is itself the finding**.
 >
-> **What four rows make visible that three did not.** The newest row
-> (`guest` 4.572, `upload-present` 1.006, `deadline-wait` 11.131) reproduces the
-> **oldest** one (`9624f0e`: 4.502 / 1.007 / 11.275) to within **1.6% on guest and
-> 0.1% on upload-present**, across two days and two code trees. **T104's row is
-> the outlier on all three work stages simultaneously** — guest ×1.67,
-> upload-present ×1.53, raster-capture ×1.77 — **while fps is within 0.04%**
-> (56.86 vs 56.88).
+> **What five rows make visible that four did not.** The newest row (`guest`
+> ≈4.50) reproduces the **oldest** one (`9624f0e`: 4.502 / 1.007 / 11.275) to
+> within **1.6% on guest and 0.1% on upload-present**, across two days and two
+> code trees. **T104's row is the outlier on all three work stages
+> simultaneously** — guest ×1.69, upload-present ×1.53, raster-capture ×1.77 —
+> **while fps is within 0.04%** (56.86 vs 56.88). Two *different* solo load
+> averages (0.13 and 0.26) and two different builds produced the same fps and
+> the same ≈4.50 guest.
 >
 > **That simultaneity is the observation, and no cause is offered for it.** All
 > three work stages moving together while the frame rate does not move is the
@@ -1210,8 +1403,13 @@ frames:
 > frequency/thermal state and whether `build/` on the Deck had been rebuilt
 > since its last content change; **neither is measured and neither is asserted.**
 >
-> `guest` across the four Deck rows: **4.502, 4.511, 4.572, 7.619** — spread
-> **1.69×**. `upload-present`: **1.007, 6.540, 1.006, 1.538** — spread **6.5×**.
+> `guest` across the five Deck rows: **4.502, 4.511, 4.499, 4.572, 7.619.**
+> **Four cluster at ≈4.50** — spread **1.6%** across 4.480–4.524 — **and T104's
+> 7.619 stands alone, ×1.69 off the cluster.** An earlier revision of this file
+> said *"four rows"* and listed `4.502, 4.511, 4.572, 7.619`; the fifth reading,
+> **4.499**, was measured and **not carried**. It does not change the shape — it
+> tightens the cluster to four points at ≈4.50 and leaves T104 as the single
+> outlier. `upload-present`: **1.007, 6.540, 1.006, 1.538** — spread **6.5×**.
 > **A 6.5× spread on a host stage is not understood, and this file does not
 > pretend otherwise.**
 >
@@ -1681,13 +1879,16 @@ does not pay for them again.
    > | `SNESRECOMP_WRAM_DUMP_LO` / `_HI` / `_FRAME` | `strtol(v, NULL, 0)` | **`0x…`** | same defect, same family |
    > | `SNESRECOMP_WRAM_DUMP_AT` | **`strtol(a, &end, 10)`** | **DECIMAL — the `0x` prefix makes it frame 0** | **CONF-22**, measured 2026-10-03 |
    > | `SNESRECOMP_WLOG_ADDR` `lo`/`hi` | `sscanf("%x:%x:%511[^\n]")` | plain hex, **never** octal | hex-16 by construction |
-   > | `SNESRECOMP_CYC_WATCH` `lo-hi` | `sscanf("%lx-%lx")` | plain hex, **never** octal | base is explicit |
-   >
-   > **Five knobs, four conventions, and two of them are the same `strtol` family
-   > one argument apart.** Trap 8's blanket rule is right for four rows and
-   > **actively wrong for the fifth** — and it was followed faithfully when it
-   > broke CONF-22. **This table is the rule; the sentence above it is the
-   > approximation.**
+> | `SNESRECOMP_CYC_WATCH` `lo-hi` | `sscanf("%lx-%lx")` | plain hex, **never** octal | base is explicit |
+    > | `SNESRECOMP_SCREENSHOT_FROM` / `_TO` | `strtol(v, NULL, 0)` | **plain decimal, no leading zero** | added 2026-10-03 (T108 recipe, `host_main.c:1627-1630`). `03360` is **octal 1824** and silently selects a different window — the sixth knob in this family, and the reason this table exists |
+    >
+    > **Five knobs, four conventions, and two of them are the same `strtol` family
+    > one argument apart.** Trap 8's blanket rule is right for four rows and
+    > **actively wrong for the fifth** — and it was followed faithfully when it
+    > broke CONF-22. **This table is the rule; the sentence above it is the
+    > approximation.** It now has six rows and the same shape of hole: a *sixth*
+    > knob was found by reading source while writing a recipe, which is the only
+    > way any of them have ever been found.
 
 9. **A gate added in the same commit as the claim it guards, and never run,
    shipped broken and reported green.** `make check-causes` fired on the bare

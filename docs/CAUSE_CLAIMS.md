@@ -456,3 +456,55 @@ the number is sitting right there looking like evidence.
 - **C-050, the task region is entered by `RTI`: new, and INFERRED.** It is the
   one new causal-shaped claim here and it is labelled inferred because the stack
   was never dumped.
+---
+
+## The C-006 lead, restated after T108 — a 17-present event, and where it points
+
+**Measured 2026-10-03, Deck-native, `scripts/d_city.script`, 5 000 frames,
+`EXIT=0` / `exit: RUN_FRAMES reached`, positive control `COUNT_PC=0x009311` →
+9 855 088 = 1971.0/frame.** Transcript:
+`docs/measurements/2026-10-03-t108-present-crc-timeline.md`.
+
+**C-006 is not answered by this and no cause is asserted.** What it does is
+replace a 3 000-frame diff with a frame-resolved boundary, which is a strictly
+better-posed question.
+
+| | measured, Deck-native |
+|---|---|
+| presents | 5 000, frames 1…5000, one present per frame |
+| picture-state changes | **206** (165 distinct `crc32` values in order of first appearance) |
+| **last change** | **f3381** |
+| **identical presents after it** | **1 619** |
+| the burst | a 106-frame gap, then **17 consecutive changes, f3365 → f3381**, then silence |
+| `make clock`'s own date crop | last change at **f3378** — **inside** the burst |
+| C-055's `+96` updater, picture side | f1302, 1307, 1398, 1403, 1494, 1499, 1590, 1595, 1686, 1691 — period **exactly 96**, five times. C-055's **writer** stops at f1685; the **picture** stops showing it at f1691 — **two instruments, within 6 frames** |
+| the dense run | f2637–f3259, **ends on f3259** — the one and only write of the city-state block (C-052/C-053/C-058). **Animation and initialiser stop on the same frame** |
+
+**Two boundaries, not one.** Bank `$03` stops executing at **f3271** (C-039b);
+the city-state block stops being written at **f3259** (C-068); the *picture*
+stops at **f3381** (here). **Whether those three are one boundary is NOT
+measured, and this file does not assert that they are.** What is measured is
+that they are **three different frames**, 12 and 110 apart.
+
+**A correction that removes a leg from T107's conclusion.** T107 held the
+rendered date is not read live from `$0B53` on two grounds. **The static-picture
+ground is void**: a display path reading `$0B53` live would also produce an
+unchanging picture, **because `$0B53` itself never changes** (C-068). **The poke
+ground stands and is decisive**: `$0B53`/`$0B54` read `$0FA0` continuously
+f4260→f4899 while the picture does not move — **a change to the source with no
+change to the display**. **The conclusion survives on one leg; the other should
+not be carried.**
+
+**The next measurement, and it is the one this file now points at: 17 pictures,
+not another diff.** What is the city's last visible act before the framebuffer
+goes bit-identical for 1 619 presents — the date, the money, a sprite, the RCI
+toolbar — and **where the rendered date text comes from**. **The second half is
+the largest unexamined thing in this project**, because `make clock` reads the
+date off a **screen crop** (`clock-gate.sh`, x 55–125 / y 2–21 of the 336×224
+framebuffer) while this file's `$0B53` row is a **memory read**, and **the
+relationship between the two has never been examined.**
+
+**If the rendered date is not sourced from `$0B53`, then `make clock` is
+measuring a display path rather than the simulation** — which does **not**
+weaken the gate, it *re-scopes* what the gate proves. **That is a claim to be
+measured, not asserted, and nothing in this file asserts it.**

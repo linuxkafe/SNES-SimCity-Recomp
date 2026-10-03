@@ -1369,3 +1369,125 @@ wolf on this corpus is worse than the hole it closes.**
 
 **None of the three was found by reading the guard.** All three were found by
 the seeded self-test, which is the only reason it shipped.
+
+
+## CONF-23 · severity **HIGH** · commit `5cbf5fd` shipped `README.md` as **0 bytes** and **every guard in the project passed on it**
+
+**The conflict, measured 2026-10-03.** This is not a docs-vs-docs conflict. It is
+a **tracked, in-scope file with no content**, and it is the first time this
+project's own entry point has been the thing that broke.
+
+```
+$ git show --numstat 5cbf5fd -- README.md
+0	1895	README.md
+
+$ git cat-file -s 5cbf5fd:README.md     -> 0          # the shipped blob
+$ git cat-file -s 5cbf5fd~1:README.md   -> 120899     # the parent
+$ git cat-file -s 3094650:README.md     -> 121482     # restored
+```
+
+**1 895 lines deleted, nothing added, and the commit message — which is otherwise
+a careful, fully-instrumented measurement write-up with its own gate output pasted
+in — reported every gate green.**
+
+### Every guard passed on the empty file
+
+Re-measured on this tree rather than quoted, by truncating `README.md` to 0 bytes
+with it **tracked** and running the guards:
+
+| guard | verdict on a **0-byte** `README.md` | exit |
+|---|---|---|
+| `make check-claims` | **`RESULT: PASS`** | 0 |
+| `make check-causes` | **`RESULT: PASS`** | 0 |
+| `make check-cheat-gate` | **`RESULT: PASS`** | 0 |
+| `make check-claims-self-test` | **PASS** | 0 |
+| `make check-causes-self-test` | **PASS** | 0 |
+| `make check-cheat-gate-self-test` | **`SELFTEST PASS: 5/5`** | 0 |
+| `make retraction-count` | unchanged — it reads `scripts/retracted-claims.tsv`, not this file | 0 |
+| `make build`, `make test` | pass — **neither reads this file at all** | 0 |
+
+**[MEASURED, dev host `seyon`, 2026-10-03.]** The commit that shipped it also
+carried `RESULT: PASS` from `check-claims`, `check-causes`, `check-cheat-gate`,
+all three self-tests, `make build` and `make test` 2/2 — **on the empty file.**
+
+### The cause: one Python expression, and it is not subtle once written down
+
+```python
+open(p, 'w').write(open(p).read() + new_text)      # WRONG
+```
+
+**Python evaluates call arguments before the call, left to right.**
+`open(p, 'w')` is the first argument, so the file is **truncated to zero and the
+handle created** before the second argument `open(p).read()` runs. It reads back
+**nothing** and writes `new_text` into a file that is already empty. **This is
+guaranteed by the evaluation order — it is not a race, not a partial write, and
+not recoverable from the output.**
+
+The safe forms, and the forms this project uses from here:
+
+```python
+new = open(p).read() + new_text        # read fully FIRST
+open(p, 'w').write(new)
+# or, atomically, which is the right answer for anything tracked:
+import os, tempfile
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p))
+os.write(fd, new.encode()); os.close(fd); os.replace(tmp, p)
+```
+
+### **This is not a defect in the three guards, and the difference matters**
+
+Each of `check-retracted-claims.sh`, `check-cause-claims.sh` and
+`check-cheat-gate.sh` did exactly what it was written to do. Each would have
+caught a retracted or unprovenanced claim **if the claim were still there to be
+caught**. What `5cbf5fd` demonstrates is **the class all three are defeated by**:
+`git ls-files` places the file in scope, so every guard reads it, and **an empty
+file satisfies "no violations" perfectly.**
+
+> **That is CONF-20's structural half — a guard that checks *existence* is not a
+> guard that checks *content* — arriving as a real, shipped, self-inflicted
+> wound on this project's own entry point, one day after it was written down in
+> prose.** CONF-20's fix was to check that a ledger `where` column *resolves to a
+> real file*. **Resolving to a real file that is 0 bytes long is still a resolve.**
+
+### The hole, as found
+
+```
+$ grep -rn "README" scripts/*.sh | wc -l            -> 8 matches across 3 files
+$ grep -rn "README" scripts/*.sh | grep -ciE 'size|wc -c|wc -l|-s '  -> 0
+```
+
+Three scripts mention `README.md` — `check-cause-claims.sh:166,181`,
+`check-retracted-claims.sh:178,338,451` — and **not one of them looks at its size,
+its line count, its first heading, or whether it parses as anything.** **There
+was no gate anywhere in this repository asserting that the file it is most often
+quoted from exists in any meaningful sense.**
+
+### What is done, and what is not
+
+- **The cause is recorded in `README.md` itself**, at the top, because a rule
+  about a convention that lives only in a conflict file is CONF-15's failure
+  again: *"Qualquer resultado … sem prefixo `0x` é nulo"* sat in an append-only
+  log at line 1546 and T100 used the bare form four days later. **The rule now
+  lives where the mistake is made**, with the two safe forms written out.
+- **The missing guard — `scripts/check-entrypoints.sh` +
+  `make check-entrypoints` — did not exist when this row was written, and this
+  row is committed with the hole OPEN rather than with a promise in it.** It is
+  the immediate next action, and it is specified here so that whoever writes it
+  writes the same thing: assert that the project's **tracked entry-point
+  documents** are non-empty, non-trivial in length, and carry their expected
+  top-level heading; **refuse to total on an empty file** where it would
+  otherwise total; falsify in **both** directions before committing — **red on a
+  seeded 0-byte copy, green on the real file** — demonstrated on an **untracked**
+  file (CONF-11) and with a **positive control** (a real, unseeded file must
+  pass).
+
+### Not done, deliberately
+
+- **The parse is not "fixed"** — there is nothing to fix in a shell script; the
+  guard is the fix.
+- **No other tracked document was re-validated for the same failure.** The guard
+  covers the entry points named in it; a `0 bytes` blob elsewhere in the tree is
+  **not** covered and is **not claimed to be**.
+- **No claim is made about why the commit's own gate output was pasted as green.**
+  The output in `5cbf5fd`'s message was **true when it was run** — that is the
+  finding. The gates were not wrong. **The file was.**
