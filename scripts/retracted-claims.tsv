@@ -113,3 +113,4 @@ R-033	phrase	refuted	Bank 03 executes only in	docs/CAUSE_CLAIMS.md:63
 R-034	phrase	refuted	STA dp,x	docs/measurements/2026-10-02-t093-peer-0B51-writer.md:143
 R-035	phrase	refuted	the reference build also stops ticking productively	docs/measurements/2026-10-02-t101-reference-simulates.md
 R-036	phrase	refuted	rising is not simulating	docs/measurements/2026-10-02-t101-reference-simulates.md
+R-037	token	refuted	executes (0 times|zero times) (over|in) f0.f[69] ?000	docs/measurements/2026-10-03-t102-tick-across-f13080.md

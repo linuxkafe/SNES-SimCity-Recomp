@@ -486,53 +486,63 @@ row, and it carries `**RETRACTED as stated**` **on the line itself**, plus
 correction marker within ±6 lines", and that window holds **12** matches of its
 `NEG` pattern.
 
-### The isolation that clears the logic and does not explain the flake
+### ADDED 2026-10-03 (T102) — the rate is far higher than recorded, and it is LOAD-DEPENDENT
 
-| experiment | repetitions | violations |
+**This is a measurement, not an estimate, and it changes how much the flake
+should worry a reader.**
+
+| experiment | runs | red |
 |---|---|---|
-| the exact ±6-line `ctx` test for line 83 | **200** | **0** |
-| the complete section-1 loop for `CAUSE_CLAIMS.md`, all **36** ledger patterns | **12 full iterations** | **0** |
-| `scripts/check-retracted-claims.sh` direct | **10 consecutive** | **0** |
+| `scripts/check-retracted-claims.sh`, dev host **idle** | **60** | **0** |
+| the same script, **8 CPU hogs** on a 6-thread box | **40** | **7** |
+| `docs/review/validate-findings.sh` + `check-retracted-claims.sh`, interleaved | **12** | **5** `review-check` red; of those, **4** with `check-claims` **green** |
 
-So the guard's arithmetic is right every time it is evaluated in isolation, and
-it is nonetheless wrong about one run in roughly thirty. **The cause is OPEN and
-none is asserted.** The candidates were not separated: a transient read of the
-working tree, the scope list being rebuilt by `git ls-files -co` while the tree
-is being written, or something in the subshell/`$( )` plumbing further down the
-script. Nothing here measured which.
+**So: ~17% under load, 0% idle**, and in 4 of 5 interleaved failures the
+companion gate was green — which is exactly the signature CONF-12 describes and
+the reason its "re-run before believing it" rule is the right interim answer.
+**The 3-in-110 figure in the original entry understated this by an order of
+magnitude.** That is not a criticism of the earlier measurement, which was taken
+on an idle machine; it is a statement that **the flake cannot be bounded by
+running the gate once**, which is the practical consequence.
 
-### The second defect, which is deterministic and is the more harmful one
+Seven distinct false positives were captured, on seven different lines, in seven
+different files — including `docs/CAUSE_CLAIMS.md:81` and `:111`, which carry
+`**RETRACTED**` **on the line itself**, and `docs/ROADMAP.md:225`, whose own
+first cell reads `**RETRACTED as stated (2026-10-02)**`.
 
-`docs/review/validate-findings.sh` F-13 and F-14 **delegate the entire decision
-to that script's exit code**:
+### What was ruled out, and what was NOT
 
-```sh
-if scripts/check-retracted-claims.sh >/dev/null 2>&1; then
-  ok "F-13 every 'force_lle 0x009311' mention carries a retraction marker"
-else
-  bad "F-13 an unmarked 'force_lle 0x009311' quote remains (run check-retracted-claims.sh)"
-fi
-```
+- **NOT the inner test.** A standalone harness replicating the guard's exact
+  `printf '%s' "$ctx" | grep -qE "$NEG"` decision, over the six `(file, line)`
+  pairs that actually failed, was **2400/2400 clean idle and 2400/2400 clean
+  under the same 8-hog load**. The marker test does not flake in isolation.
+- **NOT reproducible as an exit code.** An instrumented copy of the guard
+  (written to `/tmp`, never committed) recorded six readings of **141** —
+  `128 + SIGPIPE` — for the inner `grep`, and **none of them reproduced** in the
+  standalone harness. **`141` is therefore reported as an artefact of the
+  instrumentation and no mechanism is claimed from it.** This is the same
+  discipline the rest of this file uses and it is applied here to my own probe:
+  a reading that cannot be reproduced is not a finding.
+- **Therefore the varying input is upstream of the marker test** — in the
+  `SCOPE_FILES` list (`git ls-files -co --exclude-standard`) or in the per-pattern
+  `hits` list — **and that is not yet separated. Cause: still OPEN**, now with a
+  rate and a load dependence attached instead of a bare "3 times in ~110".
 
-Any nonzero exit is therefore reported as *"an unmarked `force_lle 0x009311`
-quote remains"* — a claim about a specific deleted config directive that has
-nothing to do with whatever actually failed. A reviewer reading that line is told
-to go and look for a quote that does not exist. **A gate that names the wrong
-cause is worse than one that names none**, which is the same principle the
-`make clock` verdict text already states about itself.
+### The fix is obvious and is NOT applied here
 
-### What is deliberately NOT done about it
+`docs/review/validate-findings.sh` delegates F-03/F-13/F-14 entirely to
+`check-retracted-claims.sh`'s **exit code**, so a false positive is reported as a
+finding about a phrase that does not exist. Making the marker test not depend on
+a pipeline's exit status at all (`grep -qE "$NEG" <<<"$ctx"`, no pipe) removes
+the whole class. **It has not been applied**, because a change to a gate whose
+own correctness is in question must be falsified properly first — red on a
+seeded violation, and 0/40 under the load that makes the unfixed version fail
+7/40. That falsification has not been run, so **the gate is left exactly as it
+is and this entry stays OPEN.**
 
-`validate-findings.sh` is **not** modified. It is the thing that checks the
-reviews, it is deliberately conservative, and changing a validator while its own
-correctness is in question is how a gate gets weakened by accident. The fix is
-to make F-13/F-14 name the failing section instead of a phrase — a change that
-can only make the check *stricter* and more honest — but it is **OPEN** and
-belongs to whoever can falsify it properly.
+### How to read a red `make review-check`
 
-### Until then: how to read a red `make review-check`
-
-A `REFUTED F-13` or `REFUTED F-14` line accompanied by
+A `REFUTED F-03`, `F-13` or `F-14` line accompanied by
 `make check-claims → RESULT: PASS` is **this flake, not a finding**. Re-run
 before believing it. Do not "fix" the doc it names; the doc it names is not the
 problem.
@@ -655,3 +665,204 @@ its own falsification run over the whole corpus before it is committed.
 > Do not type it. If a document must state it, state it as
 > `N rows = M refuted + …` **and re-read it after running the command** — which is
 > what caught this one.
+
+---
+
+**CONF-15 · severity HIGH · `SNESRECOMP_COUNT_PC` and two WRAM-dump bounds parse hex as octal — and the rule was already in the record**
+
+**A base-0 `strtoul` reads a bare leading-zero hex value as octal and stops at
+the first digit that is not an octal digit. `SNESRECOMP_COUNT_PC=038026` counted
+executions of PC `$000003`, in bank `$00`, and printed a clean, formatted,
+entirely plausible zero.**
+
+Found while taking T102 (`f278506` + the T102 commit). **It voids the
+measurement behind C-041c and T100's `1b099ce` headline** — ledger row **R-037**
+— and it is HIGH because the class is silent, universal in shape, and was
+already documented four days before the measurement that walked into it.
+
+## What was measured
+
+`interp816.c:323`:
+
+```c
+s_interp_pc_watch = (uint32_t)strtoul(e, NULL, 0);   /* base 0 */
+```
+
+Base 0 auto-detects: `0x` is hex, a leading `0` is **octal**, and parsing stops
+at the first character that is not a valid digit *in the detected base*.
+
+```
+009311     -> strtoul(base 0) = 0 = 0x000000
+038026     -> strtoul(base 0) = 3 = 0x000003
+0x009311   -> strtoul(base 0) = 37649 = 0x009311
+0x038026   -> strtoul(base 0) = 229414 = 0x038026
+9311       -> strtoul(base 0) = 9311 = 0x00245F
+```
+
+The knob is documented at `interp816.c:195` as **`SNESRECOMP_COUNT_PC=<hex>`**,
+and its own default is written `0x009311` — with the prefix. The documented usage
+and the documented default are both safe. **The natural reading of `<hex>` is
+not.**
+
+### The falsifier that caught it was a positive control, and it is the transferable part
+
+```
+COUNT_PC=009311   -> [count] pc watched: 0 executions over 300 frames
+COUNT_PC=038026   -> [count] pc watched: 0 executions over 300 frames
+COUNT_PC=0x009311 -> [count] pc watched: 239617 executions over 300 frames = 798.7 per frame
+COUNT_PC=0x009313 -> [count] pc watched: 239617 executions over 300 frames = 798.7 per frame
+COUNT_PC=0x038026 -> [count] pc watched: 0 executions over 300 frames
+```
+
+`$00:9311` is `INC $C7`, the vblank spin body. It is the instrument's **own
+default** (`interp816.c:198`), it is what C-002 measures advancing 5/5, and
+`RE_CITY_FREEZE`'s WLOG census counts the spin 4 110 times in 5 000 frames. **A
+zero from it is the instrument, not the world.** `$009311` and `$009313` agreeing
+to the unit is what a spin body's two halves should do, and it is the reason the
+`0x` reading is believed.
+
+**T100's declared falsifier was "does the counter print anything", and it
+passed.** The counter printed a confident, correctly-formatted `0`. What it did
+not ask was whether the counter had ever been shown non-zero **for the address it
+was given**. Every counter instrument in this repository now needs a positive
+control in the same build and run configuration, or its zeros are uninterpreted.
+**That is a rule, not a gate, and nothing here should be read as claiming
+otherwise.**
+
+## Not one knob
+
+| knob | documented as | parsed with | measured symptom |
+|---|---|---|---|
+| `SNESRECOMP_COUNT_PC` (`interp816.c:323`) | `<hex>` | `strtoul(…, 0)` | **wrong PC watched**; silent, clean-looking zero |
+| `SNESRECOMP_WRAM_DUMP_HI` (`host_main.c:1548`) | `(hex)` | `strtol(…, 0)` | `0B60` → **0**, so `hi-lo = 0`: `[wramdump] wrote … (0 bytes)` |
+| `SNESRECOMP_WRAM_DUMP_LO` (`host_main.c:1547`) | `(hex)` | `strtol(…, 0)` | `0B40` → **0**, dumping the whole 128 KB instead of 32 bytes |
+
+`SNESRECOMP_WRITE_WATCH` (`cpu_state.c:519`, `:613`) and
+`SNESRECOMP_WRAM_WATCH` (`common_cpu_infra.c:937`) are documented **with** a
+`0x` prefix (`0xADDR`) and are safe if the documentation is followed — which is
+the only reason this is HIGH and not higher. `strtol(…, 0)` / `strtoul(…, 0)`
+appears at **28 sites** in `snesrecomp/runner/src` and `src/`.
+
+## The part that is worse than the bug
+
+**`docs/RE_CITY_FREEZE.md:1546`, dated 2026-09-30, headed "Um bug meu que
+invalida probes anteriores", says it exactly:**
+
+> `interp816.c:325` usa `strtoul(e, NULL, 0)` — base 0, portanto um `0` à frente
+> significa **octal**. […] **Qualquer resultado de `COUNT_PC` registado neste
+> projecto sem prefixo `0x` é nulo.**
+
+T058 used `0x009311` and was correct. **T100 (`1b099ce`) used `038026`.** The
+rule was in a tracked file, in the right words, four days before the measurement
+that violated it — and it protected nothing, because it sat in an append-only
+log at line 1546 and not in the README's instrument list, which is where a
+reader starts. CONF-1 and CONF-11 are both "a guard whose scope did not include
+the thing"; this is the same failure with **no guard at all**, and the knowledge
+present.
+
+## What is deliberately NOT done
+
+- **The parse is not fixed.** The fix is one character per site in a **pinned
+  submodule**; `snesrecomp` is pinned to a branch (`T097`), so a local edit
+  reaches no clone and creates a divergence the tree does not track. Shipping a
+  fix that only exists on this machine is the `af08ff7` shape.
+- **No gate is wired.** A guard that rejects a bare leading-zero hex value on a
+  base-0-parsed knob is mechanically possible, and it is the obvious next thing —
+  **but it must be falsified before it is committed** (red on a seeded
+  violation, green on a labelled one, and demonstrated on an **untracked** file
+  so CONF-11 cannot recur). That falsification run has not happened, so no guard
+  exists. Wiring an unfalsified guard into this repository's evidence path is
+  precisely what CONF-13's own note says not to do.
+
+## Interim rule
+
+> **Any knob documented as `<hex>` or `0xADDR` in `snesrecomp` gets the `0x`
+> prefix, always — and any execution count gets a positive control on a PC known
+> to execute, in the same run configuration, before its zero is believed.**
+> Today: `SNESRECOMP_COUNT_PC=0x038026`, `SNESRECOMP_WRAM_DUMP_LO=0x0B40`,
+> `SNESRECOMP_WRAM_DUMP_HI=0x0DC8`.
+
+## Where the affected claims stand
+
+| claim | status |
+|---|---|
+| **C-041c**, T100's `0 executions over f0–f6000` and `f0–f9000` | **RETRACTED (R-037)** — the measurement watched PC `$000003` |
+| **C-041** (`$03:8026` not among the bank-`$03` PCs) | **UNAFFECTED** — `INTERP_DUMP_BANK` *enumerates* PCs; a parse bug cannot corrupt an enumeration |
+| **C-008** (`INC.w $0B51` executes zero times) | **UNAFFECTED** — same reason |
+| **C-066** (`$03:8026` = 0 over 14 000 frames) | the surviving, re-derived claim — prefixed counter, `lle_only` manifest argument, and C-041's enumeration |
+
+---
+
+**CONF-16 · severity MEDIUM · two untracked files in `docs/` that the evidence gates read and a clone does not have**
+
+**Found while running the T102 gates. `make check-causes` was RED on a cause
+that exists only on this machine, and the gate would be GREEN in a clone.**
+
+## What was measured
+
+```
+$ scripts/check-cause-claims.sh
+  scope : 42 file(s), tracked + untracked-not-ignored
+-- 1. every causal assertion is labelled --
+  VIOLATION docs/QUALITY_GATES.md:13  causal assertion with no provenance marker within 5 lines
+  RESULT: FAIL
+```
+
+`docs/QUALITY_GATES.md` and `docs/DECK_RUNBOOK.md` are **untracked**
+(`git ls-files` lists neither) and are read by the guard, because
+`check-cause-claims.sh` derives scope from `git ls-files -co
+--exclude-standard` — **CONF-11's fix.** The scope diff, measured by stashing:
+
+```
+$ diff <(git ls-files -co --exclude-standard '*.md' 'scripts/*.sh')   # before / after
+> docs/DECK_RUNBOOK.md
+> docs/QUALITY_GATES.md
+```
+
+**CONF-1 and CONF-11 are both "a guard whose scope did not include the thing",
+and both were fixed by widening scope. This is the cost of that fix arriving
+from the other side: a guard whose scope now includes something the repository
+does not ship.** A gate that is red here and green in `git clone` is worse than
+one that is red in both, because the local red trains the reader to ignore it.
+
+## The writer is UNIDENTIFIED, and that is stated rather than guessed
+
+- **Not present at session open.** The session's first `ls docs/` returned 14
+  entries; neither file was among them.
+- **Not written by anything in the repository.** Checked and excluded: every
+  script under `scripts/`, `docs/review/validate-findings.sh`,
+  `docs/review/validate-findings-c041.sh`, both ctest targets, the git
+  `pre-commit` hook (`.git/hooks/pre-commit` → `.aes/hooks/pre-commit.sh`, which
+  only greps `src/` for `TODO`/`printf`), and the Deck rsync (host → deck, never
+  the reverse).
+- **Not in `aes/`.** `find aes .opencode .aes -name QUALITY_GATES.md -o -name
+  DECK_RUNBOOK.md` returns nothing.
+- **Content** is AES-shaped prose ("Domain-specific gates beyond the generic
+  checklist", "Heavy tests run on the Steam Deck via SSH"), consistent with a
+  skill template being materialised into the working directory by something
+  outside the repository. **That is a resemblance, not a measurement, and no
+  cause is asserted.**
+
+## What was done, and what deliberately was not
+
+- **The violation was fixed in place**, by adding provenance to the three "Why"
+  cells in `docs/QUALITY_GATES.md`. The sentence really is a causal assertion
+  and really did lack a marker, so this makes the gate **honest** rather than
+  green-by-deletion. `make check-causes` and `make check-causes-self-test` are
+  both `RESULT: PASS` after it.
+- **The files are still untracked and were NOT committed.** Committing
+  AES-derived prose of unidentified provenance into the repository would import
+  an unexplained artefact; deleting them would have turned a real gate red into a
+  fake green and thrown away the finding.
+- **No guard was written.** A guard that fails when `docs/` contains an untracked
+  markdown file is mechanically trivial and would close this permanently — but
+  it must be falsified first (red on a seeded untracked file, green when the
+  tree is clean, and demonstrated on an **untracked** file so CONF-11 cannot
+  recur). That has not been done, so it does not exist.
+
+## Interim rule
+
+> **A gate result on this machine is only comparable to a gate result in a clone
+> if the scope is only tracked files.** `git ls-files -co` means it is not.
+> Before believing a red evidence gate, run `git status --short` and check
+> whether the file it names is even in the repository.

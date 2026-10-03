@@ -19,7 +19,7 @@ supply; the ROM and any ripped assets are never included. Built on the
 > 0 is that **no criterion may be satisfied by a claim — only by a command that
 > exits 0**.
 >
-> This project has retracted **28** claims out of **36** ledger rows (computed,
+> This project has retracted **29** claims out of **37** ledger rows (computed,
 > `make retraction-count` — never a hand-written number; the other 8 rows are 6
 > `superseded` and 2 `invalidated-premise`, which is not a retraction). Where an
 > old claim is quoted below it is labelled **RETRACTED** and is printed as
@@ -124,7 +124,7 @@ The rest of this section is the evidence:
 | A live city loads and is presented | **working** [MEASURED] — `$0B53 = 0x076C` (year 1900), `$0B55 = 1`, `$0B9D = 20000` |
 | The vblank token handshake (a former deadlock) | **fixed** [MEASURED] |
 | **Reference build's clock** | **RUNS** [MEASURED, Deck-native] — 28 month rolls and 2 year rollovers in 30 000 frames, never stops writing city state |
-| **Our build's clock** | **DOES NOT RUN** [MEASURED, Deck-native] — the tick instruction executes **0** times in 9 000 frames containing 12 of the reference's own ticks; the city-state block is written **once** at f3259 and never again |
+| **Our build's clock** | **DOES NOT RUN** [MEASURED, Deck-native] — the tick instruction executes **0** times in **14 000** frames; bank `$03` executes **nothing at all** in f3272–f13080; the city-state block is written **once** at f3259 and **not once in the following 10 741 frames** |
 | **Why our simulation does not advance** | **OPEN** — no cause is asserted anywhere in this repository |
 
 ![SimCity title screen](docs/screenshots/title.png)
@@ -226,9 +226,18 @@ than that premise deserves:
 
 #### `$03:8026`'s standing, in one place
 
-- **In our build: it does not execute.** **0 executions over f0–f9 000** — a
-  window containing **12** of the reference's own ticks — both machines, both
-  tiers. **[MEASURED, Deck-native, T100 `1b099ce`]**. **C-041 stands.**
+- **In our build: it does not execute. 0 executions over 14 000 frames**,
+  Deck-native, in the window where the reference rolls its month sixteen times
+  and turns its year — and the zero is **exhaustive over both tiers**, because
+  exactly one manifest node covers `$038026` and it is `lle_only` with **zero**
+  `aot_eligible` nodes over it. **[MEASURED, Deck-native, T102]**
+  **C-041 and C-008 stand.**
+  > **RETRACTED (R-037): the measurement that previously established this was
+  > watching the wrong address.** T100 and C-041c ran
+  > `SNESRECOMP_COUNT_PC=038026`, and `interp816.c:323` parses with **base 0** —
+  > a leading `0` means **octal**, so `038026` parsed as **`3`** and the counter
+  > counted executions of **PC `$000003`**, in bank `$00`. Their zeros were
+  > clean, formatted and meaningless. See instrument trap 9.
 - **In the reference build: it is what moves the clock.** 27 executions, first at
   **f3857**, and `$0B51 = 4 × (months elapsed) + quarter` with **113 tick
   events, every one +1, zero deviations** — so the month rolls at exactly the 28
@@ -269,39 +278,70 @@ than that premise deserves:
   contradicted a figure printed a few lines away from it in the same document.
   Measured on one tier, stated about both: that is the failure, and it is why
   every row above names its tier.
-- **`INC.w $0B51` at `$03:8026` executes zero times in f0–f6000** — 0 hits in
-  the 921-entry dump, 0 AOT block entries, both machines, both tiers, with
-  `$0B51 = 0000` at f3600 in the same runs. **[MEASURED]** as a count of
-  execution, not an inference from a WRAM sample.
-  **C-041b's objection to that window is now answered.** C-041 measured over
-  f0–f3700, and the reference build's first tick is at **f3857** — 157 frames
-  past the end of it — so the old window contained **no frame in which the
-  reference would have executed the tick even once**. That is exactly the shape
-  of the already-retracted f3301 bracket (C-039 → C-039b), one tier up. Re-run
-  on the Deck over **6 000 frames** — a window that contains **12** of the
-  reference's own ticks — the answer is again **zero**, and this time it is a
-  statement about a window in which the tick could have appeared. **[MEASURED,
-  Deck-native]** — `[count] pc watched: 0 executions over 6000 frames`,
-  `exit: RUN_FRAMES reached`. See
-  [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md).
-- **The city-state block is written once, at f3259, by a creation routine, and
-  never written again.** Two disjoint windows, watched as a 16-bit bus write
-  census (which sees both engines, so none of the tier blindness that retracted
-  C-039c applies): `$0B51`–`$0B5F` takes **66 writes in 6 000 frames** and
-  `$0DC0`–`$0DD0` takes **61 in 9 000**, each in 4–8 events, **none after
-  f3259** — 5 741 frames of silence on the second. The date is not rewritten with
-  the same value and the tick counter is not failing to change; the whole block
-  is initialised and abandoned. The f3259 event decodes as one *new-city*
-  routine: `LDA #$076C / STA $0B53`, `LDA #$0001 / STA $0B55`,
-  `LDA #$0007 / STA $0DC5`, `STZ $0DC7`, `STZ $0DC3/$0DC9/$0DCB`, and the
-  straight-line `STZ.w $0B51`. **[MEASURED, Deck-native.]**
-  **`INC.w $0B51` is still 0 executions at f9000**, so the tick *routine* does not
-  run either, not merely the increment: `$0DC7`, the accumulated tax it feeds two
-  instructions later, is never accumulated into either. **This is where the
-  evidence now points and it is not a cause** — it names what does not write the
-  city state, not which code would have. The f3271 gate and the bank-`$03` death
-  are both still measured, and **neither has been shown to be why the block is
-  abandoned.**
+- **`INC.w $0B51` at `$03:8026` — 0 hits in the 921-entry bank-`$03` dump, 0 AOT
+   block entries, both machines, both tiers.** **[MEASURED]** as a count of
+   execution, not an inference from a WRAM sample, with `$0B51 = 0000` at f3600
+   in the same runs. This is **C-041**, and it was never exposed to the parse
+   bug in instrument trap 9 — `SNESRECOMP_INTERP_DUMP_BANK` *enumerates* PCs
+   rather than comparing against a parsed value, so a bad parse cannot corrupt
+   it. Reconfirmed over the T102 window: `$038026` appears **0 times** in the
+   333-PC bank-`$03` dump for f3000–f13080.
+   **C-041b's objection to the original f0–f3700 window is answered.** The
+   reference build's first tick is at **f3857** — 157 frames past the end of
+   C-041's window — so the old window contained **no frame in which the
+   reference would have executed the tick even once**. That is exactly the shape
+   of the already-retracted f3301 bracket (C-039 → C-039b), one tier up.
+   > **The 6 000-frame and 9 000-frame re-runs that answered it are RETRACTED
+   > (R-037): `COUNT_PC=038026` was watching PC `$000003`.** The answer they are
+   > credited with is re-measured over **14 000 frames** with the prefix, a
+   > positive control, and the `lle_only` manifest argument — see
+   > [`2026-10-03-t102-tick-across-f13080.md`](docs/measurements/2026-10-03-t102-tick-across-f13080.md).
+   > The historical runs are kept at
+   > [`2026-10-02-t100-tick-past-f3857.md`](docs/measurements/2026-10-02-t100-tick-past-f3857.md).
+ - **Bank `$03` executes NOTHING AT ALL in f3272–f13080 — and that is the
+   finding.** In f3000–f13080 it takes **333 distinct PCs / 169 693
+   interpreted steps**; in **f3272–f13080 it takes 0 and 0**; and the AOT tier
+   contributes **18 block entries, all at f3259 (3) or f3270 (15)**, none after.
+   So **all 333 PCs are in f3000–f3271**, and bank `$03` is silent for **9 809
+   frames** — the span holding the reference's **sixteen month rolls** and its
+   **first year rollover**. **[MEASURED, Deck-native, both tiers; T102.]**
+   **This is a boundary, not a cause** — and it is why the evidence now says the
+   city is never *started* rather than never *advanced*. A bank that never
+   executes again cannot be advancing anything, and in this window was not being
+   started either. **C-046c is closed by the same run.**
+ - **86% of bank `$03`'s cost in f3000–f3271 is four PCs around a scan loop**,
+   and one of the four is not an instruction boundary. `$03C877` `STA $7F6B00,X`,
+   `$03C87B` `INX`, `$03C87C` `CPX #$F4` — 36 344 / 36 343 / 36 344 steps; the
+   next PC down is 244. **`$03C87F` is the second byte of `8D D0 F6` = `STA
+   $F6D0`, whose instruction starts at `$03C87E`**, so it is reported
+   **unattributed, not as an executed instruction**. `CPX #$F4` is followed by
+   `STA $F6D0`, **not a branch**, so this is a scan loop's *test* and its
+   back-edge is outside the logged neighbourhood. **What it scans and what ends
+   it are unmeasured, and no cause is claimed. [OPEN]** — the next measurement
+   is stated in
+   [`2026-10-03-t102-tick-across-f13080.md`](docs/measurements/2026-10-03-t102-tick-across-f13080.md)
+   §7 and tracked as T103 in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+ - **The city-state block is written once, at f3259, by a creation routine, and
+   never written again.** Two disjoint windows, watched as a 16-bit bus write
+   census (which sees both engines, so none of the tier blindness that retracted
+   C-039c applies): `$0B51`–`$0B5F` takes **66 writes** and `$0DC0`–`$0DD0` takes
+   **61**, each in 4–8 events, **none after f3259** — measured over **14 000**
+   frames, so **10 741 frames of silence**, and the 66 and 61 reproduce C-052's
+   and C-057's counts to the unit with their bounds extended from f6 000 / f9 000
+   to **f14 000**. Corroborated independently by a WRAM dump: **`$0B40`–`$0DC7`
+   is byte-identical at f3300 and f13000** — `$0B51=0000 $0B53=076C $0B55=0001
+   $0BA5=0000 $0B9D=4E20 $0DC7=0000`. The date is not rewritten with the same
+   value and the tick counter is not failing to change; the whole block is
+   initialised and abandoned. The f3259 event decodes as one *new-city*
+   routine: `LDA #$076C / STA $0B53`, `LDA #$0001 / STA $0B55`,
+   `LDA #$0007 / STA $0DC5`, `STZ $0DC7`, `STZ $0DC3/$0DC9/$0DCB`, and the
+   straight-line `STZ.w $0B51`. **[MEASURED, Deck-native.]**
+   **`$0DC7` is written 4× and never accumulated into**, so the tick *routine*
+   does not run either, not merely the increment. **This is where the evidence
+   now points and it is not a cause** — it names what does not write the city
+   state, not which code would have. The f3271 gate and the bank-`$03` death are
+   both still measured, and **neither has been shown to be why the block is
+   abandoned.**
 - **`1900 / January` is *written*, once, at f3259.** `$03:C63F` `LDA #$076C` /
   `STA $0B53`, `$03:C646` `LDA #$0001` / `STA $0B55`, and then `$03:C77E`
   `STZ.w $0B51` — a straight-line 16-instruction clear of the city-state block.
@@ -608,7 +648,7 @@ is that re-run, not a carry-over:
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
-| `make retraction-count` | the retraction count, computed | **36 rows = 28 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+| `make retraction-count` | the retraction count, computed | **37 rows = 29 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
 **`make clock` exits 1, not 2**, and the distinction is load-bearing: the gate
 uses exit 1 for "a city is loaded and its date did not advance" and a *different*
@@ -928,12 +968,17 @@ documented in the framework at `snesrecomp/docs/MOD_PACKAGES.md`.
 - `SNESRECOMP_HOST_PROFILE=1` — per-stage host cost (`guest`, `upload-present`,
   `deadline-wait`) into `last_run_report.json`
 
-### Instruments, and eight traps in them
+### Instruments, and nine traps in them
 
 The facts below are the most transferable result in this repository, and every
 one of them cost a wrong conclusion first. They are here so the next session
 does not pay for them again.
 
+0. **Every counter instrument needs a positive control, and the control must be a
+   PC that is known to execute.** A zero from a counter nobody has ever seen
+   read non-zero **for the address it was given** is not a measurement. This is
+   the rule that found trap 9, and it cost a retraction. See trap 9 for the
+   numbers; the rule is the transferable half.
 1. **Our own driver printed `$0B53` under the label `$0B55`, and it cost this
    project its central result for a day.** `study/peer-linux/jjhead.c` clobbered
    the month column of its own WRAM dump. The consequence was not a typo: a
@@ -1037,7 +1082,44 @@ does not pay for them again.
    *different* knob, the same mistake. Measured in
    `docs/measurements/2026-10-02-f3271-entry-gate.md` §6.
 
-8. **A gate added in the same commit as the claim it guards, and never run,
+8. **`SNESRECOMP_COUNT_PC` parses hex as octal, so a bare `038026` silently
+   counts the wrong PC — and it voided a measurement this project had already
+   published.** `interp816.c:323` reads the knob with `strtoul(e, NULL, 0)`:
+   base 0 auto-detects a leading `0` as **octal** and stops at the first digit
+   that is not an octal digit. Measured:
+
+   ```
+   COUNT_PC=009311   -> 0 executions over 300 frames
+   COUNT_PC=038026   -> 0 executions over 300 frames
+   COUNT_PC=0x009311 -> 239617 executions over 300 frames = 798.7 per frame
+   COUNT_PC=0x009313 -> 239617 executions over 300 frames = 798.7 per frame
+   COUNT_PC=0x038026 -> 0 executions over 300 frames
+   ```
+
+   `$00:9311` is `INC $C7`, the vblank spin body — the instrument's **own
+   default** at `interp816.c:198`, and an address with three independent proofs
+   that it runs. **`038026` → 3; the counter was watching PC `$000003` in bank
+   `$00`.** T100's headline and C-041c are **RETRACTED (R-037)**. T100's
+   declared falsifier was *"does the counter print anything"*, and it **passed**:
+   the counter printed a confident, formatted `0`. Trap 0 is the fix.
+   **The same bug, two more symptoms:** `SNESRECOMP_WRAM_DUMP_HI=0B60` → `0` →
+   `[wramdump] wrote … (0 bytes)`; `SNESRECOMP_WRAM_DUMP_LO=0B40` → `0` → dumps
+   all 128 KB instead of 32. **`strtol(…, 0)` appears at 28 sites** in
+   `snesrecomp/runner/src` and `src/`. `SNESRECOMP_WRITE_WATCH` and
+   `SNESRECOMP_WRAM_WATCH` are documented *with* a `0x` prefix and are safe only
+   if you follow the documentation.
+   **And the part that is worse than the bug:** this was written down on
+   **2026-09-30** at `docs/RE_CITY_FREEZE.md:1546`, in the right words —
+   *"Qualquer resultado de `COUNT_PC` registado neste projecto sem prefixo `0x`
+   é nulo"* — and T100 used the bare form four days later. It protected nothing,
+   because it sat in an append-only log at line 1546 and not in this list.
+   **A rule in the record that does not reach the next session is the same
+   failure as a guard whose scope excludes the file.** See `docs/CONFLICTS.md`
+   CONF-15. **Interim rule: any knob documented `<hex>` or `0xADDR` gets the
+   `0x` prefix, always.** The parse is **not** fixed here — it is one character
+   per site in a *pinned submodule*, so a local edit would reach no clone.
+
+9. **A gate added in the same commit as the claim it guards, and never run,
    shipped broken and reported green.** `make check-causes` fired on the bare
    word `date` inside "candi**date**" on line 30 of its own header, so it could
    never be green while that header stood — and the commit that added it
@@ -1173,7 +1255,7 @@ SIMCITY_DEBUG_WATCHDOG=1 SIMCITY_DEBUG_APU=1 \
 | SNES Mouse on player 2 (`SNESRECOMP_MOUSE=1`, bsnes-exact protocol) | ✅ Device-level done (T042, ROM-free verified) |
 | Resolution presets (720p/800p/1080p, `SNESRECOMP_RESOLUTION`) | ✅ Done (T041) |
 | Quick save/load (10 slots), save-state menu, rewind, turbo | ✅ Working |
-| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red. Measured on the Deck: the tick instruction `$03:8026` executes 0 times in 9 000 frames — a window containing 12 of the reference's own ticks — and the city-state block is written 0 times after f3259. Cause [OPEN]** |
+| **City simulation runs (date, population, treasury advance)** | ❌ **`make clock` is red. Measured on the Deck over 14 000 frames: the tick instruction `$03:8026` executes 0 times; bank `$03` executes 0 PCs in f3272–f13080; the city-state block is written 0 times after f3259. Cause [OPEN]** |
 | Scenarios (all 5 US) | ⏳ T011 — confirm ENT step is the gate (see `docs/RE_SCENARIO_NAV.md` step 10) |
 | Building/visual verification (headless capture) | 🔄 T033 — unblocked by T039 |
 

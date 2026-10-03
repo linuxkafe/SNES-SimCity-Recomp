@@ -8,7 +8,7 @@
 
 ---
 
-## CURRENT NEXT PATH — reconciled 2026-10-02 at `02bc55f`
+## CURRENT NEXT PATH — reconciled 2026-10-03, after T102
 
 > **This section is the tracked mirror of `aes/kanban.md` + `aes/decisions/D013.md`.**
 > `aes/` is **gitignored permanently** (T078, DoD D4.3), so neither the board nor
@@ -19,54 +19,90 @@
 
 ### The recommendation
 
-**Extend our own run past the reference's first tick and count `$03:8026`
-executions. One Steam Deck run, `SNESRECOMP_COUNT_PC=038026` with
-`SNESRECOMP_PHASE_MS=1`, no new code.**
+> **T102 is CLOSED and it changed the question. The recommendation is now
+> T103: frame-resolve the `$03C87x` scan loop.**
 
-**DONE at 6 000 frames (`1b099ce`, 0 executions — C-041c), and the bracket is now
-too small again.** T101 measured the reference's month rolls at **f4440, f5220,
-f6000, f6780, f7560, f8400, f9180, f9960, f10740, f11520, f12300** — so a 6 000
-frame window contains **two**. The next bracket must be wide enough to contain
-many:
+T102's answer to its own question (`$03:8026` over f3000–f13080) is **0**, and
+the answer is now trustworthy in a way T100's was not — it forced a retraction,
+because **T100's counter was watching PC `$000003`**: `COUNT_PC=038026` parses
+with base 0, a leading `0` means octal, and `038026` → `3` (ledger **R-037**,
+`docs/CONFLICTS.md` **CONF-15**). The conclusion was re-derived three ways and
+holds; the measurement that produced it did not.
 
-> **T102 (the single next measurement): count `$03:8026` over f3000–f13080,
-> Deck-native — the window in which the reference rolls its month sixteen times.**
+The three companion reads are the new content, and they are why the question
+changed:
 
-If the count is zero there, the two builds are separated **at the instruction**,
-not at the symptom, and there is nothing left to explain at the level of "does
-our clock run".
+| read, f3000–f13080 unless stated | result |
+|---|---|
+| `$03:8026` executions, whole 14 000-frame run | **0** |
+| bank `$03`, interpreted, **f3272–f13080** | **0 distinct PCs / 0 steps** |
+| bank `$03`, AOT, **f3000–f13080** | **18 entries: 3 at f3259, 15 at f3270, none after** |
+| `$0B51`–`$0B5F` writes, whole run | **66, none after f3259** (10 741 frames of silence) |
+| `$0DC0`–`0DD0` writes, whole run | **61 in 4 events, none after f3259** |
+| city state at f3300 vs f13000 | **byte-identical** over `$0B40`–`$0DC7` |
 
-C-041 measured the tick at **zero** executions over f0–f3700. **That window
-cannot answer the question it was used to answer**: the reference build's first
-`$03:8026` execution is at **f3857**, 157 frames past the end of it, so C-041's
-window contains **no frame in which the reference would have executed the tick
-even once**. Same logical shape as the f3301 bracket that became C-039 → C-039b.
+**So the evidence no longer says "the tick is absent". It says the city is
+never *started*.** Bank `$03` runs **169 693 interpreted steps** in f3000–f3271
+and then executes **nothing whatever** for **9 809 frames** — the span holding
+the reference's sixteen month rolls and its first year rollover. A bank that
+never executes again cannot be advancing anything, and in this window was not
+being started either.
 
-Chosen over `$0014` bit 7 / the bank-`$03` entry graph, over `$03:DBB3`, and over
-the "the framing is wrong" hypothesis, for four reasons in order of weight:
+**86% of that cost is four PCs** (C-069): `$03C877` `STA $7F6B00,X` (36 344),
+`$03C87B` `INX` (36 343), `$03C87C` `CPX #$F4` (36 344), and `$03C87F` (36 340)
+— **which is not an instruction boundary** (it is the second byte of
+`8D D0 F6` = `STA $F6D0`) and is therefore reported unattributed. `CPX #$F4` is
+followed by `STA $F6D0`, **not a branch**: this is a **scan loop's test**, and
+its back-edge is outside the logged neighbourhood. **What it scans and what ends
+it at f3271 are unmeasured, and no cause is claimed.**
 
-1. it is the **only** candidate that closes an existing OPEN with a yes/no, and
-   **both answers are informative**;
-2. it cures a **known defect in an existing measurement** rather than adding a
-   new one;
-3. it costs **one run and zero new code** — the instrument exists and its one
-   documented trap (it prints nothing without `PHASE_MS`) is already known;
-4. it **gates the interpretation of everything else** — if the tick runs anyway
-   past f3857, then the f3271 boundary is not what stands between us and the
-   clock, and the bank-`$03` questions drop in value immediately.
+> **T103 — the single next measurement.** Frame-resolve the `$03C87x` scan
+> loop: its last execution, its back-edge, and what it is scanning. Read it as
+> **what runs bank `$03` between the city appearing and the gate closing** — a
+> *start* question — not as *what advances the clock*.
+>
+> **Instrument:** `SNESRECOMP_INTERP_TRACE_FRAMES` on a **narrow** window around
+> f3271, interleaved with `SNESRECOMP_AOTBLK` over the same window, on the Deck.
+> Narrow is forced: a few frames of bank `$03` is small, and 10 000 frames of
+> bank `$00` is not (the T102 AOT run wrote 457 MB for 10 080 frames).
+> **No source change and no new instrument.**
+>
+> **Falsifiers, stated before running — and the first one already fired once
+> today, so it is listed first.** F1: the trace prints nothing even with
+> `INTERP_PROFILE=1` → the path is **falsified as executable**, the outcome is an
+> instrument trap, and **no substitute measurement is offered**. F2: a run not
+> ending `exit: RUN_FRAMES reached` is **void regardless of what it prints** —
+> `SDL_QUIT` on this Deck means we signalled it. F3: **if the loop's last
+> execution is after f3271, C-039b's boundary is wrong** — that is the more
+> interesting result, not a failed probe. F4: every execution count carries a
+> **positive control** on a PC known to execute in the same run configuration
+> (trap 0 in `README.md`), or the count is uninterpreted.
 
-**What would falsify it, stated before running:** the counter printing nothing
-even with `PHASE_MS=1` (then the path is blocked on a seventh instrument trap
-and that is the honest outcome, not a substitute measurement); and a run that
-ends `SDL_QUIT` or short — **void regardless of the count**, because on this
-Deck `SDL_QUIT` means we signalled it and a truncated trace is not a smaller
-trace.
+**Chosen over** `$0014` bit 7 / the bank-`$03` entry graph (2 311 entries, only 1
+via `$00:8056`), over `$03:DBB3`, over "make `$03:8026` run", and over
+re-running the tick count — for four reasons in order of weight:
+
+1. **"Make `$03:8026` run" is no longer the recommended first move, and the brief
+   for T102 said so in advance.** The evidence now says the city is never
+   started; the new-city routine runs once at f3259 and the state block is never
+   touched again. Proposing another tick-side theory before establishing what
+   *starts* the simulation would be the same self-defeating shape as the f3301
+   bracket.
+2. it is the **only** candidate that names the 86% of the cost that is actually
+   being spent, and **both answers are informative** (it ends at f3271 with
+   everything else, or it does not and C-039b is wrong);
+3. it costs **one Deck run and zero new code**;
+4. it **gates the interpretation of everything else** — if the loop is what ends
+   bank `$03`, then `$0012`, the bank-`$03` death and the abandoned state block
+   are one boundary rather than three coincidences.
 
 ### The reconciled queue
 
 | ticket | state |
 |---|---|
-| **T100** — does `$03:8026` run in ours past f3857 | **CLOSED `1b099ce`** — no: 0 executions over 9 000 frames, a window containing 12 of the reference's own ticks. **Superseded in scope by T102 below** |
+| **T100** — does `$03:8026` run in ours past f3857 | **CLOSED `1b099ce`, and its measurement is now RETRACTED (R-037)** — `COUNT_PC=038026` was watching PC `$000003` (base-0 parse, CONF-15). The *conclusion* is re-measured over 14 000 frames by T102 and holds; the *measurement* is void. **Superseded in scope by T102** |
+| **T102** — does `$03:8026` run across the reference's first year rollover | **CLOSED — NO, and the previous answer was void.** Deck-native, 4 runs × 14 000 frames, `EXIT=0` / `exit: RUN_FRAMES reached` on all four. `$03:8026` = **0 executions**, exhaustive over both tiers (`$038026` is inside an `lle_only` node; **0** `aot_eligible` nodes cover it). Bank `$03` = **0 PCs / 0 steps in f3272–f13080** and **18 AOT entries** in the window, all at f3259/f3270. City state block: **0 writes after f3259 in 14 000 frames**. **Forced retraction R-037** and **CONF-15**. **C-046c closed.** C-041, C-008, C-052, C-057, C-058 stand |
+| **T103** — what runs bank `$03` in f3000–f3271, and what stops it | **OPEN, and it is the single next measurement** — frame-resolve the `$03C87x` scan loop (86% of the bank's cost, one of its four hot PCs not being an instruction boundary). Falsifiers stated in `2026-10-03-t102-…` §7 |
 | **T101** — does the reference simulate at all | **CLOSED `9069182` — YES, and decisively.** Deck-native, clean core, cold SRAM, real save: city f3000, **28 month rolls**, year turns f13080/f24600, **1902 MAY at f30 000**, **29 distinct date images**. Reproduced on a second route. The two "disagreeing" runs were one execution read through a broken column of **our own** driver (`c4923de`) — `$0B55` printed `$0B53`; the month had advanced six times inside the disputed window. The write-watch is **inert** (C-063). **The comparative premise is available and it holds.** R-035, R-036 retracted |
 | **T086** — why does bank `$03` go silent | **RESCOPED, not closed.** *Where* is answered (f3271) and the mechanism is measured: `$03:D2AA` sets `$0012 = 1` one instruction before bank `$03`'s final `RTL`, and `$00:804D` is never executed again. The *why* is OPEN and is no longer the delivery question |
 | T087 — is `$03:8026` among the executing bank-`$03` PCs | **CLOSED** `4ba14c7`, caveated `940de2a` (C-041b); superseded in scope by T100 |
@@ -78,7 +114,7 @@ trace.
 | T069 — peer repo has no licence | **BLOCKED ON OWNER** |
 
 **Numbers this reconciliation corrected:** bank-`$03` boundary f3301 → **f3271** ·
-retraction count 22 → **28 of 36 rows** (R-035, R-036 added by T101 `9069182`) · bank-`$03` range `$03C63D`–`$03E57E` →
+retraction count 22 → **29 of 37 rows** (R-035, R-036 by T101 `9069182`; **R-037 by T102**) · bank-`$03` range `$03C63D`–`$03E57E` →
 **interpreted** `$03C63D`–`$03E57E` and **AOT** `$03B477`–`$03C463` (ledger
 R-033) · AOT total 1 430 539 → **1 430 540**, bank `$03`'s 18 = **15 in f3270 +
 3 in f3259** · reference month rolls **28 in 30 000 frames**
@@ -88,6 +124,17 @@ zero violations.
 ### What is still OPEN and is not going to be closed by any of the above
 
 - **Why the city does not simulate** (C-006). No cause is asserted anywhere.
+  **Narrowed by T102 and re-posed as a *start* question:** bank `$03` executes
+  nothing whatever in f3272–f13080, and the city-state block is not written once
+  in the 10 741 frames after f3259. What *starts* the simulation is now the
+  question; what advances it is downstream of a bank that never runs again.
+- **What the `$03C87x` scan loop scans, what branches back, and what terminates
+  it at f3271** (C-069). 86% of the bank's cost in f3000–f3271 sits there and one
+  of the four hot PCs is not an instruction boundary. **OPEN, no cause claimed.**
+- **Whether `$03:C87F` is a misattributed PC or a real second entry point.** Its
+  36 340 steps match the other three to within 4, which is what a misaligned
+  attribution looks like and also what a real hot instruction looks like.
+  **Unresolved, and deliberately reported as unattributed per C-056's rule.**
 - ~~**Whether *any* route, in either project, reaches a simulating city.**~~
   **RESOLVED (2026-10-02, T101 `9069182`) — the question was an artefact.** The
   two peer runs never disagreed about the peer: the 9 000-frame run is
