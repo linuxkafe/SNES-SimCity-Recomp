@@ -1207,3 +1207,65 @@ produced **three false positives on this project's own corpus** and was reverted
 **The instance is fixed in `docs/CAUSE_CLAIMS.md`; the class is recorded here and
 stays OPEN.** `docs/DEFINITION_OF_DONE.md` D3.1/D3.2 are therefore **floors, not
 checks**, which is what its own "Not criteria" section already says about them.
+
+---
+
+## CONF-21 · severity HIGH · the differential suite compares AOT against `interp816`, and its corpus generator encodes the *same wrong width rule* — so 1 599 000 checks cannot see this class of defect
+
+**The conflict, measured 2026-10-03 (T105).** `interp816` computes
+`CPX #imm` against a **2-byte** operand and advances the PC by 3 when `xf=0`
+(**C-073**). The submodule's own accuracy report records this suite passing:
+
+```
+snesrecomp/SNES_ACCURACY_BURNDOWN.md:108
+  LDX/LDY/STX/STY/CPX/CPY — 323 opcode variants, all 0 divergences (969k checks).
+  ... Now 533 opcode variants, 0 divergences (1.599M checks) vs interp816.
+```
+
+**Those checks compare the AOT code generator against `interp816`.** Read the
+last four words: *"vs interp816"*. It is an **internal-consistency** suite
+between two implementations of this project, not a conformance suite against
+hardware. Two implementations that share a mistake agree perfectly.
+
+**And they demonstrably share this one, because the corpus generator states it:**
+
+```
+snesrecomp/tests/cpu_diff/gen_ops.py:30
+  # index-immediate compares/loads (width = X flag)
+  IMMX_OPS = [("ldx", 0xA2), ("ldy", 0xA0), ("cpx", 0xE0), ("cpy", 0xC0)]
+  ...
+snesrecomp/tests/cpu_diff/gen_ops.py:67
+        emit(f"{label}_{imm:02x}_lo_x0", [op, imm, 0x00], 1, 0)   # 16-bit index
+```
+
+Line 30's comment **is the defect, restated as a test-corpus invariant** —
+"width = X flag" is exactly the rule `CPX #imm` does not obey. Line 67 then
+emits `[op, imm, 0x00]`, a **3-byte** encoding, for the `x=0` case. So the
+operand bytes planted in the test ROM are wrong in the same direction as the
+decoder, and the differential sees two implementations making the *same*
+mistake and calls it agreement.
+
+**Why this is filed as a conflict and not a ticket.** The generalisation is the
+project's own, and this is its purest instance:
+
+> **An instrument that cannot see the answer looks exactly like an instrument
+> that found nothing.** Trap 1 of `README.md` records it for a driver that
+> printed `$0B53` under the label `$0B55`. Here it is a **test suite** whose
+> pass count is the project's strongest accuracy evidence, and the blindness is
+> in the *corpus*, not the comparison — so no amount of adding opcodes or checks
+> to it can help. **Coverage is not the problem. Independence is.**
+
+**NOT FIXED HERE, and the reason matters.** A fix needs an **external
+conformance reference** — a real 65816, or a disassembler with a published,
+independently-derived length table. This repository has none:
+`study/peer-linux/` is four tool scripts and a README, not an emulator;
+`snesrecomp/tools/cyc_watch/` has a cycle hook, not a length oracle. So the
+65816 rule C-073 says `$A0/$A2/$C0/$E0` violate is recorded as **[INFERRED]**,
+and the honest next step is to obtain that reference rather than to guess twice.
+**The measurement stands either way** — *our* decoder reads two operand bytes
+for `$E0` and advances three; that is true regardless of what hardware does.
+
+**Also recorded, because it will bite the next reader:** the corpus generator is
+in the **submodule**, and `gen_ops.py` is not in any gate's scope. Fixing it in
+this repository would reach no clone without a submodule push, exactly as
+`snesrecomp`'s own history shows for every other instrument change here.

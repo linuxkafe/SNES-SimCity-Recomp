@@ -798,5 +798,74 @@ removed → `RESULT: PASS`. The `.sh` half is the **CONF-17** fix holding under 
 **And the guard then fired on the CONF-19 paragraph written to document it**,
 which is recorded in that file rather than reworded away.
 
-Ledger: **38 rows, 30 refuted** (this is the third consecutive +1, after R-037).
+Ledger as it stood after R-038: **38 rows, 30 refuted** (third consecutive +1, after R-037).
 
+
+---
+
+## 24. R-039 (T105, 2026-10-03) — my own "the game's own code" framing, retracted one commit after I wrote it
+
+**Measurement:** `docs/measurements/2026-10-03-t105-flags-at-03c87f.md`.
+**Claim raised:** **C-073**.
+
+At `3f24098` — the commit immediately before T105 ran — `README.md` said, and I
+am quoting the whole of the load-bearing part:
+
+> *"This is the **first thing in this project that looks like a defect in the
+> game's own code** rather than in our emulation. … There are **two** readings
+> and **nothing here distinguishes them**: the game's own bug … or a wrong
+> register state on our side … **It is NOT established which.**"*
+
+**Refuted. It is the second reading, and more precisely than that sentence
+allowed: it is not a wrong register state, it is a wrong operand fetch.**
+
+`CPX #imm` reads a **2-byte** immediate operand while `xf=0` and advances the PC
+by **3**. The word it compares against is therefore the two bytes at
+`$03C87D`/`$03C87E` = **`$8DF4`**, and the loop terminates at `X == $8DF4`.
+
+| | |
+|---|---|
+| `X = $00F4` (the bound the code names) | `P=$04` — **Z clear.** The compare does not fire there |
+| `X = $8DF4` (the bound our decode creates) | `P=$07` — **Z and C set**, the correct result for `$8DF4` |
+| `NPC` from `$03C87C` | `$03C87F` × **36 340**, one value. `E0 F4` is 2 bytes; we advance 3 |
+| `NPC` from `$03C87F` | `$03C881` × **1**, `$03C877` × **36 339** — T104's 1-exit split, explained |
+| N-flag census, all 36 340 rows | operand `$8DF4` predicts N set iff `X ≥ $0DF4` → **3 572** clear / **32 768** set. **Measured 3 572 / 32 768** |
+
+**The differential is what separates "ours" from "the game's", and it is inside
+the same run with the same instrument.** `$03C871 LDA #$0000` (`A9 00 00`, m=1)
+reads `$0000` correctly — `A=$0000` on all 36 340 rows, where a one-byte overread
+would give `$00A2`, the next byte in ROM. **`LDA #imm` right, `CPX #imm` wrong,
+in one measurement.**
+
+### The inference I pre-registered was itself wrong
+
+T105's stated reading was: *"if [the flags are not correct], the overrun is the
+game genuinely failing its own bound and we have found a game bug."*
+
+**That does not follow, and this run is the proof.** Our emulator computes those
+flags from our own operand fetch. A wrong Z is therefore evidence about **us**,
+and the `LDA` control is exactly the experiment that separates the two cases.
+**I registered a falsifier with two arms and the measurement took a third.**
+
+### Why 1 599 000 checks never saw it — CONF-21
+
+`snesrecomp/SNES_ACCURACY_BURNDOWN.md:108` records *"533 opcode variants, 0
+divergences (1.599M checks) **vs interp816**"* — AOT against our own
+interpreter, not against hardware. And the corpus generator states the same
+wrong rule the decoder obeys (`gen_ops.py:30` *"index-immediate compares/loads
+(width = X flag)"*, `:67` emitting `[op, imm, 0x00]` for `x=0`), so the planted
+test ROM is wrong in the same direction and two matching mistakes read as
+agreement. **Coverage was never the problem; independence is.** Not fixed here —
+a fix needs an external conformance reference this repository does not have.
+
+**Scope of the retraction: the framing only.** Nothing else in `3f24098` is
+affected. C-069's cost figures, C-070/071/072, R-038, the perf figures and every
+gate result in that commit stand.
+
+**A correction to C-070's §9 while we are here:** it recorded the loop's extent
+as *"X was followed to `$14FF`. Above that, nothing was watched"* and listed that
+under "what this does NOT establish". T105 traces X to **`$8DF3`** over 36 340
+strictly monotonic iterations. **`$14FF` was a `WLOG_ADDR` 16-bit range limit,
+not a property of the loop** — an instrument ceiling presented as a bound.
+
+Ledger: **39 rows, 31 refuted**.

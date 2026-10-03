@@ -19,7 +19,7 @@ supply; the ROM and any ripped assets are never included. Built on the
 > 0 is that **no criterion may be satisfied by a claim — only by a command that
 > exits 0**.
 >
-> This project has retracted **30** claims out of **38** ledger rows (computed,
+> This project has retracted **31** claims out of **39** ledger rows (computed,
 > `make retraction-count` — never a hand-written number; the other 8 rows are 6
 > `superseded` and 2 `invalidated-premise`, which is not a retraction). Where an
 > old claim is quoted below it is labelled **RETRACTED** and is printed as
@@ -355,32 +355,85 @@ than that premise deserves:
     `LDX #$0000` runs **once** and `INX` is the loop's only X writer, so X climbs
     monotonically and **cannot get past `$00F4` without passing through it**. It
     did, and kept going. **[MEASURED, Deck-native, T104 — `WLOG_ADDR` + state.]**
+    T105 then traced X to **`$8DF3`** over 36 340 strictly monotonic iterations;
+    the `$14FF` ceiling above was the `WLOG_ADDR` 16-bit range, not the loop.
 
-    > #### ⚠️ This is the first thing in this project that looks like a **defect
-    > in the game's own code** rather than in our emulation.
+    > #### ⚠️ **RETRACTED (R-039). This is not a defect in the game's code.**
     >
-    > Every previous anomaly in this file has been one of *ours* — a driver that
-    > printed `$0B53` under the label `$0B55` (R-035/R-036), a counter watching
-    > `$000003` (R-037), a length table that called `$D0` a 1-byte instruction.
-    > **This one is different in kind.** The ROM bytes are unambiguous: `CPX #$F4`
-    > followed by `BNE` is a bounded loop, and the only exit is the branch T104
-    > measured. The CPU state that branch reads is ours. So there are **two**
-    > readings and **nothing here distinguishes them**:
+    > This section, at `3f24098` — **one commit before it was measured** — said:
+    > *"This is the **first thing in this project that looks like a defect in the
+    > game's own code** rather than in our emulation … **It is NOT established
+    > which.**"* **That was wrong, and it was wrong in the direction the whole
+    > investigation had been leaning for three sessions.**
     >
-    > - **the game's own bug** — the loop really is meant to clear 245 bytes and
-    >   our register state is fine, or
-    > - **a wrong register state on our side** — X, the flags, or the decode is
-    >   wrong, and the guest is faithfully executing code against a bad state.
+    > **T105 measured it. It is a defect in our emulation.** `CPX #imm` reads a
+    > **2-byte** operand while `xf=0` and advances the PC by **3**, so the word
+    > compared against is the two bytes at `$03C87D`/`$03C87E` = **`$8DF4`**, and
+    > the loop terminates at **`X == $8DF4`**, not `$00F4`. **[MEASURED,
+    > Deck-native — `docs/measurements/2026-10-03-t105-flags-at-03c87f.md`]**
     >
-    > **It is NOT established which.** The sharpest single test is the
-    > **processor status at `$03C87F`**: if the Z flag there is a correct Z for
-    > `CPX #$F4`, the branch is comparing something other than the X the store
-    > used, the decode hypothesis is dead, and we have a **different and more
-    > interesting** defect. If it is not, the overrun is the game genuinely
-    > failing its own bound. **That is T105**, and until it is measured both
-    > anomalies stay **OPEN** and **no cause is claimed** —
-    > [`2026-10-03-t104-c87x-scan-loop.md`](docs/measurements/2026-10-03-t104-c87x-scan-loop.md)
-    > §9–§10.
+    > | at `$03C87C`, `P` = the flags the `BNE` reads | |
+    > |---|---|
+    > | **`X=$00F4`** — the iteration the bound is about | **`P=$04` → Z clear.** The loop sails past its own bound because the compare does not fire there |
+    > | **`X=$8DF4`** — the only iteration with Z set | **`P=$07` → Z *and* C set**, the correct result of comparing against `$8DF4` |
+    > | `NPC` from `$03C87C` | **`$03C87F` × 36 340**, one value. `E0 F4` is 2 bytes; we advance 3 — that is the whole `$03C87E` skip |
+    > | `NPC` from `$03C87F` | `$03C881` ×**1**, `$03C877` ×**36 339** — the 1-exit split above, explained |
+    >
+    > **Confirmed three independent ways**, the third being a prediction over all
+    > 36 340 rows rather than one: if the operand is `$8DF4` then N is set iff
+    > `X ≥ $0DF4`, predicting **3 572** clear and **32 768** set. **Measured
+    > 3 572 and 32 768.** And X itself runs `$0000 → $8DF3`, **36 340 distinct
+    > values, strictly monotonic** — which also closes the "extent" note below,
+    > where `$14FF` was a `WLOG_ADDR` range limit rather than the loop's reach.
+    >
+    > **The differential, in the same log with the same instrument:** `$03C871`
+    > `LDA #$0000` (`A9 00 00`, m=1) reads **`$0000`** correctly — `A=$0000` on
+    > all 36 340 rows, where a one-byte overread would have given `$00A2`, the
+    > next byte in ROM. **`LDA #imm` correct, `CPX #imm` wrong, in one
+    > measurement.** That contrast is what proves the instrument live *and*
+    > localises the defect to the **index-width** immediate path. It is exactly
+    > four opcodes — `interp816.c` `LDY`/`LDX`/`CPY`/`CPX #imm` — and only while
+    > `xf=0`.
+    >
+    > **Why the pre-registered reading was wrong, since it was mine.** It said
+    > that a wrong Z means *"the overrun is the game genuinely failing its own
+    > bound"*. **That does not follow:** our emulator computes those flags from
+    > our own operand fetch, so a wrong Z is evidence about **us**. The `LDA`
+    > control above is what separates the two cases, and it is in the run.
+    >
+    > **The corrected width rule is [INFERRED], not [MEASURED]** — on the 65816
+    > `LDX/LDY/CPX/CPY #imm` take an 8-bit operand always, and only the
+    > accumulator/ALU group follows the **m** flag. This repository has no
+    > independent 65816 length authority to check that against
+    > (**CONF-21**), and the standing rule — *do not use your own length table
+    > as evidence* — applies here as everywhere. **The measurement does not
+    > depend on it:** what is measured is that *our* decoder reads two operand
+    > bytes and advances three.
+
+    > #### ⚠️ CONF-21 — why 1 599 000 checks never saw this
+    >
+    > The submodule's accuracy report records *"533 opcode variants, 0
+    > divergences (1.599M checks) **vs interp816**"*. That suite compares **the
+    > AOT code generator against `interp816`** — two implementations of this
+    > project, not this project against hardware. And they share this mistake,
+    > because the corpus generator states it:
+    >
+    > ```
+    > snesrecomp/tests/cpu_diff/gen_ops.py:30
+    >   # index-immediate compares/loads (width = X flag)
+    >   IMMX_OPS = [("ldx", 0xA2), ("ldy", 0xA0), ("cpx", 0xE0), ("cpy", 0xC0)]
+    > snesrecomp/tests/cpu_diff/gen_ops.py:67
+    >       emit(f"{label}_{imm:02x}_lo_x0", [op, imm, 0x00], 1, 0)   # 16-bit index
+    > ```
+    >
+    > Line 30's comment **is the defect restated as a test-corpus invariant**, and
+    > line 67 plants a **3-byte** encoding for the `x=0` case — so the test ROM
+    > is wrong in the same direction as the decoder and the differential reads
+    > two matching mistakes as agreement. **Coverage was never the problem;
+    > independence is.** An instrument that cannot see the answer looks exactly
+    > like one that found nothing, and this time the instrument is the project's
+    > headline accuracy number. **Not fixed here** — a fix needs an external
+    > conformance reference this repository does not have.
  - **The city-state block is written once, at f3259, by a creation routine, and
    never written again.** Two disjoint windows, watched as a 16-bit bus write
    census (which sees both engines, so none of the tier blindness that retracted
@@ -720,7 +773,7 @@ is that re-run, not a carry-over:
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
-| `make retraction-count` | the retraction count, computed | **38 rows = 30 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+| `make retraction-count` | the retraction count, computed | **39 rows = 31 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
 **CORRECTION, measured 2026-10-03: this file said "`make clock` exits 1, not
 2", and that is wrong about `make`.** The gate script is right; the wrapper is
@@ -837,30 +890,51 @@ frames:
 > |---|---|---|---|---|
 > | 2026-10-02, at `9624f0e` | 4.502 | 1.007 | 11.275 | superseded; cited in R-012/R-021's replacement |
 > | taken at `ec4cabe`, **never re-measured** | **4.511** | **6.540** | **5.916** | `docs/CLAIMS_REGISTER.md` §3 — the register's own re-measurement of the same stage. **This is the row that produced "the frame is oversubscribed"** (4.511+6.540+5.916 = **16.97 ms > 16.67 ms**), and **that sum is itself retracted** — it added *work* to *sleep*. **See the correction below** |
-> | **2026-10-03, T104** | **7.619** | **1.538** | **6.930** | `docs/measurements/2026-10-03-t104-c87x-scan-loop.md` §7 — Deck, **solo**, 600 presents in 10.552694 s, median **56.86 fps**, spread **0.1%** |
+> | **2026-10-03, T104** | **7.619** | **1.538** | **6.930** | `docs/measurements/2026-10-03-t104-c87x-scan-loop.md` §7 — Deck, **solo**, 600 presents in 10.552694 s, median **56.86 fps**, spread **0.1%**. raster-capture 1.390 |
+> | **2026-10-03, T105** | **4.572** | **1.006** | **11.131** | `make perf`, Deck, **solo**, load average 0.13 before, 600 presents in **10.548473 s**, median **56.88 fps**, spread **0.0%**. raster-capture **0.785** |
 >
-> **All three stand. None of the older two is retracted by this one, and the
-> reason is the reason for three rows rather than one:** they are **different
-> builds and different instrument configurations**, not three readings of one
-> thing. Collapsing them to a single number would be exactly the error this
-> ledger exists to prevent, and the honest statement is that **the variance is
-> itself the finding** — `guest` has been measured at 4.502, 4.511 and 7.619 ms
-> on the same machine class, a spread of 1.7×, and `upload-present` at 1.007,
-> 6.540 and 1.538 ms, a spread of **6.5×**, with no configuration recorded that
-> explains the gap. **A 6.5× spread on a host stage is not yet understood, and
-> this file does not pretend otherwise.**
+> **All four stand. None is retracted by any other, and the reason is the reason
+> for four rows rather than one:** they are **different builds and different
+> instrument configurations**, not four readings of one thing. Collapsing them to
+> a single number would be exactly the error this ledger exists to prevent, and
+> the honest statement is that **the variance is itself the finding**.
+>
+> **What four rows make visible that three did not.** The newest row
+> (`guest` 4.572, `upload-present` 1.006, `deadline-wait` 11.131) reproduces the
+> **oldest** one (`9624f0e`: 4.502 / 1.007 / 11.275) to within **1.6% on guest and
+> 0.1% on upload-present**, across two days and two code trees. **T104's row is
+> the outlier on all three work stages simultaneously** — guest ×1.67,
+> upload-present ×1.53, raster-capture ×1.77 — **while fps is within 0.04%**
+> (56.86 vs 56.88).
+>
+> **That simultaneity is the observation, and no cause is offered for it.** All
+> three work stages moving together while the frame rate does not move is the
+> signature of the *machine* being slower rather than the *code* being slower —
+> but that is an **[INFERRED]** reading of a pattern, not a measurement, and this
+> file does not convert it into one. **OPEN**: what distinguishes the two
+> configurations. Candidate explanations that are *not* excluded include CPU
+> frequency/thermal state and whether `build/` on the Deck had been rebuilt
+> since its last content change; **neither is measured and neither is asserted.**
+>
+> `guest` across the four Deck rows: **4.502, 4.511, 4.572, 7.619** — spread
+> **1.69×**. `upload-present`: **1.007, 6.540, 1.006, 1.538** — spread **6.5×**.
+> **A 6.5× spread on a host stage is not understood, and this file does not
+> pretend otherwise.**
 >
 > **What each supports:**
 >
-> - **T104's row (the only one from a solo, current, Deck-native run) supports
->   `guest` ≫ `upload-present`** — 7.619 vs 1.538, **4.95×** — which is the
->   **opposite direction** to the dev-host figure that `perf-gate.sh`'s own
->   header still carries (*"on this hardware the host's present path costs more
->   than the emulated 65816"*).
-> - **T104's row supports "the Deck frame is not oversubscribed"**: 7.619 +
->   1.538 + 1.390 raster-capture = **10.55 ms of work against a 16.67 ms
->   budget**, with `deadline-wait` filling the remainder. `fps` is
->   600 / 10.552694 = **56.86** (both terms given so it can be recomputed).
+> - **`guest` >> `upload-present` on the Deck** — 4.572 vs 1.006 (**4.55x**) on
+>   T105's row, 7.619 vs 1.538 (**4.95x**) on T104's, 4.502 vs 1.007
+>   (**4.47x**) on the `9624f0e` row. **Three rows, one direction**, and it is
+>   the **opposite** to the dev-host claim `perf-gate.sh`'s own header still
+>   carries (*"on this hardware the host's present path costs more than the
+>   emulated 65816"*). **The ratio is the most stable quantity in this table;
+>   the absolute values are not.**
+> - **The Deck frame is not oversubscribed, on every row.** T105: 4.572 + 1.006 +
+>   0.785 raster-capture = **6.36 ms of work against a 16.67 ms budget**, with
+>   `deadline-wait` 11.131 ms filling the remainder. T104: **10.55 ms**. **Same
+>   verdict, a factor of 1.7 apart.** `fps` is 600 / 10.548473 = **56.88** (both
+>   terms given so it can be recomputed).
 > - **The `ec4cabe` row supports neither, and its 16.97 ms figure is retracted**
 >   — `docs/RE_CITY_FREEZE.md:3191` records the retraction in the author's own
 >   words: *"Eu estava errado sobre a folga … somei trabalho com a espera"*. It

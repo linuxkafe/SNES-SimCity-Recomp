@@ -264,17 +264,52 @@ every run carrying the `COUNT_PC=0x009311` positive control):
 `LDX #$0000` runs once and `INX` is the loop's only X writer, so X climbs
 monotonically and cannot jump over `$00F4`. **[MEASURED, Deck-native, C-072.]**
 
-> **This is the first anomaly in this project that looks like a defect in the
-> *game's* code rather than in our emulation** — and **it is NOT established
-> which it is.** Two readings remain open and nothing here separates them: the
-> game is genuinely failing its own bound, or a register state on our side is
-> wrong and the guest is faithfully executing against it. The sharpest test is
-> **the processor status at `$03C87F`**: a correct Z for `CPX #$F4` kills the
-> decode hypothesis and points at a different, more interesting defect; no
-> correct Z means the game is overrun. **That is T105, and no cause is claimed
-> until it is measured.** Measurement:
-> `docs/measurements/2026-10-03-t104-c87x-scan-loop.md`; claims **C-070, C-071,
-> C-072**.
+### C-073 — `CPX #imm` reads a 2-byte operand and advances the PC by 3
+
+| | |
+|---|---|
+| **Claim** | **`$E0` (`CPX #imm`) in our interpreter consumes a 2-byte immediate operand while `xf=0` and advances the PC by 3, so the word compared against is the two bytes at `$03C87D`/`$03C87E` = `$8DF4`. The `$03C87x` loop therefore terminates at `X == $8DF4`, not `$00F4`. This is a defect in OUR emulation, not in the game's code** |
+| **State** | **MEASURED (Deck-native)** · the 65816 width rule it violates is **INFERRED** · blast radius **OPEN** |
+| **Evidence** | `SNESRECOMP_CYC_WATCH` (extended to print `P=`, the register file and `NPC=`), submodule `e9ed332`. One run, 3 300 frames, `EXIT=0` + `exit: RUN_FRAMES reached`, `COUNT_PC=0x009311` positive control → **6 626 029**, byte-identical to T104's five runs. 36 340 `[cyc]` lines each at `$03C877/$03C87B/$03C87C/$03C87F`, **0 at `$03C87E`**.<br>**(a) Next PC.** `NPC` produced by `$03C87C`: **`03C87F` × 36 340**, one distinct value. `E0 F4` is 2 bytes; we advance 3. That is the whole of the `$03C87E` skip.<br>**(b) Terminal value.** `P` at `$03C87C` takes **3** values: `$04` ×3 571, `$84` ×32 768, and **`$07` ×1 — Z and C set — at `X=$8DF4`**. The iteration with `X=$00F4` reads **`P=$04`, Z clear**. `NPC` from `$03C87F`: `03C881` ×1, `03C877` ×36 339 — T104's split, explained.<br>**(c) N-flag census — a prediction over all 36 340 rows.** If the operand is `$8DF4` the implementation computes `X + ~$8DF4 + 1 = X + $720C`, so N is set iff `X ≥ $0DF4`, predicting **3 572** clear / **32 768** set. **Measured 3 572 / 32 768.** No other operand reproduces both.<br>**Differential, same log, same register file.** `$03C871 LDA #$0000` (`A9 00 00`, m=1) reads **`$0000`** correctly — `A=$0000` on all 36 340 rows at `$03C877`, where a one-byte overread would give `$00A2`. **`LDA #imm` correct, `CPX #imm` wrong, in one measurement** — the instrument is proven live by its own contrast.<br>**X over the loop:** 36 340 rows at `$03C877`, **36 340 distinct values**, `$0000 → $8DF3`, `sort -c` non-decreasing — strictly monotonic, no repeats. **This closes C-070's §9 "not the loop's extent"**, which had recorded the ceiling as `$14FF`; that was a `WLOG_ADDR` 16-bit range limit, not the loop |
+| **Affected opcodes** | The `xFlag=true` call sites of `interp816_adrImm` are exactly four — `interp816.c:2029` `LDY #imm`, `:2041` `LDX #imm`, `:2228` `CPY #imm`, `:2419` `CPX #imm` — and only while **`xf=0`**. [from the dispatch, not from a census] |
+| **NOT claimed** | Not a cause for the freeze; C-006 stays **OPEN**. Not a measurement that the loop *should* clear 245 bytes ([INFERRED]). **What the ~36 KB of zeros destroyed is not measured — and that is the next measurement, because correcting the width makes the loop ~148× longer, not shorter.** No claim about how often `xf=0` holds in this ROM |
+| **Measurement** | `2026-10-03-t105-flags-at-03c87f` |
+
+### R-039 — retracted: the "defect in the game's own code" framing
+
+**Retracted 2026-10-03, one commit after it was written** (`README.md` at
+`3f24098`). It read: *"This is the **first thing in this project that looks like
+a defect in the game's own code** rather than in our emulation"* … *"There are
+**two** readings and **nothing here distinguishes them** … **It is NOT
+established which.**"*
+
+**Refuted by C-073.** It is the second reading, and more precisely than the
+sentence allowed: it is not "a wrong register state" but a wrong **operand
+fetch**. The register file, the flag arithmetic and the branch are all behaving
+correctly on the input they were given; the input is wrong.
+
+**The inference in the pre-registered framing was itself wrong.** T105's stated
+reading was *"if [the flags are not correct], the overrun is the game genuinely
+failing its own bound and we have found a game bug."* **That does not follow.**
+Our emulator computes those flags from our own operand fetch, so a wrong Z is
+evidence about **us**. The run contains the control that separates the two
+cases — `LDA #imm` correct and `CPX #imm` wrong, same log, same instrument,
+same 36 340 rows.
+
+**Three sessions framed this loop as a mystery in the game's code.** Every one of
+its anomalies — the skipped byte, the missing Z, the 2 069 stores past the
+bound, the ~36 KB written — is one defect on our side.
+
+> **RETRACTED (R-039) — this is the paragraph the retraction replaced, kept so
+> the correction has its original attached.** It read: *"**This is the first
+> anomaly in this project that looks like a defect in the *game's* code rather
+> than in our emulation** — and **it is NOT established which it is.** Two
+> readings remain open and nothing here separates them … **That is T105, and no
+> cause is claimed until it is measured.**"* **T105 has now been measured, and
+> the first half is false — see C-073 and R-039 above.** Measurement:
+> `docs/measurements/2026-10-03-t104-c87x-scan-loop.md` (the framing) and
+> `docs/measurements/2026-10-03-t105-flags-at-03c87f.md` (the answer); claims
+> **C-070, C-071, C-072** and **C-073**.
 
 ### `make clock`'s criterion is justified on its own terms
 

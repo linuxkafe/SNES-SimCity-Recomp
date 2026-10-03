@@ -115,3 +115,4 @@ R-035	phrase	refuted	the reference build also stops ticking productively	docs/me
 R-036	phrase	refuted	rising is not simulating	docs/measurements/2026-10-02-t101-reference-simulates.md
 R-037	token	refuted	executes (0 times|zero times) (over|in) f0.f[69] ?000	docs/measurements/2026-10-03-t102-tick-across-f13080.md
 R-038	phrase	refuted	03C87F is the second byte of	docs/measurements/2026-10-03-t104-c87x-scan-loop.md
+R-039	phrase	refuted	first thing in this project that looks like a	docs/measurements/2026-10-03-t105-flags-at-03c87f.md
