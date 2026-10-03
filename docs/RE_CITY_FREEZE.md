@@ -155,7 +155,7 @@ loud.**
 | 40 | A CAUSA: a NMI é entregue **antes** do guest, e o guest limpa o token | **MEASURED — FIXED** | the vblank deadlock, its cause and the fix. Stands |
 | 41 | Correção aplicada: o bloqueio do vblank está quebrado | **PARTLY RETRACTED** | fix MEASURED; "the city does not load" inside is RETRACTED |
 | 42 | O Deck compila nativamente, e a cidade viva nunca toca a bank 03 | **PARTLY SUPERSEDED** | Deck-native build stands; the whole-run bank-03 claim is superseded by (s) |
-| 43 | A bank 03 executa. Encontra-se o limite: cala-se em f3301 | **CURRENT** | the newest measurement |
+| 43 | ~~A bank 03 executa. Encontra-se o limite: cala-se em f3301~~ **SUPERSEDED — o limite é f3271, não f3301.** `f3301` foi um bracket de 100 frames; C-039 foi retractado as stated. Ver entradas **(s)** e **(t)** | **SUPERSEDED** — use a entrada **(t)**, e a linha 19 deste índice |
 
 Entry into the game is solved (`RE_SCENARIO_NAV.md`). This is the remaining
 bug, and it is narrow: **the city runs, animations play, and the date stays at
