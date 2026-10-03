@@ -1,0 +1,68 @@
+# Reach a RUNNING city, headlessly. Verified 2026-09-30.
+#
+# T118 variant of scripts/d_city.script: inserts a diagnostic poke of WRAM
+# $0012 = 1 at frame ~3000, BEFORE the natural f3271 latch.
+#
+# The poke reproduces the 16-bit store at $03:D2AA (STA $0012 = 1), written
+# as two separate 8-bit pokes: poke 0012 01 then poke 0013 00.
+#
+# > THIS IS A DIAGNOSTIC POKE. It must never make make clock pass (DoD Rule 0).
+# > scripts/check-cheat-gate.sh is green with this file present. No gate script
+# > invokes it. It is a measurement tool only.
+#
+# Full data: docs/measurements/2026-10-03-t118-0012-early-poke.md
+wait 250
+press start 5
+wait 120
+press down 5
+wait 120
+press b 5
+wait 120
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 300
+press left 5
+wait 150
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+# T118: poke $0012 = 1 at ~f3000, well before the natural f3271 latch.
+# Inserted immediately after the 4th mouseclick (base frame f2923).
+# wait 77 positions the first poke at f2923+77 = f3000.
+wait 77
+poke 0012 01
+wait 5
+poke 0013 00
+wait 5
+wait 600
