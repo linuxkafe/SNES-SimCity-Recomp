@@ -35,12 +35,39 @@ different from `make build`:**
 
 | tier | recipe | what it is for |
 |---|---|---|
-| `build-instr` | `-DSNESRECOMP_INTERP_PROFILE=1` on **both** `-DCMAKE_C_FLAGS` and `-DCMAKE_CXX_FLAGS`, plus `-idirafter /home/deck/sysroot/usr/include` | the interpreted PC histogram, `INTERP_DUMP_BANK`, `INTERP_PROFILE_START/END`, `COUNT_PC` |
+| `build-instr` | `bash scripts/deck-instr-build.sh` | the interpreted PC histogram, `INTERP_DUMP_BANK`, `INTERP_PROFILE_START/END`, `COUNT_PC`, `INTERP_TRACE_FRAMES`, `WLOG_ADDR` |
 | `build-tr` | `bash scripts/deck-trace-build.sh` | the AOT tier. Adds `SNESRECOMP_TRACE_BUILD=ON` and `SNESRECOMP_TRACE=1`, and **ends in a guard that refuses a mute link as success** |
 
 **The header prefix must be on `CMAKE_CXX_FLAGS` as well as `CMAKE_C_FLAGS`.**
 Leaving the CXX one empty is what broke the trace tier before, and it is
 **CONF-9**; `scripts/deck-trace-build.sh` exists so nobody re-derives it.
+
+> ### ⚠ THE `build-instr` RECIPE IN THIS TABLE WAS INCOMPLETE, AND IT COST A RUN.
+> Until `scripts/deck-instr-build.sh` was added (2026-10-03, T112) this table gave
+> `build-instr` as "`-DSNESRECOMP_INTERP_PROFILE=1` on both `-DCMAKE_C_FLAGS` and
+> `-DCMAKE_CXX_FLAGS`, plus `-idirafter /home/deck/sysroot/usr/include`". **That
+> does not configure on the Deck**, and it fails in two successive places, each
+> with a different message, so it reads like two unrelated problems:
+>
+> ```
+> CMake Error at build-instr/_deps/sdl3-src/cmake/macros.cmake:415 (message):
+>   SDL could not find X11 or Wayland development libraries on your system.
+> CMake Error at .../FindPackageHandleStandardArgs.cmake:227 (message):
+>   Could NOT find OpenGL (missing: OPENGL_INCLUDE_DIR)
+> ```
+>
+> The SDL3 check wants `-DSDL_UNIX_CONSOLE_BUILD=ON` (this Deck is console-only:
+> `SDL_X11:BOOL=OFF`, `SDL_WAYLAND:BOOL=OFF` in every working cache), and the
+> OpenGL check wants `-DOPENGL_INCLUDE_DIR=/home/deck/sysroot/usr/include`. The
+> `-idirafter` flag on `CMAKE_C_FLAGS` does **not** satisfy `find_package` — that
+> is a compiler include path, not a CMake search path. The full working line is
+> the one in `scripts/deck-trace-build.sh`, and `scripts/deck-instr-build.sh` is
+> the same line minus the trace knobs.
+>
+> **Why no gate caught it:** `scripts/deck-trace-build.sh` was added as a *script*
+> (CONF-9), and only the trace tier got one. The interpreter tier kept a prose
+> recipe in a table, and prose recipes in this file have now been wrong three
+> times. **A machine-specific build line belongs in a script, not in a table.**
 
 ## Heavy gates
 

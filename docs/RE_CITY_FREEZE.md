@@ -22,17 +22,25 @@
 > | Does the peer's clock advance? | **YES — and this row was wrong until 2026-10-03.** **28 month rolls and two year rollovers in 30 000 frames**, 1902 MAY at f30 000, 29 distinct date images, Deck-native. ⚠ **RETRACTED (R-035/R-036): the "No" here, and "27 tick increments bought nothing", are refuted.** Our own driver printed `$0B53` under the label `$0B55`; at f9000 the true `$0B55` is `07` = AUGUST, and 27 ticks are `6 × 4 + 3` — six whole months. Population 0 and funds 20 000 in every sample **of both builds**, so *simulates* means *the tick runs*, not *an economy grows*. | `2026-10-02-t101` §1–§5 |
 > | Does the keyboard route reach a *running* city? | **In the peer, YES.** `scripts/d_city_kbd.script` reaches a city whose clock runs to f30 000 and beyond. **In ours, no** — it loads (f3259) and the state block is then never written again. | `2026-10-02-t101`, `2026-10-03-t102` |
 > | Who writes `$0B51`? | **`$03:8026` `INC.w $0B51`**, cross-checked against ROM bytes. Plus `$03:C77E` `STZ.w`, `$03:C9E3` `STA.w`, and **`$00:8023` `STA dp,x`** (`95 00`, one-byte operand — invisible to an operand scan). | **(u)** §5 |
-> | **Why does our city not simulate?** | **NOT ESTABLISHED. OPEN** — and it is a *start* question, not a tick question. ⚠ The older phrasing here (*"OPEN for the date, since it increments there without the date moving"*) rested on the refuted row above. What is measured on both sides now: the tick runs in the peer and never runs here; `$0DC7` is written 128× there and never accumulated here; bank `$03` executes nothing in f3272–f13080 here. **No cause is asserted anywhere.** | `2026-10-02-t101`, `2026-10-03-t102` |
+> | **Why does our city not simulate?** | **NOT ESTABLISHED. OPEN.** ⚠ **UPDATED 2026-10-03 (T112), and the update is a NARROWING, not an answer.** Measured now: `$00:804D` (`MainLoop`) executes **2** times in 3400 frames and nothing calls it — it is reached by **fall-through once** from the one-shot boot code at `$00:8000`; `$03D283` (the round-robin scheduler) runs **once** and exits at f3271; `$00:8061` (`Init_Hardware`) executes **1** time and its **`RTS` at `$00:80B1` executes 0 times**. So the loop cannot re-enter bank `$03` because that one routine never returns. ⚠ **The flag framing is REFUTED (R-046): `$0012` is written exactly twice in BOTH builds and never cleared in either — `1` from f3271 here and from f2998 in the peer, where bank `$03` keeps running. It is a latch, not a gate.** Also measured: `$03:D2A3` clears bit 7 of `$00B1` at f3271, so the NMI handler takes only its short path for 66 frames (f3272–f3337) until `$00:8098` puts `$81` back at f3338. **What re-enters bank `$03` in the peer after f2968 is still NOT ESTABLISHED**, and it is not `$03D283` (once in both) and not the NMI's ten frame-work JSRs (40× in f3338–f3400 here, bank `$03` still silent). | `2026-10-03-t112` |
 >
 > **The open question, in order of how much it would reduce uncertainty:**
 >
-> 1. **Does `$03:8026` execute in OUR build at any frame >= 3857?** Unmeasured,
->    and cheap. C-041 stops at f3700; the peer's first tick is f3857, so **the
->    reference build would not have executed the tick once inside the window
->    C-041 used.** This is the single next measurement. **(u)**
-> 2. **Why does bank 03 go silent at f3271?** Still unmeasured. No cause is
->    asserted anywhere in this file. Its last instruction is an `RTL` returning to
->    a bank-00 loop that keeps running.
+> 1. **What re-enters bank `$03` in the PEER after f2968?** **This is the single
+>    next measurement** and it is the whole remaining story. **NOT** `$00:804D` →
+>    `JSL $03D283`: the `$0014` scheduler trace is the same twelve milestones in the
+>    same order in both builds, so that path is city-creation and runs once
+>    *everywhere*. Nor is it the NMI's frame work, which runs 40× in f3338–f3400
+>    here with bank `$03` still silent. Census of bank-`$03` writers in the peer:
+>    widen the study write-watch to `T093_WATCH_LO=0x0000 T093_WATCH_HI=0x1FFFF`
+>    over 9000 frames and read the frame range of every writer with `pbr == $03`.
+>    Falsifier: the `$0B51` control must still read 27 with the first at f3857.
+> 2. **Why does `$00:8061`'s `RTS` never execute?** It resumes 52 frames later
+>    (`$00:8076` at f3329), so it is a suspension, not a lost return address.
+>    **NOT ESTABLISHED.**
+> 3. **Does `$00:86A4` clear `$7E:2000-$21FF` at f3277?** Inferred from the
+>    manifest disposition (AOT node `0086A4:M0X0`, invisible to `[itb]` per
+>    C-039c), **not observed**. It matters — that is city-sized WRAM.
 >
 > Question 1 was open at **(s)**, answered at **(t)** as a census, and finally
 > MEASURED at **(u)** — which is why this block exists: an entry three hundred
@@ -4284,3 +4292,122 @@ saltado, e `CPX`/`BNE` a não honrarem `X == $00F4`. São *consistentes com um
 previsões, ambas cumpridas. **As flags nunca foram lidas.**
 
 Medição: `docs/measurements/2026-10-03-t104-c87x-scan-loop.md`.
+
+## 2026-10-03 (T112) — `$0012` NÃO É A FECHADURA. É UM LATCH. E A FECHADURA É O `RTS` QUE `$00:8061` NUNCA EXECUTA
+
+**Medição completa e Deck-native em
+`docs/measurements/2026-10-03-t112-0012-is-a-latch-not-a-gate.md`. Duas coisas do
+brief sao REFUTADAS aqui e as duas eram load-bearing.**
+
+**1. O brief: "`$0012` é a fechadura de re-entrada". REFUTADO — pelo peer.**
+`$0012` é escrito **exactamente duas vezes** nos dois builds e **nunca é
+limpo em nenhum dos dois**. No peer é `1` desde f2998 e a bank `$03` continua a
+correr. Uma flag que nunca volta a `0` não pode fechar acção que tem de repetir.
+**Ledger R-046.** Isto também vindica a retractação de 2026-10-02 (entry (a)) e
+dá-lhe o mecanismo que lhe faltava.
+
+**2. O brief (passo 3): "o HUD não desenha o valor decimal cru, portanto há uma
+transformação a encontrar". REFUTADO como premissa.** `$0B53` **é** um ano
+decimal simples: a tabela de milestones do próprio jogo em `$03:C4DC` vale
+`1900 1900 1900 1901 1901 1905` e `$03:C490 CMP ($C4DC),Y` compara `$0B53` contra
+ela em **16 bits**. Não há transformação. **Ledger R-047.**
+
+### A resposta à pergunta que foi feita
+
+    $00:804D  CODE_00804D  "MainLoop"        2 execuções em 3400 frames
+    $03D283   o scheduler round-robin        entra/sai UMA vez, f3259..f3271
+    $00:8061  CODE_008061  "Init_Hardware"   1 execução, e
+    $00:80B1  o RTS dela                    0 execuções
+    $03D283   re-entrada depois disso       0 vezes, para sempre
+
+**`$00:804D` não é chamada por ninguém.** É alcancada por **fall-through**, uma
+vez, do codigo de boot de execucao unica em `$00:8000` (`$00:804A STA $4200` ->
+`$00:804D`). Um scan de todas as formas de call/jump para `$00:804D` em 512 KB
+devolve **zero**. E `D = 0` ali, por construcao: o loop de boot em `$00:8023`
+(bytes `95 00`) com `X=$0000..$07FF` e o boot a limpar WRAM `$0000-$1FFF`, e por
+medicao o escritor de `$0012` loga `D=0000`. **R-034 retractou que este endereco
+escreva `$0B51`; essa e outra afirmação, sobre o peer, e nao e reafirmada aqui.**
+
+**`$00:8061` É suposto regressar a `$00:805F BRA $00:804D`. Não regressa, e é
+por aí que a bank `$03` nunca mais entra.**
+
+Mapa de frames (`INTERP_TRACE_FRAMES=3271-3400`, 1 461 215 linhas `[itb]`):
+
+    f3271  $03D2AA STA $0012=1 ; $03D2A3 STA $B1=$B3&$7F ; $03D2B7 RTL
+    f3271  $804D -> BNE -> $805C -> $8061        (1a e unica execucao)
+    f3272-3337  NMI so pelo caminho CURTO $80BC/$80BE/$80BF — 66 frames
+    f3277  $806E $825F..$8287 (instala o hook CODE_038000) ; $8073 JSR $96BE
+    f3329  $8076                            (retoma 52 frames depois)
+    f3338  $8098 STA $B1 = $81              (o NMI volta a fazer trabalho)
+    f3338-3400  $80DA..$80F5 40x cada, $8CDD 40x
+    f3272-3400  PCs interpretada na bank $03:  ZERO
+        $80B1 RTS: 0 execuções
+
+O `$00:80BC` curto decorre de `$03:D2A3` limpar o bit 7 de `$00B1`, e `$00:8098`
+volta a po-lo. **66 frames sem trabalho de frame, e mesmo depois `$8061` nunca
+devolve.**
+
+### O `$0014` é a mesma sequência nos dois builds — e isso é o achado
+
+| `$0014` | nosso: frame / `IPC` | peer: frame / `pc` |
+|---|---|---|
+| `$01` | 223 / `$059330` | 229 / `$05:9332` |
+| `$02` | 251 / `$03D301` | 251 / `$03:D303` |
+| `$05` | 1093 / `$03D3B4` | 1108 / `$03:D3B6` |
+| `$15` | 2939 / `$03D9C5` | 2903 / `$03:D9C7` |
+| `$00` + `$0015=$80` | 3270 / `$03DA9E` | 2997 / `$03:DAA0` |
+| **`$0013=1`** | **3271 / `$03D2AA`** | **2998 / `$03:D2AC`** |
+
+(as 12 linhas completas estao na medicao; aqui ficam as representativas.)
+
+**Doze marcos identicos, mesma ordem, mesmos escritores, mesmos valores, nos dois
+builds.** Portanto **`$03D283` corre UMA vez no peer tambem**, e a actividade
+posterior da bank `$03` no peer (`$03:8026` a contar 27 vezes desde f3857) e por
+**outro caminho**. A chain "`$00:804D` -> `$03D283`" nunca foi o motor por frame
+em nenhum dos dois builds: e criacao de cidade, uma vez.
+
+**A divergencia e depois de f3271/f2998, e nao esta em `$0012`, `$0014`,
+`$03D283` nem `$00:804D`, porque os quatro sao identicos.**
+
+**O CONTROLO PRE-REGISTADO disparou, e sem ele esta medicao seria nula:**
+`T093_WATCH_LO=0x0B51 T093_WATCH_HI=0x0B52` -> primeiro incremento em **f3857**,
+**27** incrementos, `RESULT failed=0 frames=9000 master_clock=3216243544
+insns=107365572` — o known-good do T093 **ao frame e ao numero de instrucoes**.
+
+### Uma hipotese minha que o meu proprio instrumento matou antes de eu a afirmar
+
+A linha do log em f3271 diz `M=0` e a largura diz `w1`. Li "store de 8 bits onde a
+65816 exige 16" e " `$0013` nunca foi escrito". **Estava errado, e o mesmo log
+refutou isso uma query depois:** `grep '00:0013='` devolve
+`f3271  00:0013=00 w1 ... IPC=03D2AA`. O store foi de 16 bits; `interp816_sta`
+(`interp816.c:850`) ramifica em `cpu->mf` e `interp816_writeWord` (`:483`) cai em
+dois `cpu_write8`. Duas linhas, nao uma. Registado porque e a mesma forma das onze
+medicoes que se refutaram a si proprias: um campo de uma linha de log lido sem a
+linha vizinha. **O `[itb]` ja o tinha dito antes de a hipotese existir:**
+`$03D2A7 -> $03D2AA` e um passo de 3 bytes, ou seja `A9 01 00 = LDA #$0001`.
+
+### Falso positivo do scan de bytes
+
+236 candidatos brutos para `dp $12` nos 512 KB; **dois** sobrevivem a um decode
+comprimento-aware: `$00:804D` e `$03:D2AA`. `$00:8C05 TSB dp $12` e **FALSO** — a
+janela deslizante em `$00:8BFC` le `C5 04 / 12 C4`, e o `85` que produziu o hit e
+a cauda de `12 C4`. E `bank_03_894C/9AD7/9C11/9CDF/9DCA/A350/AFB0` mostram todos
+`cpu->D + 0x0012` em `src/gen/*.c` mas todos abrem com `cpu->D = cpu->A` (`TCD`) e
+fecham com `PLD` — **o `$0012` deles e a frame propria, nao WRAM `$0012`**. Ler
+esse censo como censo de `$0012` daria sete escritores fantasma.
+
+### O que fica OPEN, e a unica medicao seguinte
+
+**O que re-entra na bank `$03` no peer depois de f2968.** Nao medido. Nao e
+`$00:804D`->`$03D283` (uma vez nos dois) e nao sao os dez JSRs do NMI (correm 40x
+em f3338-f3400 e a bank `$03` continua muda). **Medicao seguinte:** censo de
+entradas na bank `$03` no peer, alargando a janela do watch de estudo para
+`T093_WATCH_LO=0x0000 T093_WATCH_HI=0x1FFFF` em 9000 frames e lendo o intervalo de
+frames de cada escritor com `pbr == $03`. **Falsificador pre-registado, igual:** o
+controlo `$0B51` tem de continuar a dar 27 com o primeiro em f3857.
+
+**Nao estabelecidas, ditas como tal:** porque e que o `RTS` de `$00:8061` nao
+executa (retoma 52 frames depois, logo e suspensao e nao perda de endereco de
+retorno); e que `$00:86A4` limpa `$7E:2000-$21FF` em f3277, que e inferido da
+disposicao do manifesto e nao observado — e importa, porque e WRAM do tamanho da
+cidade.

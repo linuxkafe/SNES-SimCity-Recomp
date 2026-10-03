@@ -868,7 +868,7 @@ under "what this does NOT establish". T105 traces X to **`$8DF3`** over 36 340
 strictly monotonic iterations. **`$14FF` was a `WLOG_ADDR` 16-bit range limit,
 not a property of the loop** — an instrument ceiling presented as a bound.
 
-Ledger: **45 rows, 37 refuted** (R-040, R-041, R-042 added by T106; **R-043 by
+Ledger: **47 rows, 39 refuted** (R-040, R-041, R-042 added by T106; **R-043 by
 T109; R-044 by T110** — the reference build's headless renders are not a game
 screen, so its on-screen date behaviour is unmeasured; **R-045 by T111** — the
 date glyphs *are* rewritten and a poke *does* move them, inside the live window).
