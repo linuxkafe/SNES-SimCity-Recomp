@@ -2383,6 +2383,33 @@ which is the only reason these answers are worth anything. The recurring ones:
   narrowed to **2 real**: one was a sliding-window false positive, and seven were
   sites that `TCD` on entry and `PLD` on exit — they were reading **their own
   frame**, not the flag.
+- **Separate the observation from the attribution, always.** This is the failure
+  that keeps recurring, and it has a signature: *the measurement reproduces to the
+  unit and the explanation is still wrong.* R-040 was one; the `$03:8222` case was
+  another. A write-watch recorded `$0E15` writes attributed to `STZ $0E15` at
+  `$03:8222`, and the ROM byte at that offset is **`9C`** — `STZ $sr,S`, *stack
+  relative* — not `64`. **The observation stood; the attribution was refuted.** When
+  you write "X executes N times", the *count* is a measurement and the *"because X
+  is Y"* is a separate claim that needs its own evidence. State them as two findings
+  or state neither.
+- **Check the byte. It costs one command.** `python3 -c "d=open('SimCity (USA).sfc','rb').read();
+  print(d[0x18222:0x18226].hex())"` would have caught the wrong opcode before a
+  measurement document, a README line and a reviewer all repeated it. A hand-decode
+  is not verification, and **severity is not importance** — the finding that exposed
+  this was filed MINOR and outranked the round's BLOCKER.
+- **A count of writes is not a count of frames.** 56 logged writes was 28 distinct
+  frames, two per frame. Say which you mean.
+- **A maintained index must track the body it claims authority over.** It did not:
+  `docs/RE_CITY_FREEZE.md` row 43 read `f3301 / CURRENT` while the banner in the
+  same file read `f3271` and recorded `f3301` as retracted. **Three reviewer personas
+  found it; no measurement agent did, and neither did I** — and a measurement session
+  of mine was consuming it at the time. Anything you maintain as an index needs a
+  gate that compares it against its source, or it will drift silently.
+- **A measurement that exists only in a transcript is not a measurement.** Three
+  measurement agents in one round produced good data and **zero files**, because the
+  invoking process timed out before they wrote anything. **Write the finding down
+  first, analyse afterwards.** The data was real and the run still counted for
+  nothing.
 
 ### Where the measurements run
 
