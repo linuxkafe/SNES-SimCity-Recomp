@@ -320,7 +320,7 @@ than that premise deserves:
    it are unmeasured, and no cause is claimed. [OPEN]** — the next measurement
    is stated in
    [`2026-10-03-t102-tick-across-f13080.md`](docs/measurements/2026-10-03-t102-tick-across-f13080.md)
-   §7 and tracked as T103 in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+   §7 and tracked as T104 in [`docs/ROADMAP.md`](docs/ROADMAP.md).
  - **The city-state block is written once, at f3259, by a creation routine, and
    never written again.** Two disjoint windows, watched as a 16-bit bus write
    census (which sees both engines, so none of the tier blindness that retracted
@@ -597,6 +597,7 @@ are:
 | [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) | the standard of proof — **no acceptance criterion may be satisfied by a claim** |
 | [`docs/review/RUBRIC.md`](docs/review/RUBRIC.md) | the pre-registered review rubric (hash-pinned in `RUBRIC.sha256` — **do not edit**) |
 | [`docs/review/REVIEW-2026-10-02b.md`](docs/review/REVIEW-2026-10-02b.md) · [`-02c.md`](docs/review/REVIEW-2026-10-02c.md) | the last two full reviews — **REJECT, 3 BLOCKERs**, all since closed; and the review of the C-041 work |
+| [`docs/review/VALIDATOR_DEFECTS.md`](docs/review/VALIDATOR_DEFECTS.md) | the T101 review validator's **three self-defects, found by seeded violation**, two fixed and one re-verified — and why none of it reaches a clone |
 
 ### The peer review of T101, and its standing
 
@@ -611,6 +612,17 @@ script can settle. Its own verdict is **REJECT WITH CONDITIONS** (0 BLOCKER,
 `aes/peer-reviews/T101/validate.sh` and records the output. `aes/` is
 gitignored, so that script is **not in a fresh clone** — a clone inherits the
 caveat and not the validator.
+
+**Its validator has three known self-defects and was attacked on 2026-10-03
+with seeded violations.** Two were real and are **fixed**; the third was already
+fixed and was **re-verified**. Because `aes/` is gitignored, **none of that
+reaches a clone** — the tracked account is
+[`docs/review/VALIDATOR_DEFECTS.md`](docs/review/VALIDATOR_DEFECTS.md), and the
+short version is: one check used to **pass when its subject had been deleted**
+(vacuous — renaming the string it grepped for turned it green), and one used to
+**fail when the record was corrected** (it pinned the retraction count at `28`,
+so T102's legitimate R-037 broke it). **Both are fixed and both re-falsified;
+both fixes are local-only, which is the same state as the review itself.**
 
 **What the review did change:** two findings were closed by measurement, not by
 argument — the `$0B51` law was re-derived at **event** granularity (**113 tick

@@ -2,7 +2,9 @@
 
 > ## ⚠ STATUS — measured 2026-10-02; newest entry **(u)**. Read this before anything below.
 >
-> This file is an **append-only chronological log**, ~3,990 lines and 45 dated
+> **BANNER CORRECTED 2026-10-03** (`f6f1d12`, then the `aes-conflict` pass). Three rows below asserted that the reference build's clock does not advance. **Both were refuted by T101** and are now marked in place with R-035/R-036. Found by `aes-conflict`'s epistemic-state-contradiction class: a tracked file's maintained index contradicting `docs/CAUSE_CLAIMS.md` C-059. **Nothing below line 30 was edited — it is history, and it says so.**
+>
+> This file is an **append-only chronological log**, ~4,230 lines and 45 dated
 > entries (35 carry a `## 20…` heading; the rest are undated sub-entries).
 > **98% of it predates its own newest entry** and 94% predates the root cause.
 > There is no other way to find the current position, so here it is. This block
@@ -16,11 +18,11 @@
 > | Does bank 03 execute at all? | **Yes — 921 distinct PCs, 515,043 interpreted steps over f0–f3700.** | interpreted histogram, Deck-native build, **(s)** |
 > | Where does it stop? | **At f3271.** 16 steps in f3271, none in f3272–f3700; frame-for-frame identical on Deck and host. **The f3301 in entry (s) is retracted as stated** — it was a 100-frame bracket. | per-frame stream, **(t)** |
 > | Does the tick instruction run — **in the peer?** | **YES.** `INC.w $0B51` at `$03:8026` (`EE 51 0B`, file `0x18026`) = **27 executions in 9000 frames**, first at **f3857**, then +152/+253/+140/+243 (197 frames/tick). Host-only. | WRAM write-watch on the reference core, **(u)** |
-> | Does the tick instruction run — **in ours?** | **NOT ESTABLISHED, and C-041's window cannot answer it.** 0 executions f0–f3700 is true, but the peer's tick **also never fires inside f0–f3700**. The windows do not overlap. | **(u)** §4 |
-> | Does the peer's clock advance? | **No.** `$0B51` climbs `0000->001B` while year stays 1900, population stays 0, funds stay 20000, 50–500 WRAM bytes move per 120 frames. **27 tick increments bought nothing.** | **(u)** §2 |
-> | Does the keyboard route reach a *running* city? | **No — in either project.** The peer loads the city at ~f2985 and does not simulate; ours reaches the same loaded state and does not simulate. | **(u)** §3 |
+> | Does the tick instruction run — **in ours?** | **NO — 0 executions in 14 000 frames**, Deck-native, in a window holding the peer's 16 month rolls and its first year rollover. **Bank `$03` itself takes 0 interpreted PCs and 0 AOT entries in f3272–f13080**, so the city is never *started*. ⚠ **T100's and C-041c's earlier zero is RETRACTED (R-037): `COUNT_PC=038026` parsed as octal `3` and watched PC `$000003`.** | `2026-10-03-t102` §3–§5 |
+> | Does the peer's clock advance? | **YES — and this row was wrong until 2026-10-03.** **28 month rolls and two year rollovers in 30 000 frames**, 1902 MAY at f30 000, 29 distinct date images, Deck-native. ⚠ **RETRACTED (R-035/R-036): the "No" here, and "27 tick increments bought nothing", are refuted.** Our own driver printed `$0B53` under the label `$0B55`; at f9000 the true `$0B55` is `07` = AUGUST, and 27 ticks are `6 × 4 + 3` — six whole months. Population 0 and funds 20 000 in every sample **of both builds**, so *simulates* means *the tick runs*, not *an economy grows*. | `2026-10-02-t101` §1–§5 |
+> | Does the keyboard route reach a *running* city? | **In the peer, YES.** `scripts/d_city_kbd.script` reaches a city whose clock runs to f30 000 and beyond. **In ours, no** — it loads (f3259) and the state block is then never written again. | `2026-10-02-t101`, `2026-10-03-t102` |
 > | Who writes `$0B51`? | **`$03:8026` `INC.w $0B51`**, cross-checked against ROM bytes. Plus `$03:C77E` `STZ.w`, `$03:C9E3` `STA.w`, and **`$00:8023` `STA dp,x`** (`95 00`, one-byte operand — invisible to an operand scan). | **(u)** §5 |
-> | **Why does the city not simulate?** | **NOT ESTABLISHED. OPEN.** `$0B51`'s role is now MEASURED in the peer *for the counter* and OPEN *for the date*, since it increments there without the date moving. | **(u)** |
+> | **Why does our city not simulate?** | **NOT ESTABLISHED. OPEN** — and it is a *start* question, not a tick question. ⚠ The older phrasing here (*"OPEN for the date, since it increments there without the date moving"*) rested on the refuted row above. What is measured on both sides now: the tick runs in the peer and never runs here; `$0DC7` is written 128× there and never accumulated here; bank `$03` executes nothing in f3272–f13080 here. **No cause is asserted anywhere.** | `2026-10-02-t101`, `2026-10-03-t102` |
 >
 > **The open question, in order of how much it would reduce uncertainty:**
 >

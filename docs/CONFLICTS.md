@@ -825,7 +825,14 @@ from the other side: a guard whose scope now includes something the repository
 does not ship.** A gate that is red here and green in `git clone` is worse than
 one that is red in both, because the local red trains the reader to ignore it.
 
-## The writer is UNIDENTIFIED, and that is stated rather than guessed
+## The writer — UNIDENTIFIED at the time, then IDENTIFIED, and the correction is kept
+
+**This section is written twice on purpose.** The first version said the writer
+was unidentified. It was not, and the second version says so with the evidence,
+because a record that quietly drops an OPEN finding is the same defect as one
+that quietly drops a retracted one.
+
+**What was excluded before the writer was found** (all measured, all negative):
 
 - **Not present at session open.** The session's first `ls docs/` returned 14
   entries; neither file was among them.
@@ -837,11 +844,38 @@ one that is red in both, because the local red trains the reader to ignore it.
   the reverse).
 - **Not in `aes/`.** `find aes .opencode .aes -name QUALITY_GATES.md -o -name
   DECK_RUNBOOK.md` returns nothing.
-- **Content** is AES-shaped prose ("Domain-specific gates beyond the generic
-  checklist", "Heavy tests run on the Steam Deck via SSH"), consistent with a
-  skill template being materialised into the working directory by something
-  outside the repository. **That is a resemblance, not a measurement, and no
-  cause is asserted.**
+
+**What identified it.** `aes/decisions/D015.md` — an **`aes-project-manager`
+decision record, dated 2026-10-03, file mtime 01:20:00** — names both files as
+things that were missing and files its remedy as a ticket:
+
+> **Ticket:** T103 — Create T102-plan + Deck runbook + docs/QUALITY_GATES.md
+> **Type:** finding
+
+and its evidence section is literally `ls …/docs/QUALITY_GATES.md` → *No such
+file or directory* and `ls …/docs/DECK_RUNBOOK.md` → *No such file or directory*.
+**The decision record's remediation created exactly the two files it complained
+were absent**, in the same minute. `aes/tickets/T102-plan.md` carries the same
+01:20 stamp.
+
+**So the writer is `aes-project-manager`, acting on its own D015 finding — not
+an unknown process, and not the gates.** Recorded because it is the more useful
+half: **a skill that writes into `docs/` puts files the evidence gates read and
+`git clone` does not have, and it does so as a side effect of answering a
+question.**
+
+### And the second thing D015 caused: a ticket-number collision
+
+D015 filed its remedy as **T103** and **never materialised it as a ticket file**,
+so `ls aes/tickets/T103*` finds nothing and the number looks free. This session's
+next measurement — the `$03C87x` scan loop — was about to take it.
+
+**The earlier claim keeps the number.** The scan-loop measurement is therefore
+**T104**, and the collision is recorded in `docs/ROADMAP.md`'s CURRENT NEXT PATH
+section. **This is the fourth time in this project's history that a ticket
+number has been the thing that was wrong** (T097, T098, CONF-1, and now this),
+and it is the first time the collision was between two artefacts of the same
+system rather than between a doc and a script.
 
 ## What was done, and what deliberately was not
 
@@ -865,4 +899,134 @@ one that is red in both, because the local red trains the reader to ignore it.
 > **A gate result on this machine is only comparable to a gate result in a clone
 > if the scope is only tracked files.** `git ls-files -co` means it is not.
 > Before believing a red evidence gate, run `git status --short` and check
-> whether the file it names is even in the repository.
+> whether the file it names is even in the repository. And when something in
+> `aes/` names a missing file as its remedy, check whether it has since created
+> it — `aes/decisions/` is a ledger of side effects, not only of opinions.
+
+---
+
+**CONF-17 · severity HIGH · `check-retracted-claims.sh` section 1 does not scan `.sh` files outside a four-name hand list — and does not print that it doesn't**
+
+**Found while running `aes-narrative`'s omission-rate metric by hand, 2026-10-03.
+Falsified in both directions before being written down.**
+
+## The measurement
+
+Section 1's scope is a hand list of **four** scripts plus every `*.md`:
+
+```sh
+SCOPE_FILES=( scripts/clock-gate.sh scripts/perf-gate.sh
+              scripts/verify-rom-render.sh scripts/cross-load-peer-save.sh
+              README.md docs/RE_CITY_FREEZE.md docs/CLAIMS_REGISTER.md
+              docs/ROADMAP.md docs/DEFINITION_OF_DONE.md study/peer-linux/README.md )
+…
+done < <(git ls-files -co --exclude-standard '*.md' 2>/dev/null)   # <-- *.md ONLY
+```
+
+`scripts/check-retracted-claims.sh` is **neither** a named entry nor a `.md`, so
+**the guard does not read itself.** Nor does it read `scripts/deck-trace-build.sh`,
+`scripts/clock-probe.sh`, `scripts/clock-probe-live.sh`, `scripts/crossplatform-determinism.sh`,
+or any `docs/review/validate-findings*.sh`.
+
+### Falsified, both directions, on an UNTRACKED file in each case (CONF-11)
+
+```
+$ printf '#!/usr/bin/env bash\n# The gate is $0012, measured 0 in 13 of 13 samples\n' > scripts/.seedtest.sh
+$ git ls-files -co --exclude-standard '*.md' 'scripts/*.sh' | grep -c seedtest
+1                                   <-- git DOES list it; the guard's glob does not take it
+$ scripts/check-retracted-claims.sh
+-- 1. no script or doc asserts a refuted cause --
+  (no violations)                   <-- RED FAIL EXPECTED, DID NOT COME
+
+$ printf '# seed\n\nThe gate is $0012, measured 0 in 13 of 13 samples\n' > docs/.seedtest.md
+$ scripts/check-retracted-claims.sh
+-- 1. no script or doc asserts a refuted cause --
+  VIOLATION docs/.seedtest.md:3  R-005 (refuted) asserted without a retraction marker
+  VIOLATION docs/.seedtest.md:3  R-007 (refuted) asserted without a retraction marker
+```
+
+**Identical claim, identical ledger rows, identical untracked status — red in
+`.md`, silent in `.sh`.** Both seeds removed; the restored tree is `RESULT: PASS`.
+
+## Why the guard cannot simply scan itself
+
+`scripts/check-retracted-claims.sh:438-442` is a **self-test fixture**:
+
+```sh
+cat > "$tmp/seed.sh" <<'SEED'
+printf "What is established:\n"
+printf "  the gate is \$0012, measured 0 in 13 of 13 samples\n"
+SEED
+```
+
+That text is an unmarked refuted phrase **on purpose** — it exists so the guard
+can be proven to fire. Scanning itself would therefore turn the guard permanently
+red. **This is the third instance of one defect in this repository**: a guard's
+own text reads as a violation of the guard. CONF-14 found it in the count guard's
+header, the first attempt at fixing which produced three false positives and was
+reverted. **The pattern is now named: the guard's own fixtures are unmarked
+assertions by construction, and every scope decision about them is invisible.**
+
+## The second half: the exclusion is not printed
+
+The script prints what it excluded from the derived list —
+
+```
+  scope   : 35 file(s); 4 excluded as dated-or-hashed records
+            (docs/review/RUBRIC.md, docs/review/REVIEW-*.md - audit with: …)
+```
+
+— and says nothing about the `.sh` files its glob silently drops. **CONF-11's own
+rule is "an exemption nobody can see is a gate with a hole in it", and this
+exemption is invisible.** A reader who sees `scope: 35 file(s)` reasonably reads
+"35 files checked"; the true figure is "35 of the ~41 files in the repository
+that could carry a claim".
+
+## What is deliberately NOT done
+
+**The one-character fix is not applied.** Widening the derived glob to
+`'*.md' 'scripts/*.sh'` is correct and trivial, and it needs one companion
+change — a **visible, printed** exclusion for the guard's own fixture block —
+because without that second change the gate is red forever. Two changes to an
+evidence gate, one of which touches its own self-test, is exactly the situation
+the project has been burned by repeatedly (`8a7340f`, `af08ff7`).
+
+It goes in the hardening pass with the falsification the project requires: **red
+on a seeded violation in an untracked `scripts/*.sh`; green on the same sentence
+carrying a marker; green on the guard's own fixture; green on the restored
+corpus; and the scope line must then *print* the `.sh` exclusion.**
+
+### CLOSED 2026-10-03 — the fix, and its falsification in four directions
+
+The derived glob is now `'*.md' 'scripts/*.sh'`, **and the guard excludes itself
+by name, visibly.** The exclusion is *printed* in the scope block, because an
+exemption nobody can see is a gate with a hole in it — which is the whole of
+CONF-11 and CONF-1 restated.
+
+| falsification | seeded state | result |
+|---|---|---|
+| **1. red on a seeded violation** | untracked `scripts/.seedtest.sh` carrying an unmarked `R-005`/`R-007` phrase | **`VIOLATION scripts/.seedtest.sh:2 R-005`** + `R-007` — **was `(no violations)` before the fix** |
+| **2. green on a labelled one** | same file, same sentence, prefixed `RETRACTED:` | **`(no violations)`** |
+| **3. green on the restored corpus** | both seeds removed | **`RESULT: PASS`** |
+| **4. the self-test still fires** | `make check-claims-self-test` | **`RESULT: PASS`** |
+| **5. idempotence** | 20 consecutive direct runs | **0 red / 20** |
+| **6. no new false positives** | the whole tracked corpus, widened scope | **`RESULT: PASS`**, scope 35 → **42 files** |
+
+**Direction 1 is the one that matters and it is the exact before/after of the
+hole: the identical claim in an untracked `.sh` went from silent to caught,
+while the identical claim in an untracked `.md` was already caught.**
+
+**And the exclusion is now visible where it was not:**
+
+```
+  scope   : 42 file(s); 4 excluded as dated-or-hashed records
+            1 file excluded as THE GUARD ITSELF (CONF-17):
+            scripts/check-retracted-claims.sh - its self-test fixture carries an
+            unmarked refuted phrase on purpose, so it cannot scan itself.
+```
+
+**What remains open, stated rather than hidden:** the guard still does not read
+**itself**. That is a real residual hole, accepted deliberately, because the
+alternative is a permanently red gate. It is bounded: the only unmarked refuted
+phrases in the guard are its own quoted fixtures, and they are identifiable by
+being inside comment or heredoc blocks.

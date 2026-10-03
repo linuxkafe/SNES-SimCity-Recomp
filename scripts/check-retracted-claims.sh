@@ -198,19 +198,51 @@ SCOPE_FILES=(
 #                              markers to it would falsify what was found then.
 # They are COUNTED and PRINTED below, because an exemption nobody can see is a
 # gate with a hole in it.
+#
+# THIRD EXCLUSION, added 2026-10-03 with CONF-17, and it is the one that was
+# MEASURED rather than reasoned:
+#
+#   The derived glob was '*.md' ONLY. Section 1 therefore read no .sh file
+#   outside the four-name hand list above - which meant it did not read
+#   scripts/deck-trace-build.sh, scripts/clock-probe*.sh,
+#   scripts/crossplatform-determinism.sh, or THIS SCRIPT.
+#
+#   Falsified in both directions on untracked files, CONF-11 style:
+#     scripts/.seedtest.sh  carrying an unmarked R-005/R-007 phrase  -> PASS
+#     docs/.seedtest.md     carrying the identical phrase              -> VIOLATION
+#   Same claim, same ledger rows, same untracked status. Red in .md, silent
+#   in .sh. The glob is now '*.md' 'scripts/*.sh'.
+#
+#   THIS SCRIPT IS THEN EXCLUDED BY NAME, and that exclusion is PRINTED. It
+#   cannot be otherwise: scripts/check-retracted-claims.sh:438-442 is a
+#   self-test fixture that contains an unmarked refuted phrase ON PURPOSE, so a
+#   self-scanning guard is permanently red. This is the third instance of one
+#   defect in this repository - a guard's own text reads as a violation of the
+#   guard (CONF-14 found the first, in this script's count guard). The honest
+#   form of the fix is to exclude the guard visibly, not to pretend it can scan
+#   itself.
 SCOPE_EXCLUDED=0
+SCOPE_EXCL_SELF=0
 while IFS= read -r f; do
 	case " ${SCOPE_FILES[*]} " in *" $f "*) continue ;; esac
 	case "$f" in
 		docs/review/RUBRIC.md|docs/review/REVIEW-*.md)
 			SCOPE_EXCLUDED=$((SCOPE_EXCLUDED+1)); continue ;;
+		scripts/check-retracted-claims.sh)
+			SCOPE_EXCL_SELF=1; continue ;;
 	esac
 	SCOPE_FILES+=("$f")
-done < <(git ls-files -co --exclude-standard '*.md' 2>/dev/null)
+done < <(git ls-files -co --exclude-standard '*.md' 'scripts/*.sh' 2>/dev/null)
 if [ "$SCOPE_EXCLUDED" -gt 0 ]; then
 	echo "  scope   : ${#SCOPE_FILES[@]} file(s); $SCOPE_EXCLUDED excluded as dated-or-hashed records"
 	echo "            (docs/review/RUBRIC.md, docs/review/REVIEW-*.md - audit with:"
 	echo "             git ls-files 'docs/review/*')"
+fi
+if [ "$SCOPE_EXCL_SELF" -eq 1 ]; then
+	echo "            1 file excluded as THE GUARD ITSELF (CONF-17):"
+	echo "            scripts/check-retracted-claims.sh - its self-test fixture carries an"
+	echo "            unmarked refuted phrase on purpose, so it cannot scan itself. Audit with:"
+	echo "             git ls-files 'scripts/*.sh'"
 fi
 
 # SCOPE IS THE WORKING TREE, NOT THE INDEX. This used to be plain `git ls-files`,

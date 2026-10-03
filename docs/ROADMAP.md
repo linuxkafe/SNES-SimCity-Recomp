@@ -20,7 +20,16 @@
 ### The recommendation
 
 > **T102 is CLOSED and it changed the question. The recommendation is now
-> T103: frame-resolve the `$03C87x` scan loop.**
+> T104: frame-resolve the `$03C87x` scan loop.**
+>
+> **Numbering note, because it is the kind of thing that silently becomes a
+> wrong pointer.** `T103` is **already taken**: `aes/decisions/D015.md`
+> (an `aes-project-manager` record, 2026-10-03) filed *"T103 — create
+> T102-plan + Deck runbook + `docs/QUALITY_GATES.md`"*. That ticket was
+> never materialised as a file, so a `ls aes/tickets/T103*` finds nothing and
+> the number looks free. **The earlier claim keeps the number**; the scan-loop
+> measurement is therefore **T104**. `aes/` is untracked so this file is the
+> only place the collision is visible.
 
 T102's answer to its own question (`$03:8026` over f3000–f13080) is **0**, and
 the answer is now trustworthy in a way T100's was not — it forced a retraction,
@@ -56,7 +65,7 @@ followed by `STA $F6D0`, **not a branch**: this is a **scan loop's test**, and
 its back-edge is outside the logged neighbourhood. **What it scans and what ends
 it at f3271 are unmeasured, and no cause is claimed.**
 
-> **T103 — the single next measurement.** Frame-resolve the `$03C87x` scan
+> **T104 — the single next measurement.** Frame-resolve the `$03C87x` scan
 > loop: its last execution, its back-edge, and what it is scanning. Read it as
 > **what runs bank `$03` between the city appearing and the gate closing** — a
 > *start* question — not as *what advances the clock*.
@@ -102,7 +111,7 @@ re-running the tick count — for four reasons in order of weight:
 |---|---|
 | **T100** — does `$03:8026` run in ours past f3857 | **CLOSED `1b099ce`, and its measurement is now RETRACTED (R-037)** — `COUNT_PC=038026` was watching PC `$000003` (base-0 parse, CONF-15). The *conclusion* is re-measured over 14 000 frames by T102 and holds; the *measurement* is void. **Superseded in scope by T102** |
 | **T102** — does `$03:8026` run across the reference's first year rollover | **CLOSED — NO, and the previous answer was void.** Deck-native, 4 runs × 14 000 frames, `EXIT=0` / `exit: RUN_FRAMES reached` on all four. `$03:8026` = **0 executions**, exhaustive over both tiers (`$038026` is inside an `lle_only` node; **0** `aot_eligible` nodes cover it). Bank `$03` = **0 PCs / 0 steps in f3272–f13080** and **18 AOT entries** in the window, all at f3259/f3270. City state block: **0 writes after f3259 in 14 000 frames**. **Forced retraction R-037** and **CONF-15**. **C-046c closed.** C-041, C-008, C-052, C-057, C-058 stand |
-| **T103** — what runs bank `$03` in f3000–f3271, and what stops it | **OPEN, and it is the single next measurement** — frame-resolve the `$03C87x` scan loop (86% of the bank's cost, one of its four hot PCs not being an instruction boundary). Falsifiers stated in `2026-10-03-t102-…` §7 |
+| **T104** — what runs bank `$03` in f3000–f3271, and what stops it | **OPEN, and it is the single next measurement** — frame-resolve the `$03C87x` scan loop (86% of the bank's cost, one of its four hot PCs not being an instruction boundary). Falsifiers stated in `2026-10-03-t102-…` §7 |
 | **T101** — does the reference simulate at all | **CLOSED `9069182` — YES, and decisively.** Deck-native, clean core, cold SRAM, real save: city f3000, **28 month rolls**, year turns f13080/f24600, **1902 MAY at f30 000**, **29 distinct date images**. Reproduced on a second route. The two "disagreeing" runs were one execution read through a broken column of **our own** driver (`c4923de`) — `$0B55` printed `$0B53`; the month had advanced six times inside the disputed window. The write-watch is **inert** (C-063). **The comparative premise is available and it holds.** R-035, R-036 retracted |
 | **T086** — why does bank `$03` go silent | **RESCOPED, not closed.** *Where* is answered (f3271) and the mechanism is measured: `$03:D2AA` sets `$0012 = 1` one instruction before bank `$03`'s final `RTL`, and `$00:804D` is never executed again. The *why* is OPEN and is no longer the delivery question |
 | T087 — is `$03:8026` among the executing bank-`$03` PCs | **CLOSED** `4ba14c7`, caveated `940de2a` (C-041b); superseded in scope by T100 |

@@ -238,7 +238,7 @@ else does. One of the four, `$03C87F`, is **not an instruction boundary** and is
 reported unattributed. What the loop scans, what branches back, and what
 terminates it are **unmeasured**, and **no cause is claimed**.
 
-> **The single next measurement (T103): frame-resolve the `$03C87x` scan loop —
+> **The single next measurement (T104): frame-resolve the `$03C87x` scan loop —
 > its last execution, its back-edge, and what it is scanning — read as *what
 > runs bank `$03` between the city appearing and the gate closing*, not as *what
 > advances the clock*.** Falsifiers stated in
