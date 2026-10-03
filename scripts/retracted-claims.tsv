@@ -121,3 +121,4 @@ R-041	phrase	refuted	zero-fill that runs away	docs/measurements/2026-10-03-t106-
 R-042	phrase	refuted	two matching mistakes read as agreement	docs/measurements/2026-10-03-t106-index-immediate-census.md
 R-043	phrase	refuted	two instruments, one boundary	docs/measurements/2026-10-03-t109-seventeen-pictures.md
 R-044	phrase	refuted	rendered frames, 256x210 BGRA	study/peer-linux/README.md:139
+R-045	phrase	refuted	date glyphs thereafter never rewritten, so no poke can move them	docs/measurements/2026-10-03-t111-date-display-path.md

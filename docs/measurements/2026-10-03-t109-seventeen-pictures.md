@@ -232,9 +232,32 @@ logged writes):**
 | PPU register writes in the steady state (f3355–f3390, bank `$00`) | **~29 per frame**, and **not one of them is `$2117` or `$2119`** |
 
 > **So VRAM is filled by HDMA on channels 0 and 1, and the CPU never writes the
-> VRAM data port once in 3 400 frames.** The date glyphs were uploaded during
+> VRAM data port once in 3 400 frames.** ~~The date glyphs were uploaded during
 > city creation and are thereafter never rewritten — which is exactly why no poke
-> can move them, and it is a *stronger* statement than T107's.
+> can move them, and it is a *stronger* statement than T107's.~~
+>
+> ### ⚠️ **RETRACTED (R-045), 2026-10-03 by T111. The measurements above stand;
+> the inference drawn from them does not.**
+>
+> The date tiles **are** rewritten, and a poke **does** move them. Measured
+> inside the live window, compared frame by frame against an identical no-poke
+> run: `$0B53` → `$0FA0` renders **`1952 JAN`** instead of `1900 JAN` (36 px,
+> x 73-88, y 12-19), and `$0B55` → `$0005` renders **`1900 MAY`** (100 px,
+> x 97-120, y 12-19). Both land within **one frame** of the poke, at f3365.
+>
+> **The two measurements in this section are not in conflict with that — they
+> are the mechanism.** The CPU never writes `$2119`, **and** VRAM changes,
+> because HDMA writes it. "The CPU never wrote VMDATA" was read as "VRAM never
+> changed"; that inference is what fails.
+>
+> > **A register-write census bounds what the CPU did. It says nothing about
+> > what HDMA did.**
+>
+> This also refutes the *conclusion* T107 was reaching (that the rendered date
+> does not come from `$0B53`): it does. T107's observation was void because
+> every one of its pokes landed after f4025, on a screen bit-identical since
+> f3381 — T109's own §3. Full data:
+> `docs/measurements/2026-10-03-t111-date-display-path.md`.
 
 **A near-miss worth recording, because it is this project's own recurring trap.**
 `WLOG_ADDR` filters on the **16-bit address only, ignoring the bank**

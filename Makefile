@@ -65,6 +65,15 @@ clock: build
 clock-self-test: build
 	scripts/clock-gate.sh --self-test --frames 1200
 
+# The other half of the same argument. clock-self-test proves the detector is
+# INVARIANT to a global brightness change; on its own that is half a result,
+# because a detector that ignored everything would also pass it. This proves a
+# real glyph change still registers - at one brightness and at three others.
+# It needs a run long enough to reach a city, so it is a separate target
+# rather than a third phase of the one above.
+clock-glyph-self-test: build
+	scripts/clock-gate.sh --self-test-glyph --frames 4200
+
 # Evidence-integrity gate. Cheap, needs no ROM and no build, and it is the guard
 # whose absence let eleven retractions stand: it fails when a script or doc
 # asserts a claim that scripts/retracted-claims.tsv records as refuted, without

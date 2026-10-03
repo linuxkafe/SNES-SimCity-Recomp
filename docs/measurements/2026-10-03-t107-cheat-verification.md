@@ -20,6 +20,46 @@ verified / partial / unverified / refuted / unresolved, with the evidence.
 
 ---
 
+## ⚠️ ADDENDUM 2026-10-03 (T111): one of this document's conclusions is REFUTED
+
+**The plaintext format finding stands. The byte-order finding stands. The WRAM
+transcripts stand. One conclusion drawn from them does not, and it is the one
+that mattered.**
+
+This document observed that poking `$0FA0` into the year field at f4260 left the
+picture unchanged, and used it to argue that **the rendered date does not come
+from `$0B53`**.
+
+> **That conclusion is false. The rendered date is a live, direct function of
+> `$0B53` (year) and `$0B55` (month).**
+
+Measured by T111 with the poke placed **inside the live window** and compared
+frame by frame against an identical no-poke run:
+
+| poke | rendered date | pixels changed |
+|---|---|---|
+| none | `1900 JAN` | — |
+| `$0B53`/`$0B54` → `$0FA0` | **`1952 JAN`** | 36 px, x 73-88, y 12-19 |
+| `$0B55`/`$0B56` → `$0005` | **`1900 MAY`** | 100 px, x 97-120, y 12-19 |
+
+**Why the observation here was void, in one number:** the picture's last change
+anywhere is **f3381**, and every poke in this document landed at **f4025 or
+later** — on a screen that had been bit-identical for 640+ frames. A frozen
+screen cannot report that a write did nothing.
+
+This is the same error this document itself records elsewhere (its `$03F5`
+ambiguity), and it is the third time in this project that **a clean measurement
+on a frozen screen has been read as evidence about a live one**. The general
+rule, now written down because it has cost three measurements:
+
+> **A negative result is only evidence if the instrument was in a state where a
+> positive was possible. On a screen that has stopped changing, "nothing
+> happened" is the screen's property, not the write's.**
+
+Full data: [`2026-10-03-t111-date-display-path.md`](2026-10-03-t111-date-display-path.md).
+
+---
+
 ## 1. Falsifiers and instruments, before the results
 
 | # | stated before running | outcome |

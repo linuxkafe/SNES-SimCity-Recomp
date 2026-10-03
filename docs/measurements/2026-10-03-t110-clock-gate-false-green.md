@@ -349,3 +349,116 @@ self-test still passes**, on a real content change instead of a fade.
 - **Not a re-measurement of `make clock`.** The gate was not run on the host.
 - **Not that the reference is broken.** Its clock runs and that is measured. What
   is unmeasured is its *rendering*.
+
+---
+
+## 6. §2 wired into the gate, and the falsifiers shipped inside it
+
+The correction is in `scripts/clock-gate.sh`. Both falsifiers run **on every
+invocation**, because a falsification performed once by hand in a measurement
+ticket is a claim, and one that runs every time somebody edits the file is a
+check. **The red side is printed on every run**, so the check cannot quietly
+stop being able to fail.
+
+### `make clock-self-test` — the life half (Deck-native)
+
+```
+$ scripts/clock-gate.sh --self-test --frames 1200 --rom "/home/deck/rom/SimCity (USA).sfc"
+  frames captured                        : 1200
+  distinct DATE images, whole run        : 2
+  (raw-RGB hashes, the old detector)     : 16
+  last frame the date changed            : 301
+
+SELF-TEST: PASS - the detector sees CONTENT where content changes.
+  16 raw-RGB hashes became 2 date images on this window, and every
+  one of the states it dropped was a brightness fade.
+EXIT=0
+```
+
+### `make clock-glyph-self-test` — both falsifiers, on a real city (Deck-native)
+
+```
+$ scripts/clock-gate.sh --self-test-glyph --frames 4200 --rom "..."
+== FALSIFIER 1 (negative control): a brightness fade is not a date ==
+  source crop              : present 3367, 8 palette entries
+  distinct DATE images     : 1   <- must be 1
+  raw-RGB hashes (old gate): 13   <- the red side; must be > 1
+
+== FALSIFIER 2 (positive control): a real date change registers ==
+  source crop                : present 3367, 8 palette entries
+  composed 1900 JAN -> 1901 JAN: 45 pixels changed, one character cell
+
+  case                                       raw(old) date(new)
+  brightness HELD CONSTANT                   2        2
+  date advanced, brightness 11 vs 15         2        2
+  date advanced, brightness 7 vs 15          2        2
+  date advanced, brightness 3 vs 15          2        2
+
+GLYPH CONTROL: PASS
+EXIT=0
+```
+
+### The RED side of the new gate, on the old detector
+
+The check was given the pre-T110 detector — a crop is the same date image iff
+its raw RGB bytes match — with everything else unchanged:
+
+```
+  distinct DATE images     : 13   <- must be 1
+  raw-RGB hashes (old gate): 13   <- the red side; must be > 1
+GLYPH CONTROL: FAIL - the detector counted 13 date images across 13 brightness
+levels of ONE unchanged crop. It is not invariant to INIDISP, so a fade in the
+guest can satisfy the real check and this gate can go green on a dead city.
+
+Do not raise CLOCK_MIN_ADVANCE to compensate. Fix the detector.
+EXIT=1
+```
+
+**One falsifier caught the falsifier.** The first version of the invariance
+check lived in the 1 200-frame self-test and **refused to certify itself**:
+
+```
+  source crop            : present 301, 3 colour classes
+  distinct DATE images    : 1   <- must be 1
+  raw-RGB hashes (old)    : 1   <- the red side; >1 or this check is dead
+SELF-TEST: FAIL - the raw-RGB hash reported 1 image(s) across the same 13
+brightness levels, so this falsifier can no longer demonstrate the false green
+it exists to demonstrate.
+```
+
+Because `pick_informative` chose on **distinct RGB values**, and the busiest crop
+on the menu window has three, all below 8 in every channel — so all three
+reconstruct to palette entry `(0,0,0)` and the whole ramp hashes identically.
+**The criterion is now the count of distinct 5-bit palette entries**, which is
+the thing the brightness transform actually acts on, and the falsifiers moved to
+the route that reaches a city. A check that cannot fire is not a check, and this
+one said so instead of passing.
+
+### `make clock` — RED, as it must be
+
+```
+$ scripts/clock-gate.sh --rom "/home/deck/rom/SimCity (USA).sfc"
+  run 1/1 ... 1 distinct date images after f3600 (last change f3366 of 6000)
+  city-loaded check: $0B53 = 076C  -> a city is present (year 1900)
+
+== verdict ==
+CLOCK: FAIL - the date did not advance in a live city.
+GATE_EXIT=1
+```
+
+`scripts/clock-gate.sh` exits **1**; `make clock` exits **2** (make's code for a
+failed recipe, CONF-18). **Red before this change and red after.** The verdict
+does not move, and DoD Rule 0b holds: nothing here weakened a criterion,
+`CLOCK_MIN_ADVANCE` is untouched, the `$0B53` city-loaded requirement is
+untouched, and the "a menu screen with a still date is not a city" rule is still
+in the FAIL text.
+
+### The stale FAIL paragraph, rewritten (closing the `clock-2026-10-03b` MAJOR)
+
+Gone: *"So the two builds are separated AT THE INSTRUCTION, not at the symptom"*
+— an inference presented as fact — and *"Next measurement: count executions of
+`$03:8026` over f3000-f13080"*, which **T102 already did** (14 000 frames, zero
+executions, C-041, both tiers, two machines). In their place the message now
+separates what is measured from what is not, and states plainly that **whether
+the rendered date reads `$0B51` at all was open** — which T111 has now answered,
+one commit later.

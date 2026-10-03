@@ -1,0 +1,124 @@
+# Reach a RUNNING city, headlessly. Verified 2026-09-30.
+#
+# This is the route docs/RE_SCENARIO_NAV.md called impossible. It said: "steps
+# 5-6 cannot [be scripted], because a headless run has no pointer for the shim
+# to read, so it never pulses" - and that the clock therefore never advanced
+# because the city was never created. Both halves of that turned out to be
+# wrong: `mouseclick right` does reach the guest, and with it the city starts
+# and sits on screen. The clock is still frozen anyway, which is a different
+# bug. See docs/RE_CITY_FREEZE.md.
+#
+# The route, and why each step is shaped the way it is:
+#
+#   wait 250 / start / wait / down / wait / b      -> MAP SELECT
+#   b x12, ~90 frames apart                         -> "Enter name of the city"
+#
+# The waits between the twelve `b` presses are load-bearing. The script parser
+# accumulates `wait` into a pending counter and flushes it into the NEXT entry
+# (host_main.c:781-852), so presses written back to back arrive on consecutive
+# frames and the screen never advances. Twelve presses with no wait leaves you
+# on MAP SELECT - measured, and it looks exactly like the presses not working.
+#
+#   press left                                      -> wraps the key list to its
+#     The guest's key list is linear and `left` from the first key wraps to the
+#     end. One press, and the hand goes to the right of row 1.
+#
+#   press down x4, then mouseclick right             -> ENT, then the city starts
+#     The hand walks down the right-hand column and ENT is four rows below where
+#     `left` leaves it. `right` is the button that selects the key under the
+#     hand - `b` and `a` both fail here, which is why this took a sweep to find.
+#
+# The `down` presses must come BEFORE the click, not interleaved: the sweep that
+# found this compared WRAM after each click and only the fourth produced a
+# 70,284-byte change (54% of WRAM). Every other click moved 19-78 bytes, which
+# is the idle noise floor.
+#
+# Soft-mouse caveat, if you extend this with `mousemove`: joypad_soft_mouse_map
+# saturates its x accumulator at two thresholds, so a run of rightward moves
+# leaves x permanently positive and the next `mousemove 0 <dy>` emits
+# RIGHT|DOWN in one word, which the host reads as "both pressed" and cancels.
+# Drain it with a `mousemove -4 0 2` first, or use `press` and skip the shim.
+wait 250
+press start 5
+wait 120
+press down 5
+wait 120
+press b 5
+wait 120
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+wait 300
+press left 5
+wait 150
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+
+# ---------------------------------------------------------------------------
+# T111 DIAGNOSTIC ROUTES -- not fixes, and not gates.
+#
+# THE QUESTION: is the rendered date a live function of guest WRAM, and if so of
+# WHICH word? C-006 is one bug or two depends on the answer.
+#
+#   $0B51 is the reference build's month COUNTER (4 x months elapsed + quarter).
+#   $0B53 is the absolute year word and $0B55 the month word -- and those are
+#   what the HUD actually draws.
+#
+# MEASURED, Deck-native: poking $0B51 changes NOTHING on screen (151/151 frames
+# bit-identical to a no-poke control). Poking $0B53 renders "1952 JAN" and
+# poking $0B55 renders "1900 MAY". The display path is INTACT.
+#
+# > THIS IS A DIAGNOSTIC. It must never make `make clock` pass (DoD Rule 0b),
+# > and scripts/check-cheat-gate.sh is green with these files present. No gate
+# > script invokes them and the gate script has no write capability.
+#
+# WHY THE POKE IS HERE AND NOT AT THE END: the picture's last change anywhere
+# is f3381, and a poke after that answers nothing -- it is T107's error. The
+# insertion point below is MEASURED to land between f3360 and f3370, inside the
+# live window, and verified per run by a WRAM dump. Summing this script's own
+# wait/press counts does NOT give the frame number; an earlier attempt was 36
+# frames late and void.
+#
+# Full data: docs/measurements/2026-10-03-t111-date-display-path.md
+# ---------------------------------------------------------------------------
+wait 110
+# $0B55/$0B56 -> $0005. MEASURED: renders 1900 MAY, 100 px at x97-120 y12-19.
+poke 0B55 05
+wait 5
+poke 0B56 00
+wait 5
+wait 400
