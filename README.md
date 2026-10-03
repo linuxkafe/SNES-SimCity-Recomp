@@ -739,21 +739,47 @@ frames:
 
 | Machine | Build | fps | `guest` ms/frame | `upload-present` ms/frame |
 |---|---|---|---|---|
-| Steam Deck (Zen 2), **compiled on the Deck** — *environment-fidelity caveat above* | Release | 56.88 | **4.502** | **1.007** |
+| Steam Deck (Zen 2), **compiled on the Deck** — *environment-fidelity caveat above* — **measured 2026-10-03** | Release | 56.86 median (5 runs) | **7.619** | **1.538** |
 | i5-8500T, built in place | Release | 54.50 median (5 runs) | 6.62–10.82 | — |
 | i5-8500T, cross-built binary | Debug (`-O0`) | 42.4 | 9.52 | 5.90 |
 
 **Three claims about this table were retracted, and the reasons are instructive.**
 
 - The Deck row's `2.45` ms was **never re-measured** and is ledger **R-012/R-021**.
-  The measured Deck figure is **4.502 ms**. The old row also claimed
-  `upload-present` **8.13 ms**, measured on the Deck at **1.007 ms** — the
-  opposite side of the guest by a factor of four and a half.
+  The old row also claimed `upload-present` **8.13 ms**, measured on the Deck at
+  **1.007 ms** — the opposite side of the guest by a factor of four and a half.
 - **"The emulated 65816 is not the bottleneck"** is **RETRACTED** (ledger R-023,
   R-025). It rested on `guest` being 2.45 ms against a large `upload-present`.
-  Measured on the Deck the picture is the reverse: guest 4.502, upload-present
-  1.007, **deadline-wait 11.275** — **pacing dominates, not the CPU** [MEASURED,
-  Deck].
+
+> #### ⚠️ The Deck row above has now been measured **three** times with **three**
+> different answers, and the register does not say so. This is the most
+> important caveat on this page.
+>
+> | when | `guest` | `upload-present` | `deadline-wait` | source |
+> |---|---|---|---|---|
+> | 2026-10-02 | 4.502 | 1.007 | 11.275 | superseded; cited in R-012/R-021's replacement |
+> | **2026-10-03** | **7.619** | **1.538** | **6.930** | `docs/measurements/2026-10-03-t104-c87x-scan-loop.md` §7 — Deck, **solo**, 600 presents in 10.552694 s |
+>
+> `guest` is the emulated 65816; `upload-present` is the host's SDL present;
+> `deadline-wait` is sleep. **Keep them apart — they are different costs with
+> different owners**, and conflating them has already produced a wrong conclusion
+> in this project twice.
+>
+> **What the 2026-10-03 figures support, and what they do not.** They support
+> `guest` ≫ `upload-present` on the Deck (7.619 vs 1.538, **4.95×**) — the
+> **opposite direction** to the dev-host claim that started this. They support
+> **"the Deck frame is not oversubscribed"**: 7.619 + 1.538 + 1.390 raster-capture
+> = **10.55 ms of work against a 16.67 ms budget**, with deadline-wait filling the
+> remainder. **They do not support the sentence this bullet used to end with,
+> "pacing dominates, not the CPU"** — `deadline-wait` is 6.930 ms and `guest`
+> alone is 7.619 ms, so the guest now *exceeds* the wait. **That claim is removed,
+> not restated.**
+>
+> **No older figure is retracted by this.** Three measurements of the same stage
+> with three answers is C-048's lesson (instrumentation moves the histogram)
+> landing on host stages instead of guest PCs: these are different builds and
+> instrument configurations, and picking one and calling it *the* number would be
+> the error the ledger exists to prevent. **The variance is the finding.**
 - The **"upload-present costs 6.8× the guest"** figure that replaced it was an
   artifact of `SDL_VIDEODRIVER=dummy` **on the dev host**, not a property of the
   code. Neither number survives.
