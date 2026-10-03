@@ -326,7 +326,80 @@ cannot be mistaken for a gate** and record that it verifies nothing. Both are
 edits to a tracked file that a reader may be relying on, so the choice goes in a
 ticket (**T096**) rather than into a commit whose message says "docs".
 
+### CONF-8 resolution — a third disposition, taken, and it is the strongest of the three
+
+Deleting or renaming would have removed the false pass. **Fixing the false pass is
+better than removing the script**, because the script's intent is legitimate and the
+defect is in its accounting, not its purpose. Resolved against a reproduction
+fixture, before and after:
+
+```
+$ bash scripts/verify-implementation.sh T900      ## 1 ticked, 1 unverifiable
+BEFORE  ✅ (already checked) The universe is comprehensible and its laws are discoverable
+        ⏭️  Cannot auto-verify: The team felt a sense of ownership over their city
+        Result: 2 passed, 0 failed, 2 total          >>> EXIT=0
+AFTER   ⚠️  UNVERIFIED — not counted as passed: The universe is comprehensible …
+        ⚠️  UNVERIFIED — not counted as passed: The team felt a sense of ownership …
+        Result: 0 verified, 0 failed, 2 unverified, 2 total
+        Gate is RED: 2 criterion(s) could not be mechanically verified.  >>> EXIT=1
+```
+
+**`2 passed` was false on both counts.** One criterion was accepted for being
+ticked, the other could not be checked, and the gate reported two passes.
+
+Three changes, each independently closing one way it could say yes:
+
+1. **A ticked box is a claim, not a measurement.** `case "x") pass "(already
+   checked)"` is gone. The box now only annotates a real verification:
+   `[re-verified] …` when it holds, `[ticked but NOT verified] …` when it does not.
+2. **An unverifiable criterion is not a satisfied one.** The old `skip()` incremented
+   `COUNT` but never `FAIL`, and the gate ended on `[ "$FAIL" -eq 0" ]`. `skip()` is
+   retained for genuinely neutral notices; criteria now route to a new `unverified()`
+   which sets the gate red. `--allow-unverified` restores the old exit code, so the
+   lenient behaviour stays reachable — but only when asked for by name.
+3. **A missing file now fails instead of going quiet.** Check 1's trigger required
+   the literal phrases `script exists` / `file exists` / `exists at`, none of which
+   occur in the ordinary form `` `some/path` exists ``. A missing file therefore fell
+   through to the generic fallback and was reported *unverifiable* — the gate could
+   not distinguish **absent** from **not checkable**. The trigger now matches the
+   ordinary form, and `` `scripts/does-not-exist.sh` exists `` correctly fails.
+
+A fourth defect surfaced only once the first three stopped the gate saying yes:
+a ticket with **no** acceptance-criteria section printed `0 passed, 0 failed, 0 total`
+and exited **0**. That is the common case — **124 of 159 tickets (77%) state no
+acceptance criteria.** It is now **exit 2**, so the three outcomes are
+distinguishable: **0** = every criterion mechanically verified, **1** = something
+failed or could not be verified, **2** = nothing to verify. `--allow-unverified` does
+not turn 2 into a pass.
+
+**How little this gate actually knows, now visible because it can no longer hide it:**
+
+```
+$ for f in $(grep -lE 'Acceptance Criteria' aes/tickets/T*.md); do … done
+T001-project-s  Result: 0 verified, 0 failed, 5 unverified
+T029-modding-a  Result: 0 verified, 0 failed, 8 unverified
+T031-migration  Result: 0 verified, 0 failed, 12 unverified
+   … and nearly every other ticket with an AC section
+```
+
+**Across the project's own tickets this gate verifies essentially nothing.** Most
+criteria are prose — "the universe is comprehensible" — which no checker can decide.
+That is a true and previously invisible fact, and it is the honest measure of how much
+of this project's completion claims were ever mechanical. Fixing the accounting did
+not create that fact; it stopped the gate from denying it.
+
+**Two residual properties are unchanged and remain open under T096:**
+
+- It reads its subject from `aes/tickets/`, which is **gitignored**, so in a fresh
+  clone it can only ever bail. Unchanged by this fix — it is a property of the input,
+  not the accounting. **This is why it is still wired to nothing.**
+- `:150` `bash -c "$file"` still executes a command extracted from prose, so an
+  acceptance criterion can run whatever its own wording names. **Narrowed in effect,
+  not in principle:** a ticked or unverifiable criterion can no longer turn that into
+  a reported pass. It remains a code-execution-from-prose surface and is not fixed.
+
 | — | verified | docs↔code | `CODE_009311` = `$03:7649`, a real trap, not a contradiction; F-12 closed |
+| — | **verified** | code↔code | **CONF-8 false pass closed** — ticked boxes re-verified, unverified turns the gate red, missing files fail, no-criteria exits 2. Residual: reads gitignored `aes/`, and still executes prose-named commands |
 
 **Not a conflict, and deliberately not filed as one:** the 78 frames between bank
 03 going silent (f3301) and the city appearing (≈f3378). It is a correlation with
