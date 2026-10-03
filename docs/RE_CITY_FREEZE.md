@@ -4229,3 +4229,58 @@ sobre **f3000–f13080** — a janela em que o peer roda o mês **dezasseis veze
 O C-041c provou zero em f0–f6000; essa janela já contém uma virada. A próxima tem
 de conter muitas. Se o zero se confirmar aí, os dois builds estão separados **na
 instrução**, e não no sintoma.
+
+
+---
+
+## 2026-10-03 (T104) — o `CYC_WATCH` imprime o byte do opcode FETCHED, e isso refuta uma leitura de ROM
+
+**Este é o quarto programa desta secção e o único sobre uma leitura de ROM que
+chegou à conta como afirmação sobre execução.**
+
+C-069 leu `$03C87F` dos bytes da ROM: "é o segundo byte de `8D D0 F6`, portanto
+**não é um limite de instrução**", e registou-o como *unattributed*, aplicando a
+regra de C-056. **A leitura da ROM está certa. A conclusão sobre execução está
+errada.**
+
+`SNESRECOMP_CYC_WATCH=03C877-03C87F` imprime `op=$%02X` — **o byte que a CPU foi
+buscar de facto**:
+
+```
+$03C877 op=$9F    $03C87B op=$E8    $03C87C op=$E0    $03C87F op=$D0
+$03C87E : 0 ocorrências em 2 676 196 linhas [itb]
+$03C87F : sucessor $03C877 x 36339 (tomado), $03C881 x 1 (nao tomado, f3270)
+```
+
+`$03C87F` é o ** ramo de retorno do ciclo**, `D0 F6` = `BNE $03C877`. O byte que
+*nunca* executa é `$03C87E`. **Ledger R-038 retracta a cláusula; os quatro
+números de custo de C-069 reproduzem à unidade e NÃO são retractados.**
+
+**A regra que isto ganha — e é a terceira falha da mesma regra** (`$03:D947`/
+`$03D94B`; R-034; agora R-038):
+
+> **Uma questão sobre limites de byte *na ROM* não pode ser respondida por, nem
+> exportada para, uma afirmação sobre *execução*. Onde as duas divergem, o byte
+> do opcode buscado decide — e `SNESRECOMP_CYC_WATCH` imprime-o.**
+
+O instrumento já existia e estava documentado **apenas pela sua limitação**
+(`README.md` trap 1 e `:3082` aqui: ambos listam "cego ao AOT" e nenhum menciona
+o campo `op=`). Isso é **CONF-19**.
+
+**Other answers from the same run** (todas Deck-native, 9 execuções, todas
+`EXIT=0` / `exit: RUN_FRAMES reached`, todas com controlo positivo
+`COUNT_PC=0x009311`):
+
+| | |
+|---|---|
+| o ciclo corre em | **f3259–f3270 só**; o banco `$03` morre em **f3271** — **C-039b NAO é falsificado**, o falsificador F3 não disparou |
+| ramos de entrada / saída | **5 entradas** (1 por queda de `$03C874`, **4 retomadas por `RTI`** em `$0081A3`), **1 saída**, em f3270 |
+| o que "varre" | **nada. É um preenchimento com zeros** — `A=$0000`, um byte `00` por iteração em `$7F6B00 + X`, `X` medido de `$0000` a `$14FF` |
+| o seu limite | **`CPX #$F4` não o pára**: **2 069** escritas medidas com `X > $00F4`, e X sobe monotonicamente, logo não o saltou |
+
+**Nenhuma causa é afirmada.** Duas anomalias medidas e inexplicadas: `$03C87E`
+saltado, e `CPX`/`BNE` a não honrarem `X == $00F4`. São *consistentes com um
+único defeito na descodificação de `$E0` (`CPX #imm`)* — é uma hipótese com duas
+previsões, ambas cumpridas. **As flags nunca foram lidas.**
+
+Medição: `docs/measurements/2026-10-03-t104-c87x-scan-loop.md`.

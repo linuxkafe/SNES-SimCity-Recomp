@@ -1073,3 +1073,58 @@ claim about the *guest*, and inventing a row for a claim about the build would
 make the retraction count mean two different things — which is precisely how
 CONF-14's "26 refuted" and a prose "two retractions" in a script header came to
 disagree.
+
+---
+
+## CONF-19 · severity HIGH · `SNESRECOMP_CYC_WATCH` prints the fetched opcode byte, and four sessions of ROM-byte archaeology never asked for it
+
+**The conflict.** C-069 read `$03C87F` as "the second byte of `8D D0 F6`" from
+ROM bytes and, applying C-056's rule faithfully, recorded it as **"not an
+instruction boundary"** and **"unattributed, not as an executed instruction"**.
+That is a claim about the **executed stream**, and it was derived entirely from
+a **ROM decode**.
+
+T104 measured the executed stream. The opcode byte **fetched** at `$03C87F` is
+**`$D0`**. It is the loop's **only** branch and its back-edge **36 339** times.
+`$03C87E` — the byte C-069's reading made the instruction start — **never
+executes**: **0** occurrences in 2 676 196 trace lines, absent from the whole-run
+bank-`$03` dump. **Ledger R-038 retracts the clause. C-069's cost figures are not
+retracted and reproduce to the unit.**
+
+**The instrument was already in the tree, and it prints `op=$%02X`.**
+`SNESRECOMP_CYC_WATCH="lo-hi"` (`interp_bridge.c:2084`) is documented in
+`README.md` trap 1 and `docs/RE_CITY_FREEZE.md:3082` — **as a cycle-accounting
+tool**. Nobody had read past "blind to AOT" to notice that its log line also
+carries the fetched opcode. It answers the ROM-versus-stream question directly,
+and it took one run to do it.
+
+**Why this is a conflict and not a retraction.** Both. The retraction is R-038,
+about C-069's clause. The conflict is the *class*: **`README.md` and
+`RE_CITY_FREEZE.md` both describe `CYC_WATCH` by its limitation and never by its
+capability**, so a reader deciding which instrument to reach for has been given
+one half of the answer. A guard document that lists only what an instrument
+cannot do will steer every future session away from it.
+
+**The generalisation, and it is now the third appearance of C-056's rule**
+(`$03:D947`/`$03D94B`; R-034's "the logged next-PC does not match its length";
+now this):
+
+> **A byte-boundary question about the ROM cannot be answered by, or exported
+> into, a claim about execution. Where the two disagree, the fetched opcode byte
+> settles it — and `SNESRECOMP_CYC_WATCH` prints it.**
+
+**Falsified, in both directions and on untracked files, CONF-11 style** — see
+the commit body for the full transcript. Seeding R-038's refuted phrase —
+`03C87F is the second byte of`, quoted here so the falsification is
+reproducible — into `docs/.t104seed.md` → `VIOLATION … RESULT: FAIL`; the
+identical phrase in `scripts/.t104seed.sh` → `VIOLATION … RESULT: FAIL`; both
+removed → `RESULT: PASS`.
+
+**This guard fired on the paragraph above, on its first run, on text written to
+document it.** That is recorded rather than quietly reworded, because a guard
+that only ever catches other people's prose has not been shown to work on the
+author's. The `*.sh` half of that is the CONF-17 fix holding, which is the first
+time it has been exercised by a *new* row rather than by its own self-test.
+
+**Fixed in place** in `README.md` (instrument list) and
+`docs/DECK_RUNBOOK.md` (recipe + the rule), in the same commit.

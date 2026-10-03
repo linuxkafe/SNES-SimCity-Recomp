@@ -1165,6 +1165,29 @@ its step count (the top-60 list cannot answer "is this one address among
 them"), and `SNESRECOMP_INTERP_TRACE_FRAMES=lo-hi` prints every interpreted PC
 in a frame window, all banks, in execution order.
 
+### T104 added three capabilities to that list — the instruments were already here
+
+Every one of these existed before T104 and is documented elsewhere in this file
+**by its limitation only**. CONF-19 is that shape of gap: a reader choosing an
+instrument is given what it cannot do and never what it can.
+
+| knob | what it is *also* good for — the part that was not written down |
+|---|---|
+| `SNESRECOMP_CYC_WATCH=LO-HI` | **it prints the opcode byte the CPU actually fetched** (`op=$%02X`).** One run settles *is this address an instruction boundary in the executed stream, or only in the ROM decode?* Documented until now only as a cycle-accounting tool that is blind to AOT |
+| `SNESRECOMP_WLOG_ADDR="LO:HI:PATH"` + `WLOG_STATE=1` | per-write **register state including `X` and the writing `IPC`**, across **both** engines. This is how T104 measured that the `$03C87x` loop is a zero-fill walking `X` from `$0000` to `$14FF` |
+| `SNESRECOMP_INTERP_TRACE_FRAMES=lo-hi` | as above — **but never answer a transition question from a filtered stream.** A `$03C87x`-only filter produced four phantom loop re-entries that were frame boundaries; the full stream gives 5 entries and 1 exit |
+
+**The rule the first of those earns, and it is the third failure of one rule**
+(`$03:D947`/`$03D94B`; R-034's next-PC length; **R-038**): **a byte-boundary
+question about the ROM cannot be answered by, or exported into, a claim about
+execution. Where the two disagree, the fetched opcode byte settles it.**
+
+Concretely, R-038: C-069 read `$03C87F` from ROM bytes as "the second byte of
+`8D D0 F6`, therefore not an instruction boundary" and recorded it as
+unattributed. `CYC_WATCH` shows the byte fetched there is **`$D0`** — it is the
+loop's **only** branch, taken 36 339 times. The byte that never executes is
+**`$03C87E`**: 0 of 2 676 196 trace lines.
+
 **One caveat about the histogram itself, measured:** instrumentation overhead
 moves it. The same binary, ROM, script and window give bank 03 = 921 PCs /
 515 043 steps plain and 946 PCs / 515 337 steps with the trace compiled in — even

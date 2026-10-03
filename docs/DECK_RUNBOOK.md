@@ -84,6 +84,15 @@ env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 (`host_main.c:2717`), and a misplaced one is **silently ignored**: exit 0, no
 warning, output identical to an unscripted run. **[MEASURED]**
 
+**Use an ABSOLUTE path for `--script`, every time.** The host `chdir()`s to the
+exe dir, so `--script "$PWD/scripts/d_city.script"` is required and a relative
+`--script scripts/d_city.script` dies in four seconds with
+`script: cannot open '...'` / `script: the host chdir()s to the exe dir; pass an
+absolute path.` **[MEASURED again 2026-10-03, T104]** — the runbook said this
+above, in a form easy to read as optional, and T104 lost the launch of all three
+of its first runs to it. The recipe throughout this file is
+`"$HOME/simcity/scripts/d_city.script"`.
+
 ## `SNESRECOMP_COUNT_PC` — and the octal trap
 
 ```
@@ -126,6 +135,90 @@ COUNT_PC=0x009311  ->  239617 executions over 300 frames = 798.7 per frame
 `$00:9311` is the vblank spin body and the instrument's own default. **A zero
 from a counter that has never read non-zero for the address it was given is not a
 measurement.**
+
+## The three instruments that answer "what does this code actually do"
+
+These three were all in the tree before T104 and all three are documented in
+`README.md` **by their limitations only**. T104 needed all three and had to find
+them by reading source. **CONF-19.** Read the capability, not just the trap.
+
+### 1. `SNESRECOMP_CYC_WATCH=LO-HI` — prints the **fetched opcode byte**
+
+```
+SNESRECOMP_CYC_WATCH=03C877-03C87F
+```
+
+```
+[cyc] f=3259 pc=$03C877 op=$9F cyc=... bus_xfers=... bus_master=... internal=... master_delta=...
+```
+
+Range is `sscanf("%lx-%lx")` against `pc_before`, so **plain hex, no octal trap
+here** — but it is still `PC`-range, still inside `_interp_run_core`, and still
+**blind to AOT** (`interp_bridge.c:2034`). It is documented in `README.md` trap 1
+as a cycle-accounting tool and that is all it was ever described as.
+
+> **The capability nobody had read: the `op=$%02X` field is the opcode byte the
+> CPU actually fetched at that PC.** It settles, in one run, any question of the
+> form *is this address an instruction boundary in the executed stream, or only
+> in the ROM decode?* — which is **CONF-19 / ledger R-038**, and which four
+> sessions of ROM-byte archaeology had answered from the ROM instead.
+>
+> **The rule this earns, and it is the third failure of the same rule**
+> (`$03:D947`/`$03D94B`; R-034's next-PC length; now R-038):
+>
+> **A byte-boundary question about the ROM cannot be answered by, or exported
+> into, a claim about execution. Where the two disagree, the fetched opcode byte
+> settles it.**
+
+### 2. `SNESRECOMP_WLOG_ADDR="LO:HI:PATH"` + `SNESRECOMP_WLOG_STATE=1`
+
+```
+SNESRECOMP_WLOG_ADDR="6B00:6FFF:/dev/shm/w.log" SNESRECOMP_WLOG_STATE=1
+```
+
+One line per write whose **16-bit** address is in `[LO,HI]`, with frame, value,
+width, the AOT function tag, and the register file:
+
+```
+f3259   7F:6B00=00 w1 interp@$03C877 A=0000 X=0000 Y=... S=... D=0000 DB=00 M=0 Xf=0 IPC=03C877 p34=...
+```
+
+- Funnels through `cpu_write8/16` in `cpu_state.c`, so it sees **both** engines —
+  which is why C-039c's tier blindness does not apply to it.
+- **`IPC=` is the writing interpreter PC.** Filtering on
+  `IPC=03C877` is how one loop's stores are separated from the rest of the
+  traffic in a 64 KB window.
+- **`Xf=0` does not bound X at `$FF`.** The `$9F` long-indexed form
+  (`STA long,X`) adds the **full 16-bit X** regardless of the X flag, so
+  `X=04FF` writing `$7F6FFF` is correct 65816 behaviour, not a bug. Measured
+  2026-10-03; recorded so the next reader does not "fix" it.
+- **`LO`/`HI` are `%x` with no base prefix in `sscanf("%x:%x:%511[^\n]")`** —
+  this one really is hex-16 and never octal. It is the `strtoul(...,0)` knobs
+  (`COUNT_PC`, `WRAM_DUMP_LO/HI`, `PROFILE_START/END`) that need `0x`.
+- `SNESRECOMP_WLOG_ADDR_CAP` defaults to 2 000 000 lines.
+- **Positive-control it before believing an empty log.** R5 in T104 watched
+  `$0B40-$0BFF` and read **66** writes to `$0B51-$0B5F`, reproducing C-052's 66
+  to the unit — that is what made R7's `$6B00-$6FFF` result interpretable.
+
+### 3. `SNESRECOMP_INTERP_TRACE_FRAMES=LO-HI` — but test the filter
+
+Prints `[itb] f=N pc=$XXXXXX` for **every interpreted PC, all banks, in
+execution order**. R1 of T104 over f3000–f3272 = **2 676 196** lines / 68 MB in
+119 s. Affordable; the runbook's "narrow window" advice is right.
+
+> **Do not answer a transition question from a filtered stream.** Testing
+> adjacency over `$03C87x` lines only produced four phantom `C877 -> C877`
+> "re-entries" that were frame boundaries, with other banks' code running between
+> iterations. Over the **full** stream the same analysis returns 5 entries and 1
+> exit. **A filter that removes the thing that explains the artefact will always
+> invent the artefact.**
+>
+> And if you build an opcode-length table to check successors against linear
+> decode: **falsify the table first.** My first table labelled `$D0` (BNE rel8)
+> as length 1 and flagged **460** sites, all of them my error. Only sites whose
+> opcode byte came from `CYC_WATCH` are evidence.
+
+---
 
 ## ⚠ FOREGROUND every heavy run. Do not background it.
 

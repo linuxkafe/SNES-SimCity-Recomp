@@ -746,3 +746,57 @@ README only, while all three of its hits were in `RE_CITY_FREEZE.md`. It now
 seeds three files from git history and asserts **both** directions: that it fires
 there, and that it is clean here. A guard that has never been seen to fail has
 not been tested, and neither has one that has never been seen to pass.
+
+---
+
+## 23. R-038 (T104, 2026-10-03) — a ROM decode exported into a claim about execution
+
+**New in this session.** Measurement: `docs/measurements/2026-10-03-t104-c87x-scan-loop.md`.
+
+C-069 reported `$03C87F` as **"not an instruction boundary"** — "the second byte
+of `8D D0 F6` = `STA $F6D0`, whose instruction starts at `$03C87E`" — and,
+applying C-056's rule to that fact, recorded it as **"unattributed, not as an
+executed instruction"**.
+
+**The ROM reading is correct. The conclusion about execution is wrong.**
+
+```
+$ SNESRECOMP_CYC_WATCH=03C877-03C87F   ->  [cyc] ... op=$9F / $E8 / $E0 / $D0
+$03C87E: 0 occurrences in 2 676 196 [itb] lines, absent from the whole-run bank dump
+$03C87F: successor $03C877 x 36339 (taken), $03C881 x 1 (not taken, f3270)
+```
+
+`$03C87F` is the loop's **back-edge branch**, `D0 F6` = `BNE $03C877`. What is
+*not* an instruction boundary is `$03C87E`, and it **never executes**.
+
+**C-069's cost figures are NOT retracted** — `$03C87C` 36 344, `$03C877` 36 344,
+`$03C87B` 36 343, `$03C87F` 36 340 all reproduce to the unit, so its 86% stands.
+The retraction is **one clause**, and it is recorded as one clause.
+
+**This is the generalisation, and it is C-056's rule failing for the third time**
+(`$03:D947`/`$03D94B`; R-034's "the logged next-PC does not match its length";
+now this). The rule said: report a PC unattributed when the attribution matches
+neither convention. It was obeyed — and obeyed *correctly*, about a fact that was
+true — and still produced a false statement, because the fact was about the ROM
+and the claim was about the stream:
+
+> **A byte-boundary question about the ROM cannot be answered by, or exported
+> into, a claim about execution. Where the two disagree, the fetched opcode byte
+> settles it — and `SNESRECOMP_CYC_WATCH` prints it.**
+
+**The instrument already existed and was described only by its limitation**
+(`README.md` trap 1, `RE_CITY_FREEZE.md:3082` — both list it as blind to AOT and
+neither mentions the `op=$%02X` field). That is **CONF-19**, and it is why this
+is filed as a conflict as well as a retraction.
+
+**Falsified in both directions, on untracked files, CONF-11 style.** Seeding the
+refuted phrase into `docs/.t104seed.md` → `VIOLATION … RESULT: FAIL`; the
+identical phrase in `scripts/.t104seed.sh` → `VIOLATION … RESULT: FAIL`; both
+removed → `RESULT: PASS`. The `.sh` half is the **CONF-17** fix holding under a
+*new* ledger row rather than under its own self-test.
+
+**And the guard then fired on the CONF-19 paragraph written to document it**,
+which is recorded in that file rather than reworded away.
+
+Ledger: **38 rows, 30 refuted** (this is the third consecutive +1, after R-037).
+
