@@ -476,3 +476,100 @@ than a definition; so **74 definitions, 72 distinct ids**.
 **This is D3.3/D3.4's retirement arriving inside the metric that was meant to
 measure it, for the third time in two days.** Those criteria were retired because
 `scripts/check-numbers.sh` does not exist. It still does not.
+
+## S3. `aes-narrative` — 1 of 5 dimensions computable, and **dimension 5 has been scored three incompatible ways**
+
+Record: `aes/narrative/NARRATIVE-2026-10-03d.md` (gitignored).
+
+**First, the substrate, because four dimensions have none:**
+
+| # | dimension | substrate it names | measured | verdict |
+|---|---|---|---|---|
+| 1 | omission rate (% excluded from `INDEX.md`) | `aes/shadow/INDEX.md` | **ABSENT** | **UNCOMPUTABLE** |
+| 2 | pinning bias (📌 vs unpinned **in the hot index**) | hot index | **ABSENT** | **UNCOMPUTABLE as defined** |
+| 3 | access concentration (Gini over `access.log`) | `access.log` | **ABSENT** | **UNCOMPUTABLE** |
+| 4 | synthesis coverage (% of *accessed* docs with `/synthesis`) | log + markers | **0 markers / 10 docs** | **UNCOMPUTABLE — denominator 0** |
+| 5 | score clustering | per-doc composite scores | **PRESENT, 10 of 10** | **COMPUTABLE — see below** |
+
+The **only** `access.log` on this machine is `/opt/aes/aes/shadow/access.log`, which
+measures **AES's own tree**. No number from it is imported. The five `/synthesis`
+hits are this project's own prior reports *discussing* the marker —
+`grep -l '/synthesis' aes/shadow/*.md | wc -l` → **0**.
+
+### S3.1 A retraction: the first run's HIGH verdict was scored on the wrong quantity
+
+`SKILL.md` names dimension 5 **"Score Clustering — whether composite scores cluster
+tightly or spread across range."** Three same-day reports computed it three
+incompatible ways:
+
+| report | what it scored as dimension 5 | verdict |
+|---|---|---|
+| `NARRATIVE-2026-10-03.md:88` | **claim-state distribution** in the claims register (`MEASURED 48 / RETRACTED 22 / OPEN 2 / INFERRED 1`, 73 rows) | **2** |
+| `NARRATIVE-2026-10-03b.md:113` | **claim-state distribution** again (54% MEASURED, 1 pure-OPEN) | **2** |
+| `NARRATIVE-2026-10-03c.md:31` | the **shadow docs' composite scores** — the quantity the dimension names | **COMPUTABLE, and DEGENERATE** |
+
+**The dimension is named after the shadow docs' scores, and those are two
+constants:**
+
+```
+$ grep -hoE '(activation|centrality): *[0-9.]+' aes/shadow/*.md | sort | uniq -c
+     10 activation: 0.0        # distinct values: 0.0   (one)
+     10 centrality: 1.0        # distinct values: 1.0   (one)
+```
+
+**Zero variance in both fields. That is not "the scores agree" — it is the absence
+of a computation.** `NARRATIVE-2026-10-03c:85` had it right and declined to score
+it; the two earlier reports substituted a *different quantity* and scored it 2.
+
+**This matters because it was load-bearing.** `NARRATIVE-2026-10-03.md:89` reports
+**`5 / 10 HIGH`,** and line 90 states the exit **"is earned by dimension 5
+alone."** Under the dimension as defined, dimension 5 is degenerate and unscoreable,
+and the other four have no substrate — so **the first chain run's headline risk
+verdict rests on scoring claim-state distribution as if it were a composite score.**
+`NARRATIVE-2026-10-03b.md:113` carried the same substitution forward, which is how
+one wrong quantity produced two wrong verdicts.
+
+> **Retracted:** *"the AES narrative risk for this project is 5/10 HIGH, and the
+> exit is earned by dimension 5 alone."* The quantity is not the dimension's.
+> **What survives:** the *concern* behind it is real and independently stated at
+> `NARRATIVE-2026-10-03.md:66-71` — a register that is 66% `MEASURED` **reads** as
+> more resolved than it is, and the mitigation is the sentence at the top of
+> `docs/CAUSE_CLAIMS.md`, not the ratio. **A true observation, filed under the
+> wrong dimension.**
+
+### S3.2 Risk score: NOT REPORTED, and the reason is not "the tool was busy"
+
+One dimension of five is computable and it is degenerate. **A score needs five.**
+Inventing zeros for the other four would produce a **lower score for a worse
+state**, which is `NARRATIVE-2026-10-02:33`'s own words: *"A harness that prints
+0/8 is not 'low risk', it is no signal."*
+
+**Reported instead: `1 of 5 dimensions computable`; risk score UNCOMPUTABLE.
+`PASS` is not available and is not reported.**
+
+### S3.3 The substrate measurement, reproduced to the unit in a fresh session
+
+```
+$ compare `created` with `last_accessed` in each of the 10 shadow docs
+last_accessed == created : 10 of 10
+```
+
+**No shadow document in this project has ever been read after it was written.**
+Reproduces `NARRATIVE-2026-10-03c` §3 exactly. Therefore **dimension 3's Gini is
+`0/0` — undefined, and it must not be reported as `0`.** Zero Gini means *uniform*
+access; the truth is **there is no access at all**, which the dimension's own
+interpretation ("few docs dominate the system's memory") cannot express, because
+**the system has no memory to dominate.**
+
+### S3.4 What would make it computable — and why none of it is done here
+
+1. **D1/D2** — generate `aes/shadow/INDEX.md` from the ten docs. **Caveat that must
+   travel with any resulting number:** it would be built from documents that have
+   never been read, so an omission rate over it measures the generator, not the corpus.
+2. **D3** — needs something to log accesses. **No proxy is invented.**
+3. **D4** — needs D3 first.
+
+**All three are decisions about the AES install, not project work.** Same
+disposition D017 and D018 reached for the missing solver. **Also measured and
+reproduced:** the skill's own stated invocation does not exist —
+`make narrative-analysis` → `No rule to make target`, exit **2**.
