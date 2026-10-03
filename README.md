@@ -19,11 +19,23 @@ supply; the ROM and any ripped assets are never included. Built on the
 > 0 is that **no criterion may be satisfied by a claim — only by a command that
 > exits 0**.
 >
-> This project has retracted **29** claims out of **37** ledger rows (computed,
+> This project has retracted **30** claims out of **38** ledger rows (computed,
 > `make retraction-count` — never a hand-written number; the other 8 rows are 6
 > `superseded` and 2 `invalidated-premise`, which is not a retraction). Where an
 > old claim is quoted below it is labelled **RETRACTED** and is printed as
 > history, not as the answer.
+>
+> **And this sentence was itself wrong until now, which is the sharpest available
+> demonstration of the hole described underneath it.** It read *"29 claims out of
+> 37 ledger rows"* for one commit past `79a4064`, while
+> `scripts/check-retracted-claims.sh --count` said **30 of 38** — and
+> `make check-claims` printed **`(no violations)`**. The reason is the guard's
+> own stated limitation: its count pattern is **forward-only**,
+> `N` + `retract…`, and this sentence puts the number *before* the word —
+> *"retracted **29** claims"*. **CONF-14 fired on the most-read line in the
+> repository, in the phrasings that guard documents as its known miss.** The
+> number is now correct; **the hole is not closed** and nothing here should be
+> read as closing it.
 >
 > **And that number has a known hole in its guard — read this before you trust a
 > count in prose.** A stale `26 refuted` sat in this file's own gate table for a
@@ -309,18 +321,66 @@ than that premise deserves:
    city is never *started* rather than never *advanced*. A bank that never
    executes again cannot be advancing anything, and in this window was not being
    started either. **C-046c is closed by the same run.**
- - **86% of bank `$03`'s cost in f3000–f3271 is four PCs around a scan loop**,
-   and one of the four is not an instruction boundary. `$03C877` `STA $7F6B00,X`,
-   `$03C87B` `INX`, `$03C87C` `CPX #$F4` — 36 344 / 36 343 / 36 344 steps; the
-   next PC down is 244. **`$03C87F` is the second byte of `8D D0 F6` = `STA
-   $F6D0`, whose instruction starts at `$03C87E`**, so it is reported
-   **unattributed, not as an executed instruction**. `CPX #$F4` is followed by
-   `STA $F6D0`, **not a branch**, so this is a scan loop's *test* and its
-   back-edge is outside the logged neighbourhood. **What it scans and what ends
-   it are unmeasured, and no cause is claimed. [OPEN]** — the next measurement
-   is stated in
-   [`2026-10-03-t102-tick-across-f13080.md`](docs/measurements/2026-10-03-t102-tick-across-f13080.md)
-   §7 and tracked as T104 in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+- **86% of bank `$03`'s cost in f3000–f3271 is four PCs around a loop — and
+    it is a zero-fill that runs away, not a scan.** `$03C877` `STA $7F6B00,X`,
+    `$03C87B` `INX`, `$03C87C` `CPX #$F4` — 36 344 / 36 343 / 36 344 steps; the
+    next PC down is 244. **[MEASURED, Deck-native, T104.]**
+    > **RETRACTED (R-038): the "`$03C87F` is not an instruction boundary" clause
+    > above is refuted, and it was refuted *as a statement about the executed
+    > stream*.** This file previously read, as fact: *"`$03C87F` is the second
+    > byte of `8D D0 F6` = `STA $F6D0`, whose instruction starts at `$03C87E`, so
+    > it is reported unattributed, not as an executed instruction"*, and *"its
+    > back-edge is outside the logged neighbourhood"*. **Both halves are false of
+    > the stream.** `SNESRECOMP_CYC_WATCH` reports the opcode byte **fetched** at
+    > `$03C87F` as **`$D0`** = `BNE $C877` — it is the loop's **only** branch and
+    > its **real, executed back-edge**: taken **36 339** times, not taken **once**.
+    > It is true of the **ROM** and false of the **executed stream**; the fetched
+    > opcode byte settles which is which. **What never executes is `$03C87E`** —
+    > **0 of 2 676 196** trace lines, and absent from the whole-run bank dump.
+    > **C-069's four cost figures are NOT retracted** — all four reproduce to the
+    > unit, so its 86% stands. **[MEASURED, Deck-native.]**
+
+    **The loop is a zero-fill, and T104 answers all three of its open questions:**
+
+    | question | answer | |
+    |---|---|---|
+    | **last execution** | **f3270**, in **f3259–f3270 only**. Bank `$03`'s own last frame is **f3271** — 16 steps, a 16-instruction epilogue ending `RTL` at `$03:D2B7` | so **C-039b is NOT falsified**: **the loop is a *precursor* of the bank's death, not its cause**, and **this ticket explains neither** |
+    | **back-edge** | **`$03C87F` `BNE $03C877`**, a real executed instruction | 5 entries (1 fall-through from `$03C874`, 4 `RTI` resumes at `$0081A3`), **1 exit ever**, at f3270 → `$03C881` |
+    | **what it scans** | **nothing.** `A=$0000`, one `$00` byte per iteration at **`$7F6B00 + X`** | see below |
+
+    **It writes nothing but zeros, and it sails past its own bound.** X was
+    **measured** walking `$0000 → $04FF` and then on to `$14FF`, crossing the
+    f3259 → f3260 frame boundary — writing **$7F6B00–$7F7FFF**, over 1 280
+    distinct addresses, of which **2 069 measured stores are at `X > $00F4`**.
+    `LDX #$0000` runs **once** and `INX` is the loop's only X writer, so X climbs
+    monotonically and **cannot get past `$00F4` without passing through it**. It
+    did, and kept going. **[MEASURED, Deck-native, T104 — `WLOG_ADDR` + state.]**
+
+    > #### ⚠️ This is the first thing in this project that looks like a **defect
+    > in the game's own code** rather than in our emulation.
+    >
+    > Every previous anomaly in this file has been one of *ours* — a driver that
+    > printed `$0B53` under the label `$0B55` (R-035/R-036), a counter watching
+    > `$000003` (R-037), a length table that called `$D0` a 1-byte instruction.
+    > **This one is different in kind.** The ROM bytes are unambiguous: `CPX #$F4`
+    > followed by `BNE` is a bounded loop, and the only exit is the branch T104
+    > measured. The CPU state that branch reads is ours. So there are **two**
+    > readings and **nothing here distinguishes them**:
+    >
+    > - **the game's own bug** — the loop really is meant to clear 245 bytes and
+    >   our register state is fine, or
+    > - **a wrong register state on our side** — X, the flags, or the decode is
+    >   wrong, and the guest is faithfully executing code against a bad state.
+    >
+    > **It is NOT established which.** The sharpest single test is the
+    > **processor status at `$03C87F`**: if the Z flag there is a correct Z for
+    > `CPX #$F4`, the branch is comparing something other than the X the store
+    > used, the decode hypothesis is dead, and we have a **different and more
+    > interesting** defect. If it is not, the overrun is the game genuinely
+    > failing its own bound. **That is T105**, and until it is measured both
+    > anomalies stay **OPEN** and **no cause is claimed** —
+    > [`2026-10-03-t104-c87x-scan-loop.md`](docs/measurements/2026-10-03-t104-c87x-scan-loop.md)
+    > §9–§10.
  - **The city-state block is written once, at f3259, by a creation routine, and
    never written again.** Two disjoint windows, watched as a 16-bit bus write
    census (which sees both engines, so none of the tier blindness that retracted
@@ -660,7 +720,7 @@ is that re-run, not a carry-over:
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
-| `make retraction-count` | the retraction count, computed | **37 rows = 29 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+| `make retraction-count` | the retraction count, computed | **38 rows = 30 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
 **CORRECTION, measured 2026-10-03: this file said "`make clock` exits 1, not
 2", and that is wrong about `make`.** The gate script is right; the wrapper is
@@ -697,7 +757,7 @@ T094 carries the transcript. **The lesson is not the regex**: it is that a gate
 added in the same commit as the claim it guards, and never run, shipped broken
 and reported green.
 
-**`make check-claims` does not check the number, and that hole is open (CONF-14).**
+**`make check-claims` does not check the number, and that hole is open (CONF-14).
 It reported `(no violations)` while this very table carried a stale **26
 refuted** against a ledger of 28 — because its count guard matches `"N
 retractions"` and the ledger's own phrasing is `"N refuted"`. **Every count in
@@ -709,6 +769,24 @@ is recorded in `scripts/check-retracted-claims.sh`'s comment block where the nex
 person meets it. A guard that cries wolf on its own corpus is worse than the
 hole it closes. **This is why the count is stated as `N rows = M refuted + …`
 and re-read after running `make retraction-count`, rather than typed.**
+**And CONF-14 fired here again, on this file, one commit after being written
+down:** line 22 read *"retracted **29** claims out of **37** ledger rows"* while
+`--count` said **30 of 38**, and the gate printed `(no violations)` — the count
+pattern is forward-only and that sentence puts the number *after* the word.
+**CONF-14 is not closed and nothing in this file should be read as closing it.**
+
+**The phrase guard has a second, independent hole (CONF-20), also OPEN.**
+`docs/CAUSE_CLAIMS.md` asserted R-038's refuted `$03C87F` clause as present-tense
+fact — a faithful **paraphrase**, not a quotation — and **both** `make
+check-claims` and `make check-causes` printed `RESULT: PASS`. The ledger's
+`phrase` for R-038 is the narrow literal `03C87F is the second byte of`, and a
+lexical guard cannot see a paraphrase; and D3.2 checks only that the ledger's
+`where` column is **non-empty and resolves to a real file**, which says nothing
+about whether it is **complete**. Falsified in both directions on **untracked**
+files: the exact phrase seeded unmarked → `VIOLATION`, exit 2; the paraphrase
+seeded unmarked → `(no violations)`, exit 0. **The instance is fixed; the class
+is open.** A lexical retraction guard proves a retracted *string* is not
+restated — not that a retracted *claim* is not.
 
 **`make clock` is the one that matters and the one that is red.** It fails
 identically on the Deck. It prints the guest's own year word as proof that a city
@@ -757,29 +835,54 @@ frames:
 >
 > | when | `guest` | `upload-present` | `deadline-wait` | source |
 > |---|---|---|---|---|
-> | 2026-10-02 | 4.502 | 1.007 | 11.275 | superseded; cited in R-012/R-021's replacement |
-> | **2026-10-03** | **7.619** | **1.538** | **6.930** | `docs/measurements/2026-10-03-t104-c87x-scan-loop.md` §7 — Deck, **solo**, 600 presents in 10.552694 s |
+> | 2026-10-02, at `9624f0e` | 4.502 | 1.007 | 11.275 | superseded; cited in R-012/R-021's replacement |
+> | taken at `ec4cabe`, **never re-measured** | **4.511** | **6.540** | **5.916** | `docs/CLAIMS_REGISTER.md` §3 — the register's own re-measurement of the same stage. **This is the row that produced "the frame is oversubscribed"** (4.511+6.540+5.916 = **16.97 ms > 16.67 ms**), and **that sum is itself retracted** — it added *work* to *sleep*. **See the correction below** |
+> | **2026-10-03, T104** | **7.619** | **1.538** | **6.930** | `docs/measurements/2026-10-03-t104-c87x-scan-loop.md` §7 — Deck, **solo**, 600 presents in 10.552694 s, median **56.86 fps**, spread **0.1%** |
 >
-> `guest` is the emulated 65816; `upload-present` is the host's SDL present;
-> `deadline-wait` is sleep. **Keep them apart — they are different costs with
-> different owners**, and conflating them has already produced a wrong conclusion
-> in this project twice.
+> **All three stand. None of the older two is retracted by this one, and the
+> reason is the reason for three rows rather than one:** they are **different
+> builds and different instrument configurations**, not three readings of one
+> thing. Collapsing them to a single number would be exactly the error this
+> ledger exists to prevent, and the honest statement is that **the variance is
+> itself the finding** — `guest` has been measured at 4.502, 4.511 and 7.619 ms
+> on the same machine class, a spread of 1.7×, and `upload-present` at 1.007,
+> 6.540 and 1.538 ms, a spread of **6.5×**, with no configuration recorded that
+> explains the gap. **A 6.5× spread on a host stage is not yet understood, and
+> this file does not pretend otherwise.**
 >
-> **What the 2026-10-03 figures support, and what they do not.** They support
-> `guest` ≫ `upload-present` on the Deck (7.619 vs 1.538, **4.95×**) — the
-> **opposite direction** to the dev-host claim that started this. They support
-> **"the Deck frame is not oversubscribed"**: 7.619 + 1.538 + 1.390 raster-capture
-> = **10.55 ms of work against a 16.67 ms budget**, with deadline-wait filling the
-> remainder. **They do not support the sentence this bullet used to end with,
-> "pacing dominates, not the CPU"** — `deadline-wait` is 6.930 ms and `guest`
-> alone is 7.619 ms, so the guest now *exceeds* the wait. **That claim is removed,
-> not restated.**
+> **What each supports:**
+>
+> - **T104's row (the only one from a solo, current, Deck-native run) supports
+>   `guest` ≫ `upload-present`** — 7.619 vs 1.538, **4.95×** — which is the
+>   **opposite direction** to the dev-host figure that `perf-gate.sh`'s own
+>   header still carries (*"on this hardware the host's present path costs more
+>   than the emulated 65816"*).
+> - **T104's row supports "the Deck frame is not oversubscribed"**: 7.619 +
+>   1.538 + 1.390 raster-capture = **10.55 ms of work against a 16.67 ms
+>   budget**, with `deadline-wait` filling the remainder. `fps` is
+>   600 / 10.552694 = **56.86** (both terms given so it can be recomputed).
+> - **The `ec4cabe` row supports neither, and its 16.97 ms figure is retracted**
+>   — `docs/RE_CITY_FREEZE.md:3191` records the retraction in the author's own
+>   words: *"Eu estava errado sobre a folga … somei trabalho com a espera"*. It
+>   added **work** to the **wait** and called the sum oversubscription.
+>   `deadline-wait` is slack spent, not work added to the budget. So
+>   `docs/ROADMAP.md`'s *"16.97 ms against a 16.67 ms budget, so the frame is
+>   oversubscribed on the Deck"* rests on that sum and **is wrong for the same
+>   reason.**
+> - **No figure here supports "pacing dominates, not the CPU."** On T104's row
+>   `deadline-wait` is 6.930 ms and `guest` alone is 7.619 ms, so the guest
+>   *exceeds* the wait. **That claim is removed, not restated.**
 >
 > **No older figure is retracted by this.** Three measurements of the same stage
 > with three answers is C-048's lesson (instrumentation moves the histogram)
 > landing on host stages instead of guest PCs: these are different builds and
 > instrument configurations, and picking one and calling it *the* number would be
 > the error the ledger exists to prevent. **The variance is the finding.**
+>
+> `guest` is the emulated 65816; `upload-present` is the host's SDL present;
+> `deadline-wait` is sleep. **Keep them apart — they are different costs with
+> different owners**, and conflating them has already produced a wrong conclusion
+> in this project twice.
 - The **"upload-present costs 6.8× the guest"** figure that replaced it was an
   artifact of `SDL_VIDEODRIVER=dummy` **on the dev host**, not a property of the
   code. Neither number survives.
@@ -1033,6 +1136,20 @@ does not pay for them again.
    read non-zero **for the address it was given** is not a measurement. This is
    the rule that found trap 9, and it cost a retraction. See trap 9 for the
    numbers; the rule is the transferable half.
+   > **And under parallelism the control is per-*run*, never per-batch.** The Deck
+   > runs **up to 3 concurrent** heavy runs (it is ~36% CPU-busy: ~10.55 ms of
+   > work against a 16.67 ms budget, with `deadline-wait` 6.930 ms of it spent
+   > sleeping), and concurrency makes **"prints nothing" triply ambiguous** — a
+   > dead machine, a dead instrument and a real zero are the same three log lines.
+   > **`COUNT_PC=0x009311` is the control and it has a known-good value: 6 626 029
+   > at 3 300 frames** (byte-identical across five runs), **27 019 166 at 14 000**.
+   > **Reproduce the known-good number or explain the difference; a control that
+   > reads `0` means that run produced no measurement at all.** Full text in
+   > `docs/DECK_RUNBOOK.md`, *Parallel runs*.
+   > **`make perf` is strictly solo** — it is the only wall-clock gate and the one
+   > that has flapped (the same unchanged binary: 48.38 FAIL / 51.52 PASS / 46.99
+   > FAIL against a threshold of 50). Under concurrency it measures the
+   > scheduler, not the emulator.
 1. **Our own driver printed `$0B53` under the label `$0B55`, and it cost this
    project its central result for a day.** `study/peer-linux/jjhead.c` clobbered
    the month column of its own WRAM dump. The consequence was not a typo: a

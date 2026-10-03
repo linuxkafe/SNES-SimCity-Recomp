@@ -235,21 +235,46 @@ started**: a bank that never executes again cannot be advancing anything, and
 in this window was not being started either.
 
 **Where the cost actually is, and it is a start-shaped question** (C-069): 86%
-of bank `$03`'s interpreted cost in f3000–f3271 sits in four PCs around a
-**scan loop** (`STA $7F6B00,X` / `INX` / `CPX #$F4`) that stops when everything
-else does. One of the four, `$03C87F`, is **not an instruction boundary** and is
-reported unattributed. What the loop scans, what branches back, and what
-terminates it are **unmeasured**, and **no cause is claimed**.
+of bank `$03`'s interpreted cost in f3000–f3271 sits in four PCs around a loop
+(`STA $7F6B00,X` / `INX` / `CPX #$F4`).
 
-> **The single next measurement (T104): frame-resolve the `$03C87x` scan loop —
-> its last execution, its back-edge, and what it is scanning — read as *what
-> runs bank `$03` between the city appearing and the gate closing*, not as *what
-> advances the clock*.** Falsifiers stated in
-> `docs/measurements/2026-10-03-t102-tick-across-f13080.md` §7: the trace
-> printing nothing is an instrument trap with **no substitute offered**; a run
-> not ending `exit: RUN_FRAMES reached` is void; and **if the loop's last
-> execution is after f3271, C-039b's boundary is wrong — which is the more
-> interesting result, not a failed probe.**
+> **RETRACTED (R-038) — and this paragraph carried the refuted clause unmarked
+> until now.** It previously read, as fact: *"**scan loop** … that stops when
+> everything else does. One of the four, `$03C87F`, is **not an instruction
+> boundary** and is reported unattributed. What the loop scans, what branches
+> back, and what terminates it are **unmeasured**."*
+> **All four halves are refuted** — the clause, because `CYC_WATCH` reports the
+> opcode byte **fetched** at `$03C87F` as **`$D0`** = `BNE $C877` and it is the
+> loop's **only** branch, taken 36 339 times; and "unmeasured", because T104
+> measured all three questions. What is *not* an instruction boundary is
+> **`$03C87E`**, and `$03C87E` **never executes** (0 of 2 676 196 trace lines).
+> **C-069's four cost figures are NOT retracted** and its 86% stands.
+> See `docs/CONFLICTS.md` **CONF-20** for why both evidence gates passed it.
+
+**T104's answers** (all Deck-native, `EXIT=0` + `exit: RUN_FRAMES reached`,
+every run carrying the `COUNT_PC=0x009311` positive control):
+
+| question | answer |
+|---|---|
+| last execution | **f3270**, running **f3259–f3270 only**; bank `$03`'s last frame is **f3271** (16 steps, epilogue ending `RTL` at `$03:D2B7`). **C-039b is NOT falsified — the loop is a *precursor* of the bank's death, not its cause, and T104 explains neither** |
+| back-edge | **`$03C87F` `BNE $03C877`**, a real executed instruction. Taken **36 339**, not taken **1**. 5 entries, **1 exit ever** |
+| what it scans | **nothing.** It is a **zero-fill**: `A=$0000`, one `$00` byte per iteration at **`$7F6B00 + X`**, X **measured** `$0000 → $04FF` and on to `$14FF`, crossing f3259→f3260 |
+
+**It sails past its own `CPX #$F4` bound: 2 069 measured stores at `X > $00F4`.**
+`LDX #$0000` runs once and `INX` is the loop's only X writer, so X climbs
+monotonically and cannot jump over `$00F4`. **[MEASURED, Deck-native, C-072.]**
+
+> **This is the first anomaly in this project that looks like a defect in the
+> *game's* code rather than in our emulation** — and **it is NOT established
+> which it is.** Two readings remain open and nothing here separates them: the
+> game is genuinely failing its own bound, or a register state on our side is
+> wrong and the guest is faithfully executing against it. The sharpest test is
+> **the processor status at `$03C87F`**: a correct Z for `CPX #$F4` kills the
+> decode hypothesis and points at a different, more interesting defect; no
+> correct Z means the game is overrun. **That is T105, and no cause is claimed
+> until it is measured.** Measurement:
+> `docs/measurements/2026-10-03-t104-c87x-scan-loop.md`; claims **C-070, C-071,
+> C-072**.
 
 ### `make clock`'s criterion is justified on its own terms
 

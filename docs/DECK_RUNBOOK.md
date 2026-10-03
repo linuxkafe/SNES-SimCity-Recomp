@@ -220,6 +220,36 @@ execution order**. R1 of T104 over f3000–f3272 = **2 676 196** lines / 68 MB i
 
 ---
 
+## Parallel runs: how many, and the rule that comes with them
+
+**Up to 3 Deck runs concurrently. `make perf` is never one of them — see
+below.** The Deck is measurably not saturated: **~36% CPU-busy** against
+~10.55 ms of work per frame with **deadline-wait 6.930 ms** of the 16.67 ms
+budget spent sleeping. Parallelism buys wall-clock; it does not buy validity.
+
+> ### ⚠️ THE RULE: **every parallel run carries its own embedded positive
+> ### control.** Not one control for a batch — one per run.
+>
+> Under concurrency, **"prints nothing" is ambiguous.** A dead machine, a dead
+> instrument and a genuine zero all look identical in the log, and running three
+> of them at once triples the number of things that can be silently dead. This
+> is not theoretical: it is exactly how R-037 happened, where `COUNT_PC` printed
+> a confident, formatted `0` while watching PC `$000003`.
+>
+> **`COUNT_PC=0x009311` is the control, and it has a known-good value.** It has
+> read **6 626 029** in five separate runs at 3 300 frames, byte-identical, and
+> **27 019 166** at 14 000 frames. **Reproduce the known-good number or explain
+> the difference.** A run whose control reads `0` produced no measurement.
+>
+> **The control is per-run, never per-batch, because the failure it guards
+> against is per-run.**
+
+**`make perf` is strictly solo.** It is the only wall-clock gate and the one that
+has flapped: the same unchanged binary measured **FAIL at 48.38 fps / PASS at
+51.52 / FAIL at 46.99** against a threshold of 50. Under concurrency it measures
+the scheduler, not the emulator. **Run it with nothing else on the machine, and
+record the load average before it** (T104: `load average 1.20`).
+
 ## ⚠ FOREGROUND every heavy run. Do not background it.
 
 **Measured, three times:** runs launched with `setsid nohup … & disown` from an

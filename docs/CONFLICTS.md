@@ -1128,3 +1128,82 @@ time it has been exercised by a *new* row rather than by its own self-test.
 
 **Fixed in place** in `README.md` (instrument list) and
 `docs/DECK_RUNBOOK.md` (recipe + the rule), in the same commit.
+
+---
+
+## CONF-20 · severity HIGH · the ledger's `where` column is checked for *existence*, not for *completeness* — so R-038's refuted clause survived **unmarked in a tracked file** and both evidence gates passed it
+
+**The conflict, measured 2026-10-03.** R-038 retracted C-069's `$03C87F`
+"not an instruction boundary" clause. Three tracked files still asserted it.
+Two carried a retraction marker (`README.md`, `docs/ROADMAP.md`,
+`docs/CLAIMS_REGISTER.md`, `docs/CONFLICTS.md`). **One did not:**
+
+```
+docs/CAUSE_CLAIMS.md:240   One of the four, `$03C87F`, is **not an instruction
+                           boundary** and is reported unattributed. What the
+                           loop scans, what branches back, and what terminates
+                           it are **unmeasured**, and **no cause is claimed**.
+```
+
+That is the retraction, restated as present-tense fact, in the one document that
+`README.md` itself names as *"the classification of **every** causal claim in this
+project"*. It also presented **T104 as the next measurement** a commit after T104
+closed.
+
+**Both gates passed it. Measured, not asserted:**
+
+```
+$ make check-claims   ;  # RESULT: PASS
+$ make check-causes   ;  # RESULT: PASS
+```
+
+**Why, measured — the mechanism is two independent holes:**
+
+1. **R-038's ledger phrase is a narrow literal.** Its `phrase` field is
+   `03C87F is the second byte of`. `check-retracted-claims.sh` §1 is **lexical**:
+   it greps for that string. `CAUSE_CLAIMS.md:240` says *"`$03C87F` is **not an
+   instruction boundary**"* — a faithful **paraphrase** of the retracted claim
+   that does not contain the retracted **words**. A lexical guard cannot see a
+   paraphrase. Falsified in both directions, on **untracked** files (CONF-11
+   style):
+
+   | seeded into `docs/.seed-r038*.md` | `make check-claims` |
+   |---|---|
+   | the ledger's exact phrase, unmarked | **`VIOLATION` → exit 2** ✅ positive control |
+   | the `CAUSE_CLAIMS.md` paraphrase, unmarked | **`(no violations)` → exit 0** ❌ the hole |
+   | neither | `RESULT: PASS` |
+
+   So the guard is **live** and its blind spot is **measured**, not theorised.
+
+2. **DoD D3.2 checks the `where` column for existence, never for completeness.**
+   The whole of D3.2's implementation is: non-empty, and `f="${w%%:*}"`
+   resolves to a real file. R-038's `where` names **one** file
+   (`docs/measurements/2026-10-03-t104-c87x-scan-loop.md`), which exists, so
+   D3.2 passes. **Nothing in the ledger or in D3.2 can represent that the same
+   retraction is asserted in three other places**, and nothing enumerates the
+   places a refuted phrase was ever written into.
+
+**The generalisation, and it belongs beside CONF-14 rather than beside CONF-19:**
+
+> **A lexical retraction guard proves that a retracted *string* is not restated.
+> It does not prove that a retracted *claim* is not restated.** The moment a
+> document paraphrases instead of quoting, the guard's coverage ends — and the
+> paraphrase is the more natural way to write a summary, so the hole widens
+> exactly where documents are most read.
+>
+> **The two live holes in `scripts/check-retracted-claims.sh` are now named
+> separately and both are OPEN:** **CONF-14** — the count guard is
+> forward-only, so `retracted **29** claims` escapes a guard that catches
+> `29 retractions` (demonstrated on `README.md:22`, the most-read line in the
+> repository, which carried a stale **29 of 37** against a ledger of **30 of
+> 38**). **CONF-20 (this)** — the phrase guard is literal, so a paraphrase
+> escapes, and D3.2 cannot see it because the ledger has one `where` per row.
+
+**NOT FIXED HERE, DELIBERATELY.** A claim-level guard needs the claim, not the
+string, and this project has neither a machine-readable claim identity nor a
+list of assertion sites per row. Adding an alternation for the paraphrase would
+be CONF-14's mistake repeated — the last attempt at widening the count guard
+produced **three false positives on this project's own corpus** and was reverted.
+**The instance is fixed in `docs/CAUSE_CLAIMS.md`; the class is recorded here and
+stays OPEN.** `docs/DEFINITION_OF_DONE.md` D3.1/D3.2 are therefore **floors, not
+checks**, which is what its own "Not criteria" section already says about them.
