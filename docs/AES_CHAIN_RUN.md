@@ -825,3 +825,110 @@ a single observation. **Confidence in today's green is qualified, and the
 qualification travels with it.** `scripts/check-retracted-claims.sh:266` — its own
 comment says the cost of a false positive "is one line to read"; this run shows the
 cost is occasionally a false *alarm* on a line that is already marked.
+
+## S6. `aes-peer-review` — **REVIEW INVALID**; the candidate remains CANDIDATE
+
+This is the protocol's own outcome, reached by its own rules, not a failure to try.
+
+### S6.0 The one precondition that *is* met
+
+```
+recorded : 24f3744f70b49af065d8a9c2883dd8146d3b5f370d757e6ca2a01d353fdce599
+computed : 24f3744f70b49af065d8a9c2883dd8146d3b5f370d757e6ca2a01d353fdce599
+** MATCH — rubric is pre-registered and unmodified **
+```
+
+`docs/review/RUBRIC.md` + `docs/review/RUBRIC.sha256` are **both tracked**, and the
+hash verifies. Protocol §3's pre-registration requirement is genuinely satisfied —
+and this project did it correctly, including a decision worth noting: the rubric
+lives in `docs/` rather than `aes/` **because `aes/` is gitignored**, with the
+comment *"The process yields to the rule."*
+
+### S6.1 Four independent reasons the review is invalid
+
+| # | reason | source |
+|---|---|---|
+| 1 | **The registered candidate is not this chain.** `RUBRIC.md:3` — *"Candidate under review: the clock investigation and the working tree it lives in."* Protocol §3 requires the candidate to be a pre-registered field; reviewing this chain against it is use outside its registration. | `docs/review/RUBRIC.md:3` |
+| 2 | **I am the author.** Protocol §4: *"Self-audit by the authoring agent is neither — it is pre-flight."* | `PEER_REVIEW.md` §4 |
+| 3 | **No independent reviewers exist, and the fallback cannot run either.** The skill needs 2+ reviewers of different model families, fresh sessions; failing that it **MUST** convene 4 fresh subagents. **This session exposes no subagent tool.** Both branches are unavailable. | skill, *Before Review* 4–5 |
+| 4 | **4 of 23 criteria are unrunnable by instruction** — `make clock`, `make perf` and Deck measurement are forbidden. D-03, G-01 (partial), G-02, G-04. | instruction + `RUBRIC.md` |
+
+The skill's enforcement clause is unambiguous: *"If multi-perspective review not
+completed, review is INVALID and candidate remains CANDIDATE."*
+
+> **Verdict: REVIEW INVALID. No ACCEPTED, no REJECT. The chain's output remains
+> CANDIDATE.** Prior rounds `clock-2026-10-02{,b}` each carry all four personas
+> (`01-cinico` … `04-utilizador`); this round has one agent and is not comparable.
+
+### S6.2 Pre-flight self-audit — NOT a peer review, and labelled as such per §4
+
+Protocol §4 classes this correctly: **pre-flight, not review.** Recorded anyway
+because the findings are real regardless of who produces them. Format per the skill:
+type, title, evidence, closure-condition, rubric-criterion.
+
+```yaml
+- type: MAJOR
+  title: >-
+    E-02 is unsatisfiable for any claim born in aes/, and that is the mechanism by
+    which the phase-3 and phase-4 errors survived
+  evidence: >-
+    The "5/10 HIGH" verdict this chain retracted was made in
+    aes/narrative/NARRATIVE-2026-10-03.md, which is gitignored and therefore
+    uncommittable. docs/AES_CHAIN_RUN.md:525 quotes it and :532 marks it retracted,
+    so a tracked retraction exists — but the claim site itself can never be marked,
+    because marking it would require force-adding past DoD D4.3.
+  closure-condition: >-
+    Either (a) every claim that gates read is in a tracked file, or (b) a tracked
+    index maps each gitignored claim file to its tracked retraction, and
+    `make check-claims` verifies every file named in aes/narrative/ and
+    aes/epistemic-proof/ has such an entry. Verifiable by a command that exits 0.
+  rubric-criterion: E-02
+```
+
+```yaml
+- type: MINOR
+  title: I-02's verifiable check does not execute
+  evidence: >-
+    Run verbatim from RUBRIC.md, it fails:
+      $ git ls-files study/ | grep -vE "^(study/peer-linux/(README\.md|…))$"
+      grep: Unmatched ( or \(
+    In double quotes the shell keeps `\(`, so grep sees a literal paren and the
+    group is unbalanced. The criterion's INTENT is satisfied — the only tracked
+    study/ sources are jjhead.c, jjwin.c, bgra2png.py, all three allowlisted, and
+    the corrected single-quoted form returns empty.
+  closure-condition: >-
+    RUBRIC.md's I-02 row contains a command that runs, and re-running it after a
+    deliberately added study/peer-linux/x.c returns that path (proving it can fail).
+  rubric-criterion: I-02
+```
+
+```yaml
+- type: MAJOR
+  title: >-
+    The rubric is exempted from every guard, so none of its criteria can ever be
+    checked — including the one that does not run
+  evidence: >-
+    check-cause-claims.sh:77 and check-retracted-claims.sh:229 both exclude
+    docs/review/RUBRIC.md from scope, correctly, because editing it would break
+    pre-registration (check-retracted-claims.sh:318-320). The consequence is that
+    no gate executes any rubric criterion, so I-02's broken command was never run
+    by anything. Verified: the only RUBRIC references in scripts/*.sh are the
+    exclusions.
+  closure-condition: >-
+    A gate exists that extracts every "verifiable check" cell from RUBRIC.md and
+    executes it, failing if any is non-zero-exit or non-runnable — while leaving
+    RUBRIC.md itself unedited.
+  rubric-criterion: G
+```
+
+### S6.3 What the executable criteria did return
+
+| criterion | result |
+|---|---|
+| I-01 ROM never committed | **PASS** — 0 tracked `*.sfc` |
+| I-02 no peer source | **PASS by intent, UNVERIFIABLE by its own command** (see finding 2) |
+| C-05 determinism | **PASS** — `make test` 2/2, `test_deterministic_replay` included |
+| G-03 delivery gate red | **PASS** — README states `make clock` is red and must stay red |
+| tracked `aes/` files | **0** — DoD D4.3 holds |
+| E-05 negatives recorded as negatives | **PASS** — phases 3, 4 and 5 each reported UNCOMPUTABLE / CANNOT VALIDATE / FAIL rather than a number |
+| E-06 unverified tools labelled | **PASS** — `narrative-analysis`, `gmif-check`, `conflict-check` all recorded as absent with their exit codes |
