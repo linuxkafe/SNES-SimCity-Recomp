@@ -2233,6 +2233,114 @@ separated **at the instruction** (`$03:8026` executes 0 times here, 27+ times
 there) and it has **not** established what starts the simulation in either
 build.
 
+## Method — how a number in this repository gets to exist, and what kills it
+
+This project has produced **47 retraction-ledger rows, 39 of them refuted**. The
+retractions were not caused by bad luck or by a careless author. They were caused
+by a specific, repeatable failure: **a measurement was made, and then the number
+was copied forward instead of re-derived.** So the method below is not
+documentation hygiene — it is the actual defence, and it is written down here so
+that a future session inherits it instead of rediscovering it.
+
+**The ledger is the source of truth for what is refuted, not this prose.**
+`make retraction-count` computes it. If a figure below disagrees with the ledger,
+the ledger is right and the figure is a bug.
+
+### The four rules
+
+**1. A claim is never verified because a document says so. Only a command exiting 0
+verifies it** (DoD Rule 0). A number's provenance is a command and its output, or
+it is not a number.
+
+**2. Re-derive, do not copy forward.** Before citing any figure, find the
+measurement that produced it. *Repetition across documents is not corroboration* —
+this repository has been wrong in the same place three times because the wrong
+number appeared in three places. A concrete instance, caught by a peer reviewer:
+three independent personas reported "the README's 186 AOT symbols is stale". Two
+of them had compared **186 (symbols emitted) against 239 (`aot_eligible`
+routines) — two rows of the same table.** Re-derived properly the value was a
+different number again, and no derivation method had ever been written down.
+`scripts/count-aot-symbols.sh` now re-derives all four figures and cross-checks
+them against the manifest, so the next reader does not have to.
+
+**3. Every instrument needs a falsifier, and the falsifier needs a negative
+control.** A check that has never been seen to fail is not a check. Concretely,
+in this repository:
+
+- `scripts/check-entrypoints.sh --self-test` truncates `README.md` to 0 bytes and
+  requires the guard to exit 1, then restores it byte-for-byte. It exists because
+  commit `5cbf5fd` shipped this file as **0 bytes** and `check-claims`,
+  `check-causes`, `check-cheat-gate` and `make test` **all passed on the empty
+  file** — an empty file satisfies "no violations" perfectly.
+- One of that guard's own assertions was **wrong on its first run** (an
+  "unbalanced `**`" check fired on **1963 legitimate occurrences** in
+  `docs/RE_CITY_FREEZE.md`, because bold spans line breaks and `**` appears inside
+  inline code). **It was deleted, not tuned.** A check that cries wolf on the
+  project's own corpus is worse than the hole it closes.
+- The clock gate's date detector was found to be a **brightness meter**: a raw-RGB
+  hash with no invariance to `$2100` INIDISP, which the guest ramps over 16
+  consecutive frames. A fade alone produced 16 "distinct date images". **The gate's
+  own positive control was a brightness fade.** The detector now asks a relation —
+  *F shows the same date as R iff F is a pixel-consistent non-decreasing
+  recolouring of R* — with no palette, threshold or brightness value involved, and
+  ships with both directions falsified inside `make clock-self-test`.
+
+**4. Instrument the instrument.** Run the thing you are about to believe against a
+case where you already know the answer. Twelve measurements in this project have
+falsified their own path, and **every one was the instrument working correctly** —
+which is the only reason these answers are worth anything. The recurring ones:
+
+- **A clean result is the one to distrust.** Two examples: a census of `$0012`
+  writers was nearly reported as a missing 16-bit store until the log was re-read
+  and showed `$0013` had been written in the same frame; and a positive control
+  once composed **0 changed pixels** because a row-major pixel list was sliced as
+  if it were columns — it printed a confident `0`, and only the pixel count gave
+  it away.
+- **A tier that cannot see a tier.** `CYC_WATCH` only sees interpreted opcodes and
+  is **blind to AOT**; `AOTBLK` takes a frame *window*, not a PC range, and is
+  silent without `SNESRECOMP_TRACE=1`. A PC absent from an interpreted histogram
+  may be executing natively. Conversely a **fetched opcode byte proves an
+  instruction executed there; it does not prove the PC was an instruction
+  boundary** (R-038).
+- **Leading zeros are octal.** `COUNT_PC` is `strtoul(..., 0)`, so `038026` is
+  parsed as `$0003` and silently measures the wrong thing — the `0x` prefix is
+  mandatory. `WRAM_DUMP_AT` is `strtol(..., 10)`, so the same prefix turns a
+  27-frame list into frame 0. **Five knobs, four conventions.**
+- **Instrumentation moves the histogram.** Step counts are wall-clock dependent;
+  distinct-PC counts are not. Compare the latter.
+- **A killed run is void regardless of its counts.** `exit: SDL_QUIT` means the
+  harness was signalled, not that the guest finished.
+- **Instrument a static hit before believing it.** 236 raw `$0012` candidates
+  narrowed to **2 real**: one was a sliding-window false positive, and seven were
+  sites that `TCD` on entry and `PLD` on exit — they were reading **their own
+  frame**, not the flag.
+
+### Where the measurements run
+
+Heavy, instrumented and trace work runs on the **Steam Deck** over
+`ssh deck@steamdeck`. **A host result is labelled `HOST-ONLY` and closes nothing.**
+`make perf` is wall-clock and is therefore **solo-only** — a run abandoned because
+the load average read `0.78`, caused by the agent's own `rsync`, is the reason the
+rule exists. Up to three concurrent Deck runs are permitted, each carrying its own
+embedded positive control. See `docs/DECK_RUNBOOK.md`.
+
+### Retraction hygiene
+
+A retracted claim stays **visible where it was made**, with what it claimed, what
+refuted it, and what replaced it — not deleted, and not merely mentioned in a
+changelog. `scripts/retracted-claims.tsv` is the ledger;
+`docs/CLAIMS_REGISTER.md` is the readable index. **When a retraction retracts a
+previous retraction, both rows are kept** (R-041 retracts R-039, and both are
+readable), because the shape of the mistake is itself the lesson.
+
+### When you are about to assert a cause
+
+Ask whether you have **measured the cause** or merely **measured something that
+accompanies it**. If you have not, write "not established" and stop. That is not a
+weak result — in this repository "not established" has been the correct answer more
+often than any confident story has, and the two most expensive mistakes in the
+project's history were both confident explanations of this exact code path.
+
 ## Development
 
 ```bash
