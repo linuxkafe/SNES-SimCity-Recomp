@@ -1469,17 +1469,47 @@ quoted from exists in any meaningful sense.**
   again: *"Qualquer resultado … sem prefixo `0x` é nulo"* sat in an append-only
   log at line 1546 and T100 used the bare form four days later. **The rule now
   lives where the mistake is made**, with the two safe forms written out.
-- **The missing guard — `scripts/check-entrypoints.sh` +
-  `make check-entrypoints` — did not exist when this row was written, and this
-  row is committed with the hole OPEN rather than with a promise in it.** It is
-  the immediate next action, and it is specified here so that whoever writes it
-  writes the same thing: assert that the project's **tracked entry-point
-  documents** are non-empty, non-trivial in length, and carry their expected
-  top-level heading; **refuse to total on an empty file** where it would
-  otherwise total; falsify in **both** directions before committing — **red on a
-  seeded 0-byte copy, green on the real file** — demonstrated on an **untracked**
-  file (CONF-11) and with a **positive control** (a real, unseeded file must
-  pass).
+- **THE GUARD EXISTS: `scripts/check-entrypoints.sh`, `make check-entrypoints`.**
+  Twelve tracked entry-point documents; per document it asserts the file is
+  **tracked** (via `git ls-files`, so an untracked file is out of scope —
+  CONF-11), is **≥ 1024 bytes**, has **≥ 40 lines**, **opens with its expected
+  top-level heading**, and has **no unclosed ``` fence**. It **does not total on
+  an empty file** — a 0-byte document is reported as its own `VIOLATION` and no
+  pass count is printed for it, which is CONF-20's lesson.
+
+  **Falsified in both directions before it was committed, and the falsification
+  is in its own self-test (`make check-entrypoints-self-test`, 9/9):**
+
+  | assertion | result |
+  |---|---|
+  | a **0-byte** document is rejected | **RED** — *"size 0 < 1024"* |
+  | a **1-byte** document is rejected | **RED** |
+  | a file **large enough but with the wrong heading** is rejected | **RED** — size alone is not enough |
+  | an **unclosed code fence** is rejected | **RED** |
+  | **POSITIVE CONTROL** — a well-formed document passes | **GREEN** — not everything is rejected |
+  | **POSITIVE CONTROL** — the real tree passes | **GREEN** |
+  | an **UNTRACKED** file is out of scope | by design (CONF-11) |
+  | **`README.md` truncated to 0 bytes in the worktree, real script, real tree** | **exit 1** — *the 5cbf5fd incident, reproduced* |
+  | `README.md` restored byte-for-byte afterwards | **verified** |
+
+  **The last two are the falsifier for the whole ticket**: the self-test
+  truncates the project's own entry point, requires the guard to go red, and
+  restores the file. **It has restored it on every run.**
+
+  > #### ⚠️ One assertion of this guard was **wrong on its first run** and was
+  > **removed, not weakened.** The first draft also asserted *"no unbalanced `**`
+  > marker"*. **It fired on this project's own corpus** — **1963 occurrences in
+  > `docs/RE_CITY_FREEZE.md`** — and every one is legitimate: bold routinely spans
+  > a line break (`**the` on one line, `used.**` three lines later), and `**`
+  > appears inside inline code spans. **Markdown does not require balanced bold
+  > markers and no renderer cares.** **A check that cries wolf on its own corpus
+  > is worse than the hole it closes** — CONF-14, and the reason
+  > `check-cheat-gate`'s self-test exists. **The check was deleted, not tuned.**
+
+  **What it still does not prove, printed by the script itself:** that anything in
+  those files is **true**, or that the claims are **current**. It proves there is
+  something there to be wrong about. **Truth is `check-claims`' and
+  `check-causes`' job, and only for the phrases they know** — CONF-20.
 
 ### Not done, deliberately
 

@@ -1,7 +1,8 @@
 .PHONY: build debug test test-rom perf clock clock-self-test check-claims \
         check-claims-self-test check-causes check-causes-self-test \
         retraction-count review-check review-check-c041 clean doctor \
-        check-cheat-gate check-cheat-gate-self-test
+        check-cheat-gate check-cheat-gate-self-test check-entrypoints \
+        check-entrypoints-self-test
 
 BUILD_DIR := build
 
@@ -133,6 +134,22 @@ check-cheat-gate:
 
 check-cheat-gate-self-test:
 	scripts/check-cheat-gate.sh --self-test
+
+# The guard whose absence let commit 5cbf5fd ship README.md as 0 BYTES with
+# check-claims, check-causes and check-cheat-gate all printing RESULT: PASS on
+# the empty file. None of those three is defective: `git ls-files` puts a file in
+# scope and an EMPTY FILE SATISFIES "no violations" perfectly. This one asks the
+# question none of them asked - is there anything there. docs/CONFLICTS.md
+# CONF-23. Cheap, needs no ROM and no build.
+#
+# Run it with --self-test after editing the script or its document table. The
+# self-test truncates README.md on purpose, requires the guard to go red, and
+# restores the file byte-for-byte; it has restored it on every run so far.
+check-entrypoints:
+	scripts/check-entrypoints.sh
+
+check-entrypoints-self-test:
+	scripts/check-entrypoints.sh --self-test
 
 doctor:
 	@echo "== Toolchain =="

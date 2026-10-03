@@ -127,9 +127,20 @@ Three scripts *mention* the file — `check-cause-claims.sh:166,181`,
 `check-retracted-claims.sh:178,338,451` — and **not one of them looks at its
 size, its line count, or whether it has a heading.** **So a green
 `make check-claims` says nothing about whether this file has any content in it.**
-That hole is specified, and the guard specified to close it is named, in
-[`docs/CONFLICTS.md` CONF-23](docs/CONFLICTS.md) — **and at the time of writing
-it is still open.** See the note under the gate table below.
+
+**That hole is now closed by [`scripts/check-entrypoints.sh`](scripts/check-entrypoints.sh)
+(`make check-entrypoints`), which asserts every tracked entry-point document is
+tracked, ≥ 1024 bytes, ≥ 40 lines, opens with its expected heading, and has no
+unclosed code fence — and refuses to total on an empty file.** Its self-test
+truncates this very file to 0 bytes, requires the guard to exit 1, and restores
+it byte-for-byte: **`make check-entrypoints-self-test` → `SELFTEST PASS: 9/9`.**
+Full falsification table and its limits in [`docs/CONFLICTS.md` CONF-23](docs/CONFLICTS.md).
+
+**One of its own assertions was wrong on its first run and was deleted rather
+than tuned**: a *"no unbalanced `**`"* check fired on **1963 legitimate
+occurrences** in `docs/RE_CITY_FREEZE.md`, because bold spans line breaks and
+`**` appears inside inline code. **A guard that cries wolf on its own corpus is
+worse than the hole it closes.**
 
 ### How much of it is actually native
 
@@ -994,7 +1005,9 @@ pictures** — from the same code path `SNESRECOMP_SCREENSHOT_DIR` uses.
 | **presents after it, all bit-identical** | **1 619** |
 
 **Then: a 106-frame gap, then 17 consecutive changes, f3365 → f3381, then 1 619
-identical presents.** The city does something visible for **17 consecutive
+identical presents.** (⚠️ **T109 corrects the count: it is 16 changes over 17
+frames**, because **f3379 and f3380 share `crc32 5509053c`** — f3379 → f3380
+changes nothing. The 17-present *window* is right; the 17 *changes* is not.) The city does something visible for **17 consecutive
 presents** and then stops, abruptly, and the run is bit-identical for 1 619
 presents afterwards. **That is the shape of the freeze and it is a
 frame-resolved, 17-sample event** — which is why the next measurement is
@@ -1373,6 +1386,8 @@ is that re-run, not a carry-over:
 | `make check-causes-self-test` | the guard still fires on the tree it was written for | PASS | 0 |
 | `make check-claims-self-test` | the ledger guard has been seen to fail | PASS — both seeded violations confirmed detected | 0 |
 | `make check-cheat-gate` | no gate script can turn a WRAM write into a clock result (Rule 0b) | PASS | 0 |
+| `make check-entrypoints` | the tracked entry-point documents are tracked, non-empty, and open with the expected heading (CONF-23) | **PASS — 12 of 12** | 0 |
+| `make check-entrypoints-self-test` | it has been seen to fail, on the real tree, on this file | **PASS — `SELFTEST PASS: 9/9`**, including `README.md` truncated to 0 bytes → exit 1, then restored byte-for-byte | 0 |
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
@@ -1382,7 +1397,8 @@ is that re-run, not a carry-over:
 hand.** `make check-claims` and `make check-causes` **both passed on a 0-byte
 `README.md`** when that was measured on 2026-10-03. What they prove is that no
 *present* claim is retracted or unprovenanced — **not** that the document
-carrying those claims exists, has content, or parses. CONF-23.
+carrying those claims exists, has content, or parses. **CONF-23; the second half
+is now covered by `make check-entrypoints`, the first half never will be.**
 
 **CORRECTION, measured 2026-10-03: this file said "`make clock` exits 1, not
 2", and that is wrong about `make`.** The gate script is right; the wrapper is
@@ -1438,14 +1454,15 @@ pattern is forward-only and that sentence puts the number *after* the word.
 **CONF-14 is not closed and nothing in this file should be read as closing it.**
 
 > **The phrase guard has a second, independent hole (CONF-20), also OPEN.**
-> **And a third, which is not a hole in either guard but in what both of them are
-> being asked for (CONF-23): neither asserts that the files it reads are
+> **And a third, which was not a hole in either guard but in what both of them
+> were being asked for (CONF-23): neither asserted that the files it reads are
 > non-empty.** `5cbf5fd` shipped this file at **0 bytes** and `check-claims`,
 > `check-causes` and `check-cheat-gate` all printed `RESULT: PASS` on it —
 > re-measured, see the preamble above. **`git ls-files` says a file is in scope;
-> an empty file satisfies "no violations" perfectly.** **No gate asserts
-> non-emptiness yet**, so **the PASS rows below say nothing about whether this
-> file has content in it.**
+> an empty file satisfies "no violations" perfectly.** **Closed by
+> `make check-entrypoints`** — but note what it closes and what it does not: it
+> proves the documents **exist and are non-empty**, and it still proves nothing
+> about whether what they say is **true**.
 `docs/CAUSE_CLAIMS.md` asserted R-038's refuted `$03C87F` clause as present-tense
 fact — a faithful **paraphrase**, not a quotation — and **both** `make
 check-claims` and `make check-causes` printed `RESULT: PASS`. The ledger's
