@@ -1210,11 +1210,46 @@ checks**, which is what its own "Not criteria" section already says about them.
 
 ---
 
-## CONF-21 · severity HIGH · the differential suite compares AOT against `interp816`, and its corpus generator encodes the *same wrong width rule* — so 1 599 000 checks cannot see this class of defect
+## CONF-21 · severity HIGH · the differential suite compares AOT against `interp816` — so 1 599 000 checks cannot see a defect common to both. **Its original evidence is RETRACTED (R-042).**
 
-**The conflict, measured 2026-10-03 (T105).** `interp816` computes
-`CPX #imm` against a **2-byte** operand and advances the PC by 3 when `xf=0`
-(**C-073**). The submodule's own accuracy report records this suite passing:
+> ### ⚠️ CORRECTED 2026-10-03 by T106 — the *instance* was wrong; the *structural point* stands
+>
+> **This conflict was filed on T105's claim, and T105's claim was refuted two
+> commits later by R-040.** What follows is CONF-21 as filed, with the retraction
+> stated first so a reader cannot inherit the old conclusion by skimming.
+>
+> **RETRACTED (R-042): the specific claim is false.** It said the corpus
+> generator *"encodes the same wrong width rule"* — that `gen_ops.py:30`'s
+> comment *"width = X flag"* **is the defect, restated as a test-corpus
+> invariant**, and that `gen_ops.py:67` *"emits `[op, imm, 0x00]`, a **3-byte**
+> encoding, for the `x=0` case … wrong in the same direction as the decoder."*
+>
+> **The 3-byte `x=0` encoding is correct.** `LDX/LDY/CPX/CPY #imm` are 3 bytes
+> at `x=0` and 2 at `x=1`; the comment *"width = X flag"* is the correct rule,
+> correctly stated. **The generator and `interp816` agree because both are
+> right.** CONF-21 was citing T105 as its purest instance, and T105 was not an
+> instance of it.
+>
+> **What survives, and is the whole of the real CONF-21 — unchanged and still
+> HIGH:** the suite compares **the AOT code generator against `interp816`**. Read
+> the last four words of its own accuracy line: *"vs interp816"*. It is an
+> **internal-consistency** suite between two implementations of this project,
+> not a conformance suite against hardware. **Two implementations that share a
+> mistake agree perfectly**, so **1 599 000 checks prove nothing about 65816
+> conformance** and no amount of adding opcodes or checks to it can help.
+> **Coverage is not the problem. Independence is.**
+>
+> **And T106 is a sharper demonstration of it than T105 was — by accident.**
+> To settle the width rule this repository had to go to **published 65816
+> documentation** and to **the ROM's own instruction stream**, because the
+> conformance reference CONF-21 names does not exist in the tree. **The rule was
+> settled outside the project, and no gate in the project could have settled it.**
+
+**The conflict, as originally filed 2026-10-03 (T105) — the evidence is retracted
+above; the structure is not.** `interp816` computes `CPX #imm` against a
+**2-byte** operand and advances the PC by 3 when `xf=0` (**C-073**, now
+**RETRACTED** by R-040). The submodule's own accuracy report records this suite
+passing:
 
 ```
 snesrecomp/SNES_ACCURACY_BURNDOWN.md:108
@@ -1222,12 +1257,7 @@ snesrecomp/SNES_ACCURACY_BURNDOWN.md:108
   ... Now 533 opcode variants, 0 divergences (1.599M checks) vs interp816.
 ```
 
-**Those checks compare the AOT code generator against `interp816`.** Read the
-last four words: *"vs interp816"*. It is an **internal-consistency** suite
-between two implementations of this project, not a conformance suite against
-hardware. Two implementations that share a mistake agree perfectly.
-
-**And they demonstrably share this one, because the corpus generator states it:**
+**Those checks compare the AOT code generator against `interp816`.**
 
 ```
 snesrecomp/tests/cpu_diff/gen_ops.py:30
@@ -1238,39 +1268,29 @@ snesrecomp/tests/cpu_diff/gen_ops.py:67
         emit(f"{label}_{imm:02x}_lo_x0", [op, imm, 0x00], 1, 0)   # 16-bit index
 ```
 
-Line 30's comment **is the defect, restated as a test-corpus invariant** —
-"width = X flag" is exactly the rule `CPX #imm` does not obey. Line 67 then
-emits `[op, imm, 0x00]`, a **3-byte** encoding, for the `x=0` case. So the
-operand bytes planted in the test ROM are wrong in the same direction as the
-decoder, and the differential sees two implementations making the *same*
-mistake and calls it agreement.
-
 **Why this is filed as a conflict and not a ticket.** The generalisation is the
-project's own, and this is its purest instance:
+project's own:
 
 > **An instrument that cannot see the answer looks exactly like an instrument
 > that found nothing.** Trap 1 of `README.md` records it for a driver that
 > printed `$0B53` under the label `$0B55`. Here it is a **test suite** whose
 > pass count is the project's strongest accuracy evidence, and the blindness is
-> in the *corpus*, not the comparison — so no amount of adding opcodes or checks
-> to it can help. **Coverage is not the problem. Independence is.**
+> in the *comparison*, not the coverage. **Coverage is not the problem.
+> Independence is.**
 
-**NOT FIXED HERE, and the reason matters.** A fix needs an **external
+**STILL NOT FIXED, and the reason is unchanged.** A fix needs an **external
 conformance reference** — a real 65816, or a disassembler with a published,
-independently-derived length table. This repository has none:
+independently-derived length table. **This repository has none in the tree**:
 `study/peer-linux/` is four tool scripts and a README, not an emulator;
-`snesrecomp/tools/cyc_watch/` has a cycle hook, not a length oracle. So the
-65816 rule C-073 says `$A0/$A2/$C0/$E0` violate is recorded as **[INFERRED]**,
-and the honest next step is to obtain that reference rather than to guess twice.
-**The measurement stands either way** — *our* decoder reads two operand bytes
-for `$E0` and advances three; that is true regardless of what hardware does.
+`snesrecomp/tools/cyc_watch/` has a cycle hook, not a length oracle. **T106
+found the rule in published documentation instead**, which settles *this*
+question and **improves nothing about the gate**.
 
 **Also recorded, because it will bite the next reader:** the corpus generator is
-in the **submodule**, and `gen_ops.py` is not in any gate's scope. Fixing it in
-this repository would reach no clone without a submodule push, exactly as
+in the **submodule**, and `gen_ops.py` is not in any gate's scope. Changing it
+in this repository would reach no clone without a submodule push, exactly as
 `snesrecomp`'s own history shows for every other instrument change here.
 
----
 
 ## CONF-22 · severity MEDIUM · `SNESRECOMP_WRAM_DUMP_AT` is base-10 — so the `0x` prefix this project *mandates* silently turns a frame list into frame 0
 

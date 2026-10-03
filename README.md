@@ -19,7 +19,7 @@ supply; the ROM and any ripped assets are never included. Built on the
 > 0 is that **no criterion may be satisfied by a claim — only by a command that
 > exits 0**.
 >
-> This project has retracted **31** claims out of **39** ledger rows (computed,
+> This project has retracted **34** claims out of **42** ledger rows (computed,
 > `make retraction-count` — never a hand-written number; the other 8 rows are 6
 > `superseded` and 2 `invalidated-premise`, which is not a retraction). Where an
 > old claim is quoted below it is labelled **RETRACTED** and is printed as
@@ -358,82 +358,191 @@ than that premise deserves:
     T105 then traced X to **`$8DF3`** over 36 340 strictly monotonic iterations;
     the `$14FF` ceiling above was the `WLOG_ADDR` 16-bit range, not the loop.
 
-    > #### ⚠️ **RETRACTED (R-039). This is not a defect in the game's code.**
+    > #### ⚠️ ⚠️ RETRACTED TWICE — R-039, then **R-040/R-041 (T106)**. There is no defect at all.
     >
-    > This section, at `3f24098` — **one commit before it was measured** — said:
-    > *"This is the **first thing in this project that looks like a defect in the
-    > game's own code** rather than in our emulation … **It is NOT established
-    > which.**"* **That was wrong, and it was wrong in the direction the whole
-    > investigation had been leaning for three sessions.**
+    > **This block has been wrong twice and the second correction is larger than
+    > the first.** Read it as history, not as the answer.
     >
-    > **T105 measured it. It is a defect in our emulation.** `CPX #imm` reads a
-    > **2-byte** operand while `xf=0` and advances the PC by **3**, so the word
-    > compared against is the two bytes at `$03C87D`/`$03C87E` = **`$8DF4`**, and
-    > the loop terminates at **`X == $8DF4`**, not `$00F4`. **[MEASURED,
-    > Deck-native — `docs/measurements/2026-10-03-t105-flags-at-03c87f.md`]**
+    > **The first framing**, at `3f24098` — *one commit before it was measured* —
+    > said: *"This is the **first thing in this project that looks like a defect
+    > in the game's own code** rather than in our emulation … **It is NOT
+    > established which.**"*
     >
-    > | at `$03C87C`, `P` = the flags the `BNE` reads | |
-    > |---|---|
-    > | **`X=$00F4`** — the iteration the bound is about | **`P=$04` → Z clear.** The loop sails past its own bound because the compare does not fire there |
-    > | **`X=$8DF4`** — the only iteration with Z set | **`P=$07` → Z *and* C set**, the correct result of comparing against `$8DF4` |
-    > | `NPC` from `$03C87C` | **`$03C87F` × 36 340**, one value. `E0 F4` is 2 bytes; we advance 3 — that is the whole `$03C87E` skip |
-    > | `NPC` from `$03C87F` | `$03C881` ×**1**, `$03C877` ×**36 339** — the 1-exit split above, explained |
+    > **R-039 answered that with the opposite error, and that answer is itself
+    > RETRACTED (R-040) — see below.** It said **"T105 measured
+    > it. It is a defect in our emulation"** — `CPX #imm` reads a **2-byte**
+    > operand while `xf=0`, so the word compared is the two bytes at
+    > `$03C87D`/`$03C87E` = **`$8DF4`** and the loop terminates at
+    > `X == $8DF4`. **[MEASURED, Deck-native]** And the measurements were all
+    > correct, and they all reproduce:
     >
-    > **Confirmed three independent ways**, the third being a prediction over all
-    > 36 340 rows rather than one: if the operand is `$8DF4` then N is set iff
-    > `X ≥ $0DF4`, predicting **3 572** clear and **32 768** set. **Measured
-    > 3 572 and 32 768.** And X itself runs `$0000 → $8DF3`, **36 340 distinct
-    > values, strictly monotonic** — which also closes the "extent" note below,
-    > where `$14FF` was a `WLOG_ADDR` range limit rather than the loop's reach.
+    > | at `$03C87C`, `P` = the flags the `BNE` reads | T105 | **T106 re-measure** |
+    > |---|---|---|
+    > | `NPC` from `$03C87C` | `$03C87F` × 36 340, one value | **identical** |
+    > | `P=$04` (Z clear) | 3 571 | **3 571** |
+    > | `P=$84` | 32 768 | **32 768** |
+    > | **`P=$07` — Z and C set** | 1, at `X=$8DF4` | **1, at `X=$8DF4`, f3270** |
+    > | `X` over the loop | 36 340 distinct, monotonic | **36 340 distinct, `sort -c` non-decreasing** |
     >
-    > **The differential, in the same log with the same instrument:** `$03C871`
-    > `LDA #$0000` (`A9 00 00`, m=1) reads **`$0000`** correctly — `A=$0000` on
-    > all 36 340 rows, where a one-byte overread would have given `$00A2`, the
-    > next byte in ROM. **`LDA #imm` correct, `CPX #imm` wrong, in one
-    > measurement.** That contrast is what proves the instrument live *and*
-    > localises the defect to the **index-width** immediate path. It is exactly
-    > four opcodes — `interp816.c` `LDY`/`LDX`/`CPY`/`CPX #imm` — and only while
-    > `xf=0`.
+    > **⚠️ R-040: that attribution is REFUTED. The 3-byte reading is published
+    > 65816 behaviour, and our decoder is right.**
     >
-    > **Why the pre-registered reading was wrong, since it was mine.** It said
-    > that a wrong Z means *"the overrun is the game genuinely failing its own
-    > bound"*. **That does not follow:** our emulator computes those flags from
-    > our own operand fetch, so a wrong Z is evidence about **us**. The `LDA`
-    > control above is what separates the two cases, and it is in the run.
+    > `LDX/LDY/CPX/CPY #imm` are **2 bytes at `x=1` and 3 bytes at `x=0`**; the
+    > accumulator/ALU immediate group follows **`m`** instead. Three independent
+    > published sources agree — snesdev's 65816 opcode tables (citing the WDC
+    > datasheet, Eyes & Lichty, and Near's higan disassembler) and Chris Wright's
+    > 65816 Programming Primer, which writes it as `CPX #const E0 2*` with
+    > *"Add 1 byte if … (16-bit index registers)"*. `interp816_adrImm`
+    > (`interp816.c:513`) implements exactly that, and the four `xFlag=true` call
+    > sites are exactly `LDY`/`LDX`/`CPY`/`CPX #imm`.
     >
-    > **The corrected width rule is [INFERRED], not [MEASURED]** — on the 65816
-    > `LDX/LDY/CPX/CPY #imm` take an 8-bit operand always, and only the
-    > accumulator/ALU group follows the **m** flag. This repository has no
-    > independent 65816 length authority to check that against
-    > (**CONF-21**), and the standing rule — *do not use your own length table
-    > as evidence* — applies here as everywhere. **The measurement does not
-    > depend on it:** what is measured is that *our* decoder reads two operand
-    > bytes and advances three.
+    > **The flags were never wrong.** At `X=$8DF4`, `CPX #$8DF4` sets **Z** because
+    > `X` *equals the operand* and **C** because `X >= operand`. `P=$07` is
+    > `N0 V0 m0 x0 D0 I1 Z1 C1` (`interp816_getFlags`, `interp816.c:403-413`) —
+    > **the correct answer.** T105 read it as "a wrong Z", because it had already
+    > assumed the operand was `$00F4`.
+    >
+    > **So `$03C87C` is `CPX #$8DF4` — the game's own 16-bit bound. The loop
+    > zeroes `$7F6B00 + X` for `X = $0000…$8DF3`, i.e. `g_ram` `$6B00`–`$F8F3`,
+    > 36 340 bytes, and stops exactly there**, on one exit, via an ordinary
+    > `JSR $B477`. **No overrun. No skipped instruction. No memory destroyed
+    > beyond what the game asked to clear.**
+    >
+    > **⚠️ R-041: R-039 is therefore retracted too.** It retired an ambiguous
+    > framing correctly and supplied a wrong replacement. **The answer is
+    > neither "ours" nor "the game's code" — there is no defect.** And R-039's
+    > closing sentence, *"Three sessions framed this loop as a mystery in the
+    > game's code … one defect on our side"*, is **wrong in its own terms**: the
+    > mystery was ours, but it was not a defect, it was **a 1-byte reading of a
+    > 2-byte operand written down as a finding.**
 
-    > #### ⚠️ CONF-21 — why 1 599 000 checks never saw this
-    >
-    > The submodule's accuracy report records *"533 opcode variants, 0
-    > divergences (1.599M checks) **vs interp816**"*. That suite compares **the
-    > AOT code generator against `interp816`** — two implementations of this
-    > project, not this project against hardware. And they share this mistake,
-    > because the corpus generator states it:
-    >
-    > ```
-    > snesrecomp/tests/cpu_diff/gen_ops.py:30
-    >   # index-immediate compares/loads (width = X flag)
-    >   IMMX_OPS = [("ldx", 0xA2), ("ldy", 0xA0), ("cpx", 0xE0), ("cpy", 0xC0)]
-    > snesrecomp/tests/cpu_diff/gen_ops.py:67
-    >       emit(f"{label}_{imm:02x}_lo_x0", [op, imm, 0x00], 1, 0)   # 16-bit index
-    > ```
-    >
-    > Line 30's comment **is the defect restated as a test-corpus invariant**, and
-    > line 67 plants a **3-byte** encoding for the `x=0` case — so the test ROM
-    > is wrong in the same direction as the decoder and the differential reads
-    > two matching mistakes as agreement. **Coverage was never the problem;
-    > independence is.** An instrument that cannot see the answer looks exactly
-    > like one that found nothing, and this time the instrument is the project's
-    > headline accuracy number. **Not fixed here** — a fix needs an external
-    > conformance reference this repository does not have.
+    #### T106 — the census that settles it, and the fix that must not be made
+
+    **Deck-native, five runs of 14 000 frames (one per executing bank), all
+    `EXIT=0` / `exit: RUN_FRAMES reached`, each carrying its own
+    `COUNT_PC=0x009311` positive control: 27 019 166 / 1929.9 per frame,
+    byte-identical to the known-good value in all five.** **[MEASURED,
+    Deck-native]** — transcript
+    [`docs/measurements/2026-10-03-t106-index-immediate-census.md`](docs/measurements/2026-10-03-t106-index-immediate-census.md),
+    claims **C-074**.
+
+    | the blast radius | |
+    |---|---|
+    | distinct executed interpreted PCs, all banks, 14 000 f | **6 083**, **109 533 634** steps |
+    | **sites whose ROM opcode is `$A0`/`$A2`/`$C0`/`$E0`** | **245** |
+    | steps at those sites | **344 060** = **0.3141%** of all interpreted steps |
+    | read with a **2-byte** operand (`x=0`) | **195** sites, **287 062** steps |
+    | read with a **1-byte** operand (`x=1`) | **49** sites, **55 566** steps |
+    | **ambiguous** | **1** site, `$03DCCF`, 1 432 steps — **left ambiguous, not resolved by assumption** |
+
+    **The partition was derived** from which landing address was fetched, so it
+    was checked against **direct flag reads on both sides**. `P` is
+    `interp816_getFlags()`, so **the x flag is bit 4**: `$03C874 op=$A2 P=$06`
+    (x=0, 3 bytes), `$008D28 op=$A2 P=$64` (x=0, 3 bytes), `$01C826 op=$A0 P=$30`
+    (x=1, 2 bytes), `$01C828 op=$A2 P=$30` (x=1, 2 bytes). **`$008D28` is logged
+    `m=1, x=0`** — the two flags are independent, which is exactly why the two
+    immediate groups need two different flags.
+
+    **The ROM's own instruction stream agrees, four times, without using a length
+    table** — each takes the ROM bytes as given and asks which reading is
+    consistent with a *count*, which is the one thing a decoder cannot fabricate:
+
+    1. `$03C877` executes **36 344** times; **`$03C876` executes 0** times in
+       14 000 frames. `$C876` is the `$00` that a 1-byte reading of
+       `$C874 A2 00 00` would make a **`BRK`** — a breakpoint between
+       `LDX #$0000` and the `STA $7F6B00,X` that consumes that very X.
+    2. **Under a 1-byte reading of `$03C87C` there is no branch instruction
+       anywhere in `$03C877`–`$03C884`** — `$C87E 8D D0 F6` is `STA $F6D0`,
+       `$C881 20 77 B4` is `JSR`, `$C884 22 3A 82 00` is `JSL. A region with no
+       branch cannot re-enter its head, and `$C877` is re-entered **36 339**
+       times.
+    3. **90 of the 195** `x=0` sites have **`$00` at PC+2** — 211 859 steps,
+       including the busiest site in the census (`$008D49`, 82 056 steps) and
+       four 12–14k-step loop counters. **A `BRK` inside a 13 000-iteration loop
+       is not a coherent encoding of anything.**
+    4. `$01C824 E2 30` = **`SEP #$30`** sits immediately before `LDY #$0F` and
+       `LDX #$1E`, and the logged `P` goes `$32` → `$30` across it. **The
+       assembler emitted a flag setup because the width depends on it.**
+
+    #### The pre-registered post-fix shape was run, and it never appeared
+
+    **The prediction was "245 iterations, correct Z/C at `X=$00F4`".** Built on
+    the Deck as `build-x` with the index-immediate group forced to 8-bit, 3 300
+    frames, `EXIT=0`, `RUN_FRAMES reached`, positive control present:
+
+    | | baseline | the proposed fix |
+    |---|---|---|
+    | banks that execute at all | `$00 $01 $02 $03 $05` | **`$00` only** |
+    | distinct PCs, bank `$00` | **1 822** | **16 778** |
+    | bank `$03` | 921 PCs / 515 043 steps | **0 / 0** |
+    | **`$03C87x` loop** | **36 344** iterations | **0 — not 245** |
+    | `COUNT_PC=0x009311`, 3 300 f | **6 626 029** (2007.9/f) | **13 631 085** (4130.6/f) |
+
+    **The prediction was preempted, not refuted: the change is not local and
+    destroys the trajectory before the loop, so the loop runs zero times.** What
+    it refutes is the *premise* — that the width rule is the bug. **The fix is
+    not made, and must not be.**
+
+    > **And my first attempt at the experiment was wrong, and its own mechanism
+    > check refuted my explanation of it.** Version 1 patched `if (1)`, forcing
+    > **every** immediate to 8-bit *including the accumulator group* — so it was
+    > not the proposed fix at all. It collapsed the run spectacularly; I then
+    > predicted control would land on operand bytes of the index-immediate sites
+    > and measured **0 of 16 749** newly-executed PCs doing so. **My causal
+    > story was wrong, and the reason was my own mis-specification.** Version 2
+    > corrected the specification and produced **identical** numbers on every
+    > figure; **I did not establish why and assert no reason** — the available
+    > candidate, that the accumulator group was never reached with `m=0` on the
+    > trajectory v1 diverged onto, is **UNVERIFIED**.
+
+    #### ⚠️ CONF-21 — the structural point survives; its specific claim does not (R-042)
+
+    The submodule's accuracy report records *"533 opcode variants, 0
+    divergences (1.599M checks) **vs interp816**"*. That suite compares **the
+    AOT code generator against `interp816`** — two implementations of this
+    project, not this project against hardware.
+
+    **⚠️ RETRACTED (R-042): the sentence below is false.** It read: *"Line 30's
+    comment **is the defect restated as a test-corpus invariant**, and line 67
+    plants a **3-byte** encoding for the `x=0` case — so the test ROM is wrong in
+    the same direction as the decoder and the differential reads two matching
+    mistakes read as agreement."* **The 3-byte `x=0` encoding is correct**, and
+    `gen_ops.py:30`'s comment *"width = X flag"* is correct. **The generator and
+    the decoder agree because both are right.** CONF-21 was citing T105 as an
+    instance of itself, and T105 was not one.
+
+    ```
+    snesrecomp/tests/cpu_diff/gen_ops.py:30
+      # index-immediate compares/loads (width = X flag)
+      IMMX_OPS = [("ldx", 0xA2), ("ldy", 0xA0), ("cpx", 0xE0), ("cpy", 0xC0)]
+    snesrecomp/tests/cpu_diff/gen_ops.py:67
+          emit(f"{label}_{imm:02x}_lo_x0", [op, imm, 0x00], 1, 0)   # 16-bit index
+    ```
+
+    **What survives, and is the real CONF-21:** a differential suite that
+    compares our AOT against our own `interp816` **cannot see a defect common to
+    both**, and 1 599 000 checks therefore prove nothing about conformance to
+    the 65816. **Coverage was never the problem; independence is** — and that is
+    still true, and it is *not* demonstrated by this ticket. **This repository
+    still has no conformance reference in the tree**, which is why the rule had to
+    be settled from published documentation plus the ROM's own instruction
+    stream rather than from a gate.
+
+    #### ⚠️ A limit on CONF-19 / R-038, found while doing this
+
+    R-038 retracted C-069's clause *"`$03C87F` is the second byte of `8D D0 F6`,
+    therefore not an instruction boundary"* on the evidence that `CYC_WATCH`
+    reports the opcode **fetched** at `$03C87F` as `$D0`. **That evidence cannot
+    bear the weight.** The PC fetched at is produced by **our own decoder**, so a
+    decoder that mis-lands on a boundary will make `CYC_WATCH` report the byte
+    there with total confidence. **A fetched opcode byte proves an instruction
+    executed at that PC; it does not prove the PC was an instruction boundary in
+    the game's intent.** What stands is that *of our build's stream* `$03C87F` is
+    the loop's only branch and its real back-edge, taken 36 339 times. **No
+    ledger row is added — R-038's conclusion about our stream is not shown to be
+    wrong, only its stated reason.** Stated here because the next reader of
+    CONF-19's `op=` field needs it.
+
  - **The city-state block is written once, at f3259, by a creation routine, and
    never written again.** Two disjoint windows, watched as a 16-bit bus write
    census (which sees both engines, so none of the tier blindness that retracted
@@ -876,8 +985,8 @@ it, and `make check-cheat-gate` exists precisely to keep it that way.
 
 ### Where the record lives
 
-This file is the entry point and is **not** the maintained record. Thirteen
-entries, covering fifteen files, are:
+This file is the entry point and is **not** the maintained record. Fourteen
+entries, covering sixteen files, are:
 
 | file | what it holds |
 |---|---|
@@ -887,6 +996,7 @@ entries, covering fifteen files, are:
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | **the tracked mirror of the board.** `aes/kanban.md` is not versioned, so this is what a clone gets; where they disagree, this file wins, because that is what a clone actually receives |
 | [`docs/measurements/2026-10-02-deck-interp-histogram.md`](docs/measurements/2026-10-02-deck-interp-histogram.md) | the whole-run histogram this file's table reproduces, and the three instrument limits it established |
 | [`docs/measurements/`](docs/measurements/) | raw measurements, the exact commands, and **what each instrument cannot see** |
+| [`docs/measurements/2026-10-03-t106-index-immediate-census.md`](docs/measurements/2026-10-03-t106-index-immediate-census.md) | **T106** — the `$A0/$A2/$C0/$E0` census (245 sites, 0.3141% of steps), the 65816 width rule settled from published documentation and from the ROM's own instruction stream, the experiment that refutes the proposed fix — **and the mis-specified first attempt whose own mechanism check refuted my explanation of it** |
 | [`docs/CHEAT_CODES.md`](docs/CHEAT_CODES.md) | a **verified** third-party cheat table — what checked out, what did not, and why PAR/GG support is **not** worth implementing yet. Also where **DoD Rule 0b** lives: a cheat must never make `make clock` pass |
 | [`docs/AES_CHAIN_RUN.md`](docs/AES_CHAIN_RUN.md) | the AES chain run by hand on 2026-10-03, leading with **three places its own inputs were wrong about this project** — and an explicit statement that no phase was run by the tool that normally runs it |
 | [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) | the index of what is retracted, superseded or unverified |
@@ -956,7 +1066,7 @@ is that re-run, not a carry-over:
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
-| `make retraction-count` | the retraction count, computed | **39 rows = 31 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+| `make retraction-count` | the retraction count, computed | **42 rows = 34 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
 **CORRECTION, measured 2026-10-03: this file said "`make clock` exits 1, not
 2", and that is wrong about `make`.** The gate script is right; the wrapper is
