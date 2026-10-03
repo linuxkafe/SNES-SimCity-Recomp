@@ -346,3 +346,133 @@ belongs to a different ticket.
   require an `access.log`, and **no `access.log` exists** in this install
   (`ls aes/*access*` → no such file). **Reporting PASS on those two would be
   reporting a number I do not have**, so they are reported as uncomputable.
+---
+---
+
+# SECOND CHAIN RUN — 2026-10-03, fresh context, head `cfc7a99`
+
+**This section is the record of a second, independent run of the six-phase chain,
+in a fresh session with no memory of the first. It is appended, not merged: the
+run above is left exactly as it stood, because a chain record that rewrites its own
+history is not a chain record.**
+
+Artefacts for this run live in `aes/` and are **gitignored permanently** (D4.3),
+so **this section is the only part of it that survives `git clone`.**
+
+---
+
+## S1. `aes-project-manager` → three verdicts, one of them a retraction
+
+**Could not be run as a skill — third session running.** The brief asserted it
+*"is installed and in your registry. Run it as a skill."* Measured: the skill tool
+returns `Skill "aes-project-manager" not found` and prints the available list. It
+**is** on disk in both `~/.config/opencode/skills/` and `~/.claude/skills/` with a
+171-line `SKILL.md`. **Executed as a protocol by hand**, per its own instruction
+that every verdict carry a mechanical falsifier that was actually run. Record:
+`aes/decisions/D018.md`; correction ticket `aes/tickets/T159`.
+
+### S1.1 NÃO-SUPORTADA — the island graph is **56 nodes and 25 edges**
+
+Three artefacts quote three different counts and **none of them is the count**:
+
+| artefact | says |
+|---|---|
+| `docs/AES_CHAIN_RUN.md:84` (**tracked**, marked ✓ *confirmed*) | 64 nodes, **6** edges |
+| `aes/epistemics/EPIGMIF-2026-10-03c.md:71` | 64 nodes, **19** edges |
+| `aes/decisions/D017.md:133` | **47 of 64** nodes (73%) are orphans |
+
+```
+$ grep -cE '^\s*- id:' aes/graph/island-clock.yaml          -> 64
+$ grep -cE '^\s*(from|to|source|target):' aes/graph/…yaml    -> 6
+$ python3 -c "import yaml;d=yaml.safe_load(open('aes/graph/island-clock.yaml'));
+              print(len(d['nodes']),len(d['edges']),len(d['invariants']))"
+56 25 8
+```
+
+**64 = nodes (56) + invariants (8)** — both use the key `id`, so one regex counts
+both. **6 = the block-style edges; 19 = the inline edges; 6 + 19 = 25.** The
+apparent 6-vs-19 dispute is not a dispute: it is the two YAML styles the file uses
+for its explanatory key (`why` inline, `note` in block form).
+
+**The orphan figure was the one doing the arguing: 25 of 56 = 45%, not 47 of 64 =
+73%.** "Most of the graph is unconnected" survives — it is still the largest
+structural gap. Every number attached to it did not.
+
+**This is CONF-24's shape a fourth time** (`docs/CONFLICTS.md:1591`): *an identifier
+that looks like the thing you want is not the thing you want.* The `present_NNNNNN`
+filename index, the 32 768-write delay loop, the `$7E:2100` WRAM shadow — and now a
+`grep` regex that reads like a node counter. **All four were caught by asking "what
+is this number *actually* a count of?", and none by reading the code that made it.**
+
+### S1.2 NÃO-SUPORTADA — the graph's own *headline finding* is already in the ledger
+
+`INV-5` records `violations: 1` and calls it *"the headline finding of this graph"*:
+**"C-009 has no retraction anywhere in the repo."**
+
+**Refuted.** `scripts/retracted-claims.tsv:84-87` carries **R-005, R-006, R-007,
+R-008** — all `refuted`, whose phrases are *"the gate is $0012"* and *"13 of 13"*,
+which are C-009's exact claim and its exact stated evidence. `docs/CAUSE_CLAIMS.md:70`
+marks it **RETRACTED**. `make check-claims` exits 0.
+
+`INV-3`'s 9 recorded violations are stale in the **other** direction:
+`scripts/clock-gate.sh:339-343` now says in its own text that a *previous* version
+asserted the cause, and asserts none.
+
+**The graph's headline finding is a retraction the project already made, and it has
+been carried unchallenged through D016, D017, `EPIGMIF-2026-10-03c.md` and a
+tracked file — because `aes/graph/island-clock.yaml` is in no gate's scope.**
+Measured: `grep -l 'island\|\.yaml' scripts/*.sh` → nothing.
+
+**D3.6 guarantees no prose retraction *count* disagrees with the ledger. It cannot
+reach a gitignored YAML file, which is exactly where this instance lives. The
+guard's blind spot and this finding are the same shape.**
+
+### S1.3 NÃO-VERIFICÁVEL — and the gate is rejected **for a reason**, not left unwritten
+
+The subject of S1.1 and S1.2 is a **gitignored** file. A guard that validates prose
+counts against `aes/graph/island-clock.yaml` would, **in a fresh clone, find no YAML
+and no claim, and exit 0** — the documented absent-file defeat in a new costume.
+
+The sound alternative is a hardcoded literal ("any tracked file stating a node count
+states 56"). **Rejected:** it permanently fails the moment the graph gains a node, and
+a permanently-failing gate is how this project ends up with gates that get deleted.
+**Recorded so the next session does not reinvent it.**
+
+## S2. `aes-debt` — three metrics, one of them declined
+
+**Its "How to run" block is empty**: the fence opens, holds one comment
+(`# Full debt scan`), and closes. `grep -cE 'debt-measure|epistemic-debt[.]sh|[.]sh'`
+over its own `SKILL.md` → **0**. The skill directory contains `SKILL.md` and nothing
+else. **The metrics below are computed by hand against commands**, and the record is
+appended to `aes/metrics/epistemic-debt.log` — **8 valid JSON entries, prefix
+byte-identical, verified with `cmp` before and after.**
+
+| metric | value | why |
+|---|---|---|
+| `verification_rate` | **`null` — DECLINED** | every candidate formula scores a **refuted** row as a verified one, and **35 of 43** ledger rows are refuted. **A metric that rewards being wrong is not a debt metric.** Declined in three consecutive entries now |
+| `aging_debt` | **0 — by construction** | all 15 files in `docs/measurements/` are dated 2026-10-02/03 and today is 2026-10-03. **It would read 0 on a project nobody had worked on.** Reported *with* the caveat, never as a health signal |
+| `criteria_leakage_count` | **1** | **D2.4** only: its check column is the prose `printed bytes > printed baseline`. D1.4 and D3.2 name executable commands in prose. D3.3/D3.4 are **retired** and their script is **absent** (`ls scripts/check-numbers.sh` → no such file) |
+| `fatigue_rate` | **0.0** | 0 gates skipped, 0 weakened, 0 overrides, 0 targets added to turn anything green. `make clock` not run and not modified; `make perf` not run (out of scope) |
+| ledger | **43 / 35 / 6 / 2** | `make retraction-count`. **Delta 0** — no row added this phase, deliberately |
+
+### S2.1 The fifth classifier, and a hypothesis of mine that the instrument killed
+
+**`docs/CAUSE_CLAIMS.md`'s own row count cannot be computed unambiguously.** Five
+classifiers have now produced five numbers for one file — **6, 1, 3, 67, 75** across
+five debt entries. **Mine, stated because the classifier *is* the finding:** 75 table
+rows carry a `C-NNN` id in the first cell; 1 of those is a cross-reference rather
+than a definition; so **74 definitions, 72 distinct ids**.
+
+> **I predicted a THIRD duplicated claim id** beyond the documented `C-052`/`C-053`,
+> on the strength of a loose regex that returned `C-055` twice.
+> **MEASURED: refuted.** `docs/CAUSE_CLAIMS.md:99` is the `C-055` definition; **:480**
+> is a cross-reference row in the C-006-lead table (`C-055's +96 updater, picture
+> side`). The only genuine duplicates are `C-052` and `C-053` at 2 each — **exactly
+> what the file's own warning block at `:131` says.**
+>
+> **Recorded because the prediction was reasonable and the instrument killed it,
+> which is the only reason the numbers that survived deserve anything.**
+
+**This is D3.3/D3.4's retirement arriving inside the metric that was meant to
+measure it, for the third time in two days.** Those criteria were retired because
+`scripts/check-numbers.sh` does not exist. It still does not.
