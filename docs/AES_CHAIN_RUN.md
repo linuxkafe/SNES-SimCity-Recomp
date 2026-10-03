@@ -573,3 +573,123 @@ interpretation ("few docs dominate the system's memory") cannot express, because
 disposition D017 and D018 reached for the missing solver. **Also measured and
 reproduced:** the skill's own stated invocation does not exist —
 `make narrative-analysis` → `No rule to make target`, exit **2**.
+
+## S4. `aes-epistemics` — **self-ticket trigger NOT ARMED**, and it fails on the conjunct nobody checked
+
+Record: `aes/epistemic-proof/EPISTEMICS-2026-10-03.md` (gitignored).
+
+### S4.0 `sat_run_performed: false` — preserved from the original, and nothing here changes it
+
+```bash
+$ command -v z3            # ABSENT
+$ python3 -c "import z3"   # ABSENT
+$ make gmif-check
+make: *** No rule to make target 'gmif-check'.  Stop.    exit=2
+```
+
+**No SAT was run. No UNSAT exists. No core exists. `sat_run_performed: false`
+stands unaltered.**
+
+### S4.1 The bootstrap's step 1 is DECLINED, explicitly
+
+SKILL.md's Bootstrap Protocol runs on load, and step 1 is:
+
+```bash
+if ! command -v z3 &>/dev/null; then
+  echo "⚠ Z3 not found — installing..."
+  bash "$AES_EPISTEMICS_HOME/scripts/install-z3.sh" || warn ...
+```
+
+**Not run. Installing a solver is the operator's decision, not the agent's.**
+Worth recording that this was not even reachable: `AES_EPISTEMICS_HOME` resolves to
+`~/.config/opencode/skills/aes-epistemics/`, which contains **`SKILL.md` and nothing
+else** — no `scripts/`, no `templates/`. The bootstrap's own `|| warn` branch is what
+would have run. **The skill's harness install is documentation-only.**
+
+### S4.2 The assets are misplaced, and the count reconciles exactly
+
+| directory | epistemics shell scripts |
+|---|---|
+| `/opt/aes/scripts/` | **8** — `gmif-check.sh`, `gmif-check-z3.sh`, `gmif-check-flybrain.sh`, `gmif-staleness-check.sh`, `install-z3.sh`, `verify-external.sh`, `test-gmif.sh`, `aes-epistemics-wire.sh` |
+| `/opt/aes/skills/user/aes-epistemics/scripts/` | **6** — same set minus the two `gmif-check-*` variants |
+| **total** | **14** ✓ |
+
+**SKILL.md's wiring recipe points at the *second* path (6 scripts). The larger set
+(8) lives in `/opt/aes/scripts/`**, which SKILL.md never mentions. So the path the
+documentation prescribes holds **half** the implementation.
+
+**Neither was executed.** They belong to AES's own install, and the solver they
+require is absent.
+
+### S4.3 Auto-wire declined — and the reason is better than "it would fail"
+
+```makefile
+# AES-Epistemics gates
+gmif-check:
+	@bash ~/.config/opencode/skills/aes-epistemics/scripts/gmif-check.sh
+check: gmif-check gmif-staleness  # appended to existing check deps
+```
+
+Three independent reasons, in order of weight:
+
+1. **It would fail-closed and stay red.** `gmif-check.sh` has
+   `require_z3() { … die "Z3 not available…" }`, and `die()` is `exit 1`. So this
+   is not a gate that silently passes without a solver — it is one that correctly
+   refuses to report a result it did not compute. **That is the single best-written
+   failure behaviour in this entire audit, and wiring it would convert a correctly
+   absent capability into a permanently failing `make check`.** Making `check` red
+   is not a fix; it is the removal of information.
+2. **It reads `aes/graph/`, which is gitignored.** `docs/CONFLICTS.md:321` already
+   records this exact hazard for `scripts/verify-implementation.sh`: *"a committed
+   gate pointing at an uncommittable path is the same rule breaking as D4.3."*
+   Confirmed: `aes/tickets/T058` is the rule. **`gmif-check` would repeat it.**
+3. **The script lives in AES's own `/opt/aes` tree**, not in this repo.
+
+**Not wired. `aes-epistemics-wire.sh` not run. Recorded as an operator decision,
+with the fix (install z3, then wire) available and stated.**
+
+### S4.4 The trigger, evaluated conjunct by conjunct
+
+SKILL.md, **Self-Ticket Trigger Conditions — "(ALL must be true)"**:
+
+| # | condition | status | evidence |
+|---|---|---|---|
+| 1 | `make gmif-check` returns UNSAT for an island | **CANNOT BE SATISFIED** | no target (exit 2); no solver |
+| 2 | unsat core contains ≥2 claims with `extraction_confidence > 0.85` | **CANNOT BE EVALUATED** | no core exists, because no SAT ran |
+| 3 | island referenced by ≥1 other island (`edges.to`) **OR** active ticket | **SATISFIED** | **18** distinct islands are a `to` endpoint; **9** tickets name an island id |
+
+**Verdict: NOT ARMED — and it fails on conjunct 1, not on conjunct 2.**
+
+### S4.5 Two prior readings of this trigger were wrong, in *opposite* directions
+
+This is the finding, and it is the second one in this chain produced by the same
+error class.
+
+- Prior reports concluded the trigger was **"NOT ARMED because the confidence
+  fields are missing."** **Wrong on the trigger's own terms.** The trigger never
+  mentions field presence. It asks whether a *core* contains ≥2 nodes with
+  `extraction_confidence > 0.85` — and the population test is met **51 of 56**.
+  On the terms the rule actually states, conjunct 2's threshold is comfortably
+  satisfied.
+- A second reading treats that as **"ARMED, because 51 nodes exceed 0.85."**
+  **Also wrong.** 51 of 56 is a statement about the *population*; the condition is
+  about the *core*. A conjunct requiring an UNSAT result cannot be satisfied by
+  counting nodes.
+
+**Both substituted a computable proxy for the quantity the rule names.** Phase 3
+found the identical move in dimension 5, where claim-state distribution was scored
+as "composite-score clustering." **Two occurrences in one chain is not yet a
+pattern**, and I will not call it one — but it is now the *second* time a number
+was available, the *named* quantity was not, and the available number was used
+instead. The rule that follows is the one the whole chain has been asserting on
+matters: **`docs/DEFINITION_OF_DONE.md` Rule 0 — a command exiting 0 is
+satisfaction; a proxy number is not.**
+
+### S4.6 Not done, and why that is the honest outcome
+
+- **No self-ticket created.** The trigger's three conjuncts are not jointly true.
+- **No `SD-GMIF-*-article` / `SD-GMIF-*-feynman` shadows produced.** Those are
+  outputs *of a triggered* self-ticket. Producing them without the trigger would be
+  manufacturing the evidence the trigger exists to require.
+- **`aes/epistemic-proof/`** written with `sat_run_performed: false` and every
+  unevaluable conjunct marked as such.
