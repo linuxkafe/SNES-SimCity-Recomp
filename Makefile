@@ -1,6 +1,7 @@
 .PHONY: build debug test test-rom perf clock clock-self-test check-claims \
         check-claims-self-test check-causes check-causes-self-test \
-        retraction-count review-check review-check-c041 clean doctor
+        retraction-count review-check review-check-c041 clean doctor \
+        check-cheat-gate check-cheat-gate-self-test
 
 BUILD_DIR := build
 
@@ -124,6 +125,14 @@ review-check-c041:
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+# A cheat must never make the delivery gate pass. DoD Rule 0b. Reads scripts/
+# for the ability to write guest memory; does NOT run the game.
+check-cheat-gate:
+	scripts/check-cheat-gate.sh
+
+check-cheat-gate-self-test:
+	scripts/check-cheat-gate.sh --self-test
 
 doctor:
 	@echo "== Toolchain =="

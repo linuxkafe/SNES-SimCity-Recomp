@@ -1,0 +1,120 @@
+# ---------------------------------------------------------------------------
+# scripts/cheat_probe.script - VERIFY a third-party cheat table, do not trust it.
+#
+# Created 2026-10-03 (T107). The cheat table is third-party community content
+# and is treated here as a SET OF HYPOTHESES ABOUT ADDRESSES, to be checked
+# against this project's own measurements. Nothing in this script is enabled in
+# any shipped build; it is a probe and it is never run by a gate.
+#
+# WHAT IS BEING TESTED, and why each poke is byte-for-byte as published:
+#
+#   7E0B53A0 + 7E0B540F  "year 4000"  -> $0FA0 = 4000
+#     Applied as the two 8-bit writes the published pair actually is:
+#       poke 0B53 A0      -> $A0 to $0B53
+#       poke 0B54 0F      -> $0F to $0B54
+#     Little-endian, so the 16-bit word at $0B53 becomes $0FA0. We have measured
+#     $0B53 as the 16-bit absolute year (1900 = $076C), from the inside.
+#
+#   7E0BA520 + 7E0BA64E  "population 20000" -> $4E20 = 20000
+#       poke 0BA5 20      -> $20 to $0BA5
+#       poke 0BA6 4E      -> $4E to $0BA6
+#     We have measured $0BA5 as a 16-bit field that is 0 in every sample of both
+#     builds. NOTE the tension and do not resolve it here: we also measure
+#     $0B9D = $4E20 = 20000, the SAME value, and we call THAT one funds. A cheat
+#     claiming "population = 20000" for an address that reads 0 is exactly the
+#     entry whose LABEL needs checking, not its arithmetic.
+#
+#   7E03F501 .. 7E03F50A  ten codes, values $01..$0A all to the SAME address.
+#     Under the plaintext reading this is one 8-bit selector field written with
+#     ten different values - i.e. a building-type picker, not "bank 3".
+#     Probed here as poke 0 03F5 0A (the tenth), the largest, to see whether the
+#     field exists at all.
+#
+#   7E0BF9EB  "start with 49000". 49000 = $BF68. The published code writes $EB to
+#     $0BF9. $BF68 is not what that produces, and $0BF9 is not an address we have
+#     measured. Probed anyway: if $0BF9 is a real field it will have a value here.
+#
+#   C28A-AD61 / E28A-AD61  write $61 to $8AAD. $8AAD is INSIDE the region the
+#     $03C87x runaway zero-fill overwrote ($6B00..$F8F3), so this probe also
+#     records what our own emulator left there.
+#
+# Each poke is separated by `wait` so the WRAM dumps bracket them one at a time.
+# SNESRECOMP_WRAM_DUMP_AT takes the frame list; run with the values in the commit
+# body. Host-only nothing: this is Deck-native.
+#
+# NOT DELIVERABLE, NOT A GATE, NOT A FEATURE. If any of this ever makes
+# `make clock` pass, that is a DIAGNOSTIC and it is recorded as one - the gate
+# requires the clock to advance with no cheats and no pokes. See
+# docs/DEFINITION_OF_DONE.md Rule 0 and docs/CHEAT_CODES.md.
+# ---------------------------------------------------------------------------
+
+wait 250
+press start 5
+wait 120
+press down 5
+wait 120
+press b 5
+wait 120
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+press b 5
+wait 90
+wait 300
+press left 5
+wait 150
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+press down 5
+wait 90
+mouseclick right 6
+wait 200
+wait 400
+
+# ---- the probe proper ------------------------------------------------------
+# The city is live and settled by here. Pokes, one per field, spaced.
+wait 200
+poke 0B53 A0
+wait 120
+poke 0B54 0F
+wait 120
+poke 0BA5 20
+wait 120
+poke 0BA6 4E
+wait 120
+poke 0BF9 EB
+wait 120
+poke 8AAD 61
+wait 120
+poke 03F5 0A
+wait 120
+wait 600

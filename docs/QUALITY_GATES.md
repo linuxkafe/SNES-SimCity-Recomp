@@ -38,6 +38,7 @@ teaches a false fact.
 | `make check-claims` | `scripts/check-retracted-claims.sh` | Fails when a script/doc asserts a refuted cause without a retraction marker. |
 | `make check-causes` | `scripts/check-cause-claims.sh` | Structural: every causal assertion carries provenance. Checks labelling, not truth. |
 | `make retraction-count` | `scripts/check-retracted-claims.sh --count` | Computes the retraction count from the ledger. No prose count may differ. |
+| `make check-cheat-gate` | `scripts/check-cheat-gate.sh` | **DoD Rule 0b.** Fails if any script under `scripts/` can write guest memory on a run it drives, or if the anti-cheat rule is deleted from `docs/CHEAT_CODES.md` / `docs/DEFINITION_OF_DONE.md`. Added 2026-10-03 with T107; falsified in both directions on untracked files with positive controls (5/5). Lexical, reads code, does not run the game — a floor |
 
 ## Review gates
 

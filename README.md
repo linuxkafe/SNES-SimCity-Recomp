@@ -1363,6 +1363,21 @@ does not pay for them again.
    CONF-15. **Interim rule: any knob documented `<hex>` or `0xADDR` gets the
    `0x` prefix, always.** The parse is **not** fixed here — it is one character
    per site in a *pinned submodule*, so a local edit would reach no clone.
+   > **⚠ Trap 8 has a blind spot, and the exception is the OPPOSITE
+   > instruction.** `SNESRECOMP_WRAM_DUMP_AT` is parsed
+   > **`strtol(a, &end, 10)`** (`host_main.c:1539`) — **base 10, pinned**.
+   > `0x0CEC` parses as **`0`**, and the run then emits **one clean,
+   > correctly-formatted dump of frame 0** with no warning. **For this knob,
+   > writing the `0x` prefix is what breaks it** — following trap 8 faithfully
+   > is the failure. **DECIMAL, always** for `WRAM_DUMP_AT`; its siblings
+   > `WRAM_DUMP_LO` / `_HI` / `_FRAME` are `strtol(…, 0)` and **do** want the
+   > prefix; `WLOG_ADDR`'s `lo`/`hi` are `sscanf("%x:%x")`, plain hex and never
+   > octal. **Four parse conventions across five sibling knobs, two of them the
+   > same `strtol` family one argument apart.** Measured 2026-10-03,
+   > **CONF-22**. The transferable lesson: **a rule about a *convention* needs a
+   > per-knob table, and sibling knobs are exactly where a convention gets
+   > tested** — CONF-15, CONF-22 and the `WLOG_ADDR` exception are three data
+   > points a table would have caught.
 
 9. **A gate added in the same commit as the claim it guards, and never run,
    shipped broken and reported green.** `make check-causes` fired on the bare

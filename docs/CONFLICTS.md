@@ -1269,3 +1269,83 @@ for `$E0` and advances three; that is true regardless of what hardware does.
 in the **submodule**, and `gen_ops.py` is not in any gate's scope. Fixing it in
 this repository would reach no clone without a submodule push, exactly as
 `snesrecomp`'s own history shows for every other instrument change here.
+
+---
+
+## CONF-22 · severity MEDIUM · `SNESRECOMP_WRAM_DUMP_AT` is base-10 — so the `0x` prefix this project *mandates* silently turns a frame list into frame 0
+
+**The conflict, measured 2026-10-03 (T107).** CONF-15's standing remedy, in
+`README.md` instrument trap 8, is:
+
+> *"Interim rule: any knob documented `<hex>` or `0xADDR` gets the `0x` prefix,
+> always."*
+
+Applied to `SNESRECOMP_WRAM_DUMP_AT`, that rule **breaks the instrument**:
+
+```
+snesrecomp/runner/src/desktop/host_main.c:1539
+        long f = strtol(a, &end, 10);          /* base 10, unconditionally */
+```
+
+`strtol("0x0CEC", &end, 10)` consumes the leading `0`, then **stops at the `x`**
+and returns **0**. `end != a`, so the loop does not break; the next iteration
+does. `wram_at_n` ends at **1**, holding frame **0**, and the run emits **one
+clean, correctly-formatted dump of the wrong frame** with no warning.
+
+| written | parsed as | dumps at |
+|---|---|---|
+| `3900,4020,4030` | 3900, 4020, 4030 | those three ✔ |
+| `0x0CEC,0x0D2C,…` (27 entries) | **0** | **frame 0** ✘ |
+
+**This is CONF-15's shape and NOT CONF-15's bug, and the difference is the
+whole point.** CONF-15 is base-0 auto-detecting a bare leading `0` as octal.
+Here the base is pinned at 10 and the `0x` is *rejected*. **A project-wide rule
+followed faithfully is what broke this knob** — which is a sharper failure than
+the one it was written to prevent, because the rule now has a blind spot that
+looks like compliance.
+
+**The knob family is inconsistent, and that is the finding:**
+
+| knob | parse | wants |
+|---|---|---|
+| `WRAM_DUMP_AT` | `strtol(…, 10)` | **decimal** |
+| `WRAM_DUMP_LO` / `_HI` / `_FRAME` | `strtol(…, 0)` | `0x` prefix |
+| `COUNT_PC`, `PROFILE_START/END` | `strtoul(…, 0)` | `0x` prefix |
+| `WLOG_ADDR` `lo`/`hi` | `sscanf("%x:%x:…")` | plain hex, never octal |
+
+**Four parse conventions across five sibling knobs**, two of which are the
+*same* `strtol` family one argument apart. That is the transferable lesson:
+
+> **A rule about a *convention* is only as good as the set of knobs that share
+> it, and sibling knobs are the first place a convention is tested.** Trap 8 is
+> a project-wide instruction with no per-knob table, and CONF-15, CONF-22 and the
+> `WLOG_ADDR` hex-16 exception are three data points that a per-knob table would
+> have caught. **CONF-14's shape again: a guard or a rule that names no
+> exceptions will be right until it meets one.**
+
+**Interim rule — the opposite of trap 8's:** **`WRAM_DUMP_AT` takes DECIMAL,
+always.** Its three siblings want the `0x` prefix.
+
+**Not fixed here.** It is in the pinned submodule, and the honest fix is to
+accept both forms rather than pick one — but changing a shared parse to suit
+this project, inside a measurement ticket, is not the place. Recorded, and the
+first run of T107 is the evidence that it cost something.
+
+### The new guard built in T107 was wrong three times, and the self-test caught all three
+
+Recorded because the failure mode is the project's own: **a new guard that cries
+wolf on this corpus is worse than the hole it closes.**
+
+1. It fired on `scripts/clock-gate.sh`'s **own clean route**, because it could
+   not resolve the literal `"$PWD/scripts/d_city.script"` — CONF-14's lesson,
+   relearned one commit after being written down. Fixed by resolving through a
+   shell-variable/absolute prefix.
+2. **A leading dot hid a gate script from it**: `scripts/*.sh` does not match
+   `scripts/.hidden.sh`, so a hidden script invoking a WRAM-write knob passed
+   silently. Fixed with `dotglob`, and it is now a permanent self-test case.
+3. The **self-test itself** reported FAIL while the guard was working:
+   `"$0" | grep -q …` under `set -o pipefail` fails because `grep -q` exits at
+   the first match and SIGPIPEs the producer. Fixed by capturing, not piping.
+
+**None of the three was found by reading the guard.** All three were found by
+the seeded self-test, which is the only reason it shipped.

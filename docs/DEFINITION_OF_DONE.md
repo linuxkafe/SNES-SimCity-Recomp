@@ -53,6 +53,31 @@ simulate".
 
 ---
 
+## Rule 0b — a cheat must never make `make clock` pass
+
+> **The delivery gate must keep requiring the clock to advance on a stock
+> build, in a stock configuration, with no cheats and no pokes.**
+
+This is Rule 0 aimed at the most tempting way to satisfy it dishonestly. If a
+WRAM write or a cheat code turns `make clock` green, that is a **DIAGNOSTIC**:
+it tells us which flag holds the gate. It is **not** evidence that the game
+works, **not** evidence that the emulation is faithful, and it must never be
+reported as either. **A green gate obtained any other way is the failure this
+document exists to prevent, wearing the failure's clothes.**
+
+`docs/CHEAT_CODES.md` holds a verified third-party cheat table, so this is not
+hypothetical: there are codes in this repository's own tree that write the year,
+the population field and a funds field, and they are correct enough to land.
+**`scripts/check-cheat-gate.sh` (`make check-cheat-gate`) enforces the rule
+mechanically** — it fails if any script under `scripts/` acquires the ability to
+write guest memory on a run it drives, and it fails if the rule is deleted from
+either this file or `docs/CHEAT_CODES.md`.
+
+**Its stated limit, so it is not oversold:** it reads code, it does not run the
+game, and it is lexical. A write hidden behind a variable, or under a knob name
+it does not list, would pass. **A floor, not a proof** — which is what this
+document's "Not criteria" section says about every floor here.
+
 ## D1 — Build and test
 
 | # | Criterion | Command | Pass |
