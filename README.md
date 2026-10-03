@@ -706,6 +706,8 @@ are:
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | **the tracked mirror of the board.** `aes/kanban.md` is not versioned, so this is what a clone gets; where they disagree, this file wins, because that is what a clone actually receives |
 | [`docs/measurements/2026-10-02-deck-interp-histogram.md`](docs/measurements/2026-10-02-deck-interp-histogram.md) | the whole-run histogram this file's table reproduces, and the three instrument limits it established |
 | [`docs/measurements/`](docs/measurements/) | raw measurements, the exact commands, and **what each instrument cannot see** |
+| [`docs/CHEAT_CODES.md`](docs/CHEAT_CODES.md) | a **verified** third-party cheat table — what checked out, what did not, and why PAR/GG support is **not** worth implementing yet. Also where **DoD Rule 0b** lives: a cheat must never make `make clock` pass |
+| [`docs/AES_CHAIN_RUN.md`](docs/AES_CHAIN_RUN.md) | the AES chain run by hand on 2026-10-03, leading with **three places its own inputs were wrong about this project** — and an explicit statement that no phase was run by the tool that normally runs it |
 | [`docs/CLAIMS_REGISTER.md`](docs/CLAIMS_REGISTER.md) | the index of what is retracted, superseded or unverified |
 | [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md) | the standard of proof — **no acceptance criterion may be satisfied by a claim** |
 | [`docs/review/RUBRIC.md`](docs/review/RUBRIC.md) | the pre-registered review rubric (hash-pinned in `RUBRIC.sha256` — **do not edit**) |
@@ -1378,6 +1380,22 @@ does not pay for them again.
    > per-knob table, and sibling knobs are exactly where a convention gets
    > tested** — CONF-15, CONF-22 and the `WLOG_ADDR` exception are three data
    > points a table would have caught.
+   >
+   > #### ⚠ The per-knob table the rule above should have had from the start
+   >
+   > | knob | parse | what you write | measured |
+   > |---|---|---|---|
+   > | `SNESRECOMP_COUNT_PC` | `strtoul(e, NULL, 0)` | **`0x…`** | **CONF-15 / R-037** — a bare leading `0` is octal |
+   > | `SNESRECOMP_WRAM_DUMP_LO` / `_HI` / `_FRAME` | `strtol(v, NULL, 0)` | **`0x…`** | same defect, same family |
+   > | `SNESRECOMP_WRAM_DUMP_AT` | **`strtol(a, &end, 10)`** | **DECIMAL — the `0x` prefix makes it frame 0** | **CONF-22**, measured 2026-10-03 |
+   > | `SNESRECOMP_WLOG_ADDR` `lo`/`hi` | `sscanf("%x:%x:%511[^\n]")` | plain hex, **never** octal | hex-16 by construction |
+   > | `SNESRECOMP_CYC_WATCH` `lo-hi` | `sscanf("%lx-%lx")` | plain hex, **never** octal | base is explicit |
+   >
+   > **Five knobs, four conventions, and two of them are the same `strtol` family
+   > one argument apart.** Trap 8's blanket rule is right for four rows and
+   > **actively wrong for the fifth** — and it was followed faithfully when it
+   > broke CONF-22. **This table is the rule; the sentence above it is the
+   > approximation.**
 
 9. **A gate added in the same commit as the claim it guards, and never run,
    shipped broken and reported green.** `make check-causes` fired on the bare
