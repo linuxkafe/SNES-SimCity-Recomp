@@ -60,6 +60,7 @@ creation animation and the city-state initialiser **stop on the same frame.**
 ## 2. This is a much better-posed C-006 than anything measured so far
 
 **`clock-gate.sh` independently reports the date crop's last change at f3378**
+**— a PRESENT INDEX. The true frame is f3379 (CONF-24).**
 (`1 distinct date images after f3600 (last change f3378 of 6000)`, DoD D2.3). That
 lands **inside** the f3365–f3381 burst. **Two instruments, one full-framebuffer
 crc32 per present and one date-crop hash sampled by the gate, agree on the same

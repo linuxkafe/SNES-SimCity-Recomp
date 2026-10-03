@@ -1652,14 +1652,65 @@ on the agreement between it and another instrument.**
   dump*, which is exactly what a person debugging a capture wants. **It is not a
   frame number and must not be cited as one.**
 
-### Not fixed here
+### ✅ CLOSED 2026-10-03 (T110) — the derivation is FIXED, not the quoting
 
-It is a one-line change in `scripts/clock-gate.sh` — read `presents.csv` and join
-on the present index instead of parsing the filename — plus a `--self-test` case.
-**It is deliberately not done inside a measurement ticket**, because this project
-has already produced two numbers for one thing twice (`1 430 539` vs `1 430 540`,
-and the `26`/`28`/`30`/`34` prose counts) and the fix needs its own falsification,
-not a drive-by edit inside T109's commit.
+**Both options were available and the derivation was fixed**, because the
+alternative — stop quoting it — leaves a landmine in the most-read file in the
+repository. `clock-gate.sh`'s detector now **joins `presents.csv` on the present
+index** and every frame number it prints is a true frame.
+
+**Falsified in three directions, Deck-native:**
+
+| # | condition | required | measured |
+|---|---|---|---|
+| 1 | the normal path, `presents.csv` present | true frames, joined | `LAST_CHANGE=3367`, `FRAMES_CAPTURED=151` |
+| 2 | **`presents.csv` removed** | **REFUSE, do not fall back to the filename** | `datehash: no presents.csv in …`<br>`Refusing to take the frame number from the filename: that is a PRESENT INDEX and it is one less than the frame (CONF-24).`<br>**exit 3** |
+| 3 | **`presents.csv` present but a capture has no row** | **REFUSE** | `datehash: present 100 has no row in presents.csv` **exit 3** |
+
+Direction 2 is the one that matters and it is the exact shape of the hole: **there
+is deliberately no silent fallback to the old derivation**, because a fallback is
+how this would look fixed while still being wrong. A non-increasing frame is a
+third hard error.
+
+**And the gate's banner now says which number space it is in**, because the whole
+of this conflict is that the two look identical:
+
+```
+  frame numbers below are TRUE FRAMES, joined from presents.csv. The
+  capture filenames are present INDICES and are one less (CONF-24, closed).
+```
+
+**What did NOT change, and was checked rather than assumed:** no verdict moves.
+`make clock` reads `1 distinct date images after f3600` before and after,
+`$0B53 = 076C` (a city, year 1900) before and after, and is **red** before and
+after. `LAST_CHANGE` moves from the present index to the true frame — on the
+6 000-frame run, `f3366` → `f3367` — which is the one-digit correction this
+conflict predicted.
+
+### The three documents that quoted `f3378` as a frame
+
+**`f3378` is a present index. The true frame is `f3379`.** Those three documents
+now say so where the number appears rather than repeating the bare figure:
+
+| document | what it now says |
+|---|---|
+| `README.md` | quotes the number as a **present index** and names `f3379` as the frame |
+| `docs/CAUSE_CLAIMS.md` | same |
+| `docs/ROADMAP.md` | same |
+| `docs/measurements/2026-10-03-t108-present-crc-timeline.md` | carries a correction banner pointing here |
+
+The boundary itself is unchanged and remains exactly where T109 put it: **the
+brightness ramp ends at f3378 and the picture's last change anywhere is f3381.**
+What was wrong was only the label on the number, and it was wrong by one.
+
+### The generalisable half, unchanged
+
+> **An identifier that looks like the thing you want is not the thing you want.**
+
+`present_NNNNNN.ppm` looks like a frame number. `presents.csv` was sitting in the
+same directory the whole time. The fix that actually closes this class is not the
+join — it is **refusing to proceed without the authoritative source**, which is
+what direction 2 above tests.
 
 **The generalisable half, and it is CONF-20's shape a third time:** *an
 identifier that looks like the thing you want is not the thing you want.* The

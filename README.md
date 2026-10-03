@@ -154,7 +154,21 @@ never committed):
 | routines in the manifest | **302** |
 | recompiled ahead of time (`aot_eligible`) | **239** |
 | interpreter-only (`lle_only`) | **63**, holding **512 of 9 803** static instructions (**5.2%**) |
-| distinct AOT symbols emitted into `src/gen/*.c` | **186** |
+| distinct AOT symbols emitted into `src/gen/*.c` | **239** |
+
+**Re-derive all four with `scripts/count-aot-symbols.sh`.** Do not re-derive them
+by grepping: this table previously said **186** under the label *"distinct AOT
+symbols emitted into `src/gen/*.c`"* with no derivation recorded anywhere, and
+three people re-derived **186**, **187** and **559** from it. A number nobody can
+reproduce is not a measurement. The script prints the method next to the numbers,
+and here is what the four figures are:
+
+| figure | what it counts |
+|---|---|
+| **239** | every definition symbol in `src/gen/*.c` carrying the register-state suffix `_MxX`. **This is the row's number.** It agrees, from a different file, with the `aot_eligible` count in `program_manifest.json`. |
+| **186** | the subset of those 239 whose name was auto-derived from the program counter, matching `bank_NN_PCCC_MxX`. It **excludes** 52 symbols named from `recomp/*.cfg` (`City_Update_M1X1`, `MainLoop_M1X1`, `PPU_Bitpack_8EA9_M0X0`, …) and 1 PC-derived symbol without the `bank_NN_` prefix. **Quoting 186 under this row's label was a labelling error, not an off-by-one.** |
+| **187** | 186 **plus** `CODE_00987B_M0X0` — the same PC-derived subset counted with a pattern admitting either prefix. **This is the off-by-one a reviewer reported, and it is fully accounted for.** |
+| **559** | every distinct definition symbol including 320 named and runtime helpers that are not recompiled SNES code at all (`SPC_*`, `LC_LZ5_*`, `RLE_Decompress`, `Scenario_Decompress`, …). This is what a naive "grep all function signatures" returns. |
 
 By function count this is roughly four-fifths native. By *time* it is not, and
 the honest time figure is workload-dependent — it is stated per workload
@@ -1120,13 +1134,37 @@ and the detector derives the frame from the filename
 (`clock-gate.sh:212`) while `presents.csv` sits unread in the same directory.
 **Measured directly**: a 40-frame run with `SCREENSHOT_FROM=0` gives
 `present 0 → frame 1`. **So `LAST_CHANGE` is always `frame − 1`, and the
-"last change f3378" quoted in three documents is f3379.** It changes no verdict
+"last change f3378" quoted in three documents was f3379.** It changes no verdict
 and the gate is still red; **the number should not be quoted as a frame.**
 
-#### Where the rendered date comes from — **NOT ESTABLISHED**, and here is why
+> #### ✅ CLOSED 2026-10-03 (T110) — the derivation is FIXED, not the quoting
+>
+> `clock-gate.sh` now **joins `presents.csv` on the present index**, and every
+> frame number it prints is a true frame. Falsified in three directions,
+> Deck-native: the normal path joins; **`presents.csv` removed → exit 3**; **a
+> capture with no csv row → exit 3**. There is deliberately **no silent fallback**
+> to parsing the filename, because a fallback is how this would look fixed while
+> still being wrong. The gate's banner now states which number space it is in.
+>
+> `f3378` was a present index; the frame is **f3379**. The boundary itself is
+> unchanged: the ramp ends at f3378 and the picture's last change is f3381.
+> `make clock` reads `1 distinct date images after f3600` and is **red** before
+> and after. Full record: `docs/CONFLICTS.md` CONF-24.
 
-**The strongest statement available is a negative one, and it is stronger than
-T107's:** **nothing redraws the date glyphs after the city is built.**
+#### Where the rendered date comes from — **MEASURED, and it is `$0B53`/`$0B55`**
+
+> #### ⚠️ RETRACTED (R-045), 2026-10-03 by T111. What follows was the strongest
+> statement available and **it was wrong.** A poke placed inside the live window
+> and compared frame by frame against a no-poke control **does** move the date:
+> `$0B53` → `$0FA0` renders **`1952 JAN`**, `$0B55` → `$0005` renders
+> **`1900 MAY`**, both within one frame, at f3365. T107's poke was void because
+> it landed at f4260 on a screen bit-identical since f3381. **The display path is
+> intact.** The measurements below survive and are the *mechanism* — the CPU never
+> writes `$2119`, and VRAM changes anyway, because HDMA writes it.
+> Full data: `docs/measurements/2026-10-03-t111-date-display-path.md`.
+
+**The original negative claim, kept so the retraction is legible:**
+**nothing redraws the date glyphs after the city is built.**
 `WLOG_ADDR="2100:437F"` over 3 400 frames, 1 050 742 logged writes:
 
 - **CPU writes to `$2119` (VMDATA) — the only way a CPU puts a byte in VRAM:
@@ -1380,7 +1418,7 @@ is that re-run, not a carry-over:
 | `make test` | deterministic replay (ctest) | **2/2 passed** (`test_deterministic_replay` 1.32 s, `test_display_aspect` 0.00 s) | 0 |
 | `make test-rom` | the picture moves (frames 200–800) | **PASS, 800 frames presented, 257 distinct crc32, peak luma 41.751** | 0 |
 | `make perf` | gross frame-rate floor (5 × 600 frames) | **PASS, median 53.30 fps, spread 2.9%** (52.03 … 53.59) | 0 |
-| `make clock` | **the city actually simulates** | **FAIL — `1 distinct date images after f3600 (last change f3378 of 6000)`**, `$0B53 = 076C` → year 1900. Re-measured 2026-10-03: `scripts/clock-gate.sh` exits **1**, `make clock` exits **2** (make's code for a failed recipe) | **2** via make, **1** via the script |
+| `make clock` | **the city actually simulates** | **FAIL — `1 distinct date images after f3600`**, `$0B53 = 076C` → year 1900. Re-measured 2026-10-03: `scripts/clock-gate.sh` exits **1**, `make clock` exits **2** (make's code for a failed recipe) | **2** via make, **1** via the script |
 | `make check-claims` | no retracted claim asserted without a marker | PASS | 0 |
 | `make check-causes` | every causal assertion carries provenance | PASS | 0 |
 | `make check-causes-self-test` | the guard still fires on the tree it was written for | PASS | 0 |
@@ -1711,6 +1749,33 @@ in the repository.
 ```bash
 git clone --recurse-submodules https://github.com/linuxkafe/SNES-SimCity-Recomp
 cd SNES-SimCity-Recomp
+```
+
+### Step 1 (mandatory): regenerate the AOT code from your own ROM
+
+**`src/gen/` is derived from copyrighted ROM data and is never committed**, so a
+fresh clone has no generated C and **`make build` will fail**:
+
+```
+CMake Error at snesrecomp/runner/runner.cmake:890 (message):
+  /path/to/src/gen is empty -- run `bash tools/regen.sh` with your
+  verified ROM before building.
+```
+
+That is the error, verbatim. Run:
+
+```bash
+bash tools/regen.sh "SimCity (USA).sfc"    # or: --rom /path/to/your/copy.sfc
+```
+
+It checks the ROM against `rom_identity.txt` and writes `src/gen/*.c` plus
+`src/gen/program_manifest.json`. **It needs your own legally-owned copy of the
+ROM**; nothing in this repository can supply one. `cmake --build build --target
+regen` does the same thing if you prefer it through the build system.
+
+### Step 2: build
+
+```bash
 make build
 ```
 
@@ -2171,8 +2236,12 @@ build.
 ## Development
 
 ```bash
-# Regenerate from ROM
+# Regenerate from ROM -- MANDATORY before the first build of a fresh clone;
+# src/gen/ is never committed. See "Building" above.
 bash tools/regen.sh "SimCity (USA).sfc"
+
+# Re-derive the "how much is native" numbers
+scripts/count-aot-symbols.sh
 
 # Run tests
 cd build && ctest --output-on-failure

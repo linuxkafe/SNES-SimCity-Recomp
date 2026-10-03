@@ -182,6 +182,8 @@ printf "  binary  : %s\n" "$EXE"
 printf "  rom     : %s\n" "$ROM"
 printf "  script  : scripts/d_city.script\n"
 printf "  frames  : %d (city live from ~%d)\n" "$FRAMES" "$CITY_FRAME"
+printf "  frame numbers below are TRUE FRAMES, joined from presents.csv. The\n"
+printf "  capture filenames are present INDICES and are one less (CONF-24, closed).\n"
 printf "  need    : >= %s distinct date images after f%d\n\n" "$MIN_ADVANCE" "$CITY_FRAME"
 
 # ---------------------------------------------------------------------------
@@ -289,12 +291,54 @@ def inidisp(g, b):
     return out
 
 def load(d):
+    """Read every captured crop, labelled with its TRUE FRAME.
+
+    CONF-24, closed. SNESRECOMP_SCREENSHOT_FROM=0 makes the host name files
+    present_NNNNNN.ppm where NNNNNN is a counter over CAPTURED PRESENTS, not a
+    frame. presents.csv, written into the same directory by the same run, carries
+    the true frame in its second column. This used to parse the filename and
+    call the result a frame, which made every number the gate printed one too
+    small - LAST_CHANGE was frame-1, always - while the csv that would have said
+    so sat unread in the same directory.
+
+    The join is on the present index and it is CHECKED, in both directions:
+    a capture with no csv row, a non-increasing frame, or no csv at all is a
+    hard error. A silent fallback to the old derivation is the one thing that
+    would make this look fixed while still being wrong, so there isn't one.
+    """
+    frame_of = {}
+    csv_path = os.path.join(d, "presents.csv")
+    if not os.path.exists(csv_path):
+        sys.stderr.write(
+            "datehash: no presents.csv in %s\n"
+            "          Refusing to take the frame number from the filename: that is\n"
+            "          a PRESENT INDEX and it is one less than the frame (CONF-24).\n" % d)
+        sys.exit(3)
+    with open(csv_path) as fh:
+        fh.readline()
+        for line in fh:
+            c = line.strip().split(",")
+            if len(c) >= 2 and c[0].strip().isdigit() and c[1].strip().isdigit():
+                frame_of[int(c[0])] = int(c[1])
     seen = []
+    last = 0
     for f in sorted(glob.glob(os.path.join(d, "*.ppm"))):
         g = read_crop(f)
         if g is None:
             continue
-        seen.append((int(os.path.basename(f).split("_")[-1].split(".")[0]), g))
+        idx = int(os.path.basename(f).split("_")[-1].split(".")[0])
+        if idx not in frame_of:
+            sys.stderr.write("datehash: present %d has no row in presents.csv\n" % idx)
+            sys.exit(3)
+        frame = frame_of[idx]
+        if frame <= last:
+            sys.stderr.write("datehash: frames not strictly increasing at %d\n" % frame)
+            sys.exit(3)
+        last = frame
+        seen.append((frame, g))
+    if not seen:
+        sys.stderr.write("datehash: no captures in %s\n" % d)
+        sys.exit(3)
     return seen
 
 def count_states(seen):

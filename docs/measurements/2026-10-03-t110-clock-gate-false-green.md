@@ -462,3 +462,106 @@ executions, C-041, both tiers, two machines). In their place the message now
 separates what is measured from what is not, and states plainly that **whether
 the rendered date reads `$0B51` at all was open** — which T111 has now answered,
 one commit later.
+
+---
+
+## 7. The four cheap wins, each verified rather than believed
+
+### 7a. `make build` on a clean clone — **CONFIRMED BROKEN, now fixed**
+
+The `clock-2026-10-03b` review claimed this and it is **true**. Verified the way
+the review's own rubric should have, with `git archive` rather than `cp -r .`
+(1.7 GB of stale build dirs is not a clean checkout), and with the submodule
+populated because `git archive` omits it:
+
+```
+$ git archive HEAD | tar -x -C /tmp/opencode/reloc      # + snesrecomp/ copied in
+$ cd /tmp/opencode/reloc && make build
+CMake Error at snesrecomp/runner/runner.cmake:890 (message):
+  /tmp/opencode/reloc/src/gen is empty -- run `bash tools/regen.sh` with your
+  verified ROM before building.
+make: *** [Makefile:28: build] Error 1
+BUILD_EXIT=2
+```
+
+`src/gen/` is gitignored (`.gitignore:12`) because it is derived from
+copyrighted ROM data, so **every fresh clone starts without it**. The build
+system says exactly what to do; the README's *Building* section did not, and put
+`regen.sh` under *Development* with no indication it was a prerequisite. It is
+the first thing any new person tries.
+
+**Fixed**: *Building* is now two numbered steps, step 1 mandatory, with the
+verbatim error message quoted so a person who hits it recognises it.
+
+### 7b. "186 distinct AOT symbols" — the true number is **239**, and 187 is fully accounted for
+
+No derivation method was recorded anywhere, so three people re-derived three
+numbers. All three are now explained by one script,
+**`scripts/count-aot-symbols.sh`**, which prints the method next to the numbers:
+
+```
+== distinct AOT symbols emitted into src/gen/*.c ==
+  A. every _MxX definition                        : 239   <- the README's figure
+  B. of those, bank_NN_PCCC_MxX (PC auto-named)   : 186
+  C. of those, PC-derived but not bank_-prefixed  : 1   CODE_00987B_M0X0
+  D. of those, named from recomp/*.cfg            : 52
+  E. every distinct definition symbol (incl. 320 non-AOT helpers): 559
+
+  B + C = 187, which is what a reviewer counting 'the PC-derived ones'
+  with either prefix gets. That is the reported off-by-one.
+
+== cross-check, from src/gen/program_manifest.json (a different file) ==
+  nodes with disposition aot_eligible             : 239
+  A (from src/gen/*.c)                            : 239
+  AGREE. Two files, one number, derived two ways.
+```
+
+- **239** is the true value of the row *"distinct AOT symbols emitted into
+  `src/gen/*.c`"*, and it independently agrees with the manifest row above it.
+- **186** was the PC-auto-named subset only, excluding 52 cfg-named symbols and
+  one PC-derived symbol. **Quoting it under that label was a labelling error, not
+  an off-by-one**, and the README said so.
+- **187 is `CODE_00987B_M0X0`** — the one PC-derived symbol that lacks the
+  `bank_NN_` prefix. **The reported off-by-one is fully accounted for.**
+- **559** is every definition symbol including 320 non-AOT helpers, which is what
+  a naive signature grep returns.
+
+The script also carries a note earned the hard way: `[[:digit:]]{2}` matched **5
+of 186** names on this grep while `[0-9]{2}` matched all 186. **A pattern that
+silently under-matches is worse than one that fails to compile**, and this one
+printed a confident number twice before it was caught.
+
+### 7c. The stale FAIL paragraph — rewritten (see §6)
+
+*"separated AT THE INSTRUCTION, not at the symptom"* and the already-done
+*"next measurement"* are both gone, replaced by what is measured and what is not.
+
+### 7d. CONF-24 — the derivation is FIXED, not the quoting
+
+Both options were open. **The derivation was fixed**: `clock-gate.sh` joins
+`presents.csv` on the present index, and every frame number it prints is a true
+frame. Falsified in three directions — the normal path joins; **`presents.csv`
+removed → exit 3**; **a capture with no csv row → exit 3** — and there is
+deliberately **no silent fallback to the filename**, because a fallback is how
+this would look fixed while still being wrong. `f3378` was a present index; the
+frame is **f3379**. No verdict moves.
+
+## 8. An unreproduced transient, recorded rather than dropped
+
+One invocation of `make check-claims` printed:
+
+```
+  VIOLATION docs/RE_CITY_FREEZE.md:148  R-002 (refuted) asserted without a retraction marker
+  RESULT: FAIL
+```
+
+**`docs/RE_CITY_FREEZE.md` is unmodified in this ticket** (`git diff --stat` on it
+is empty), the line is a table row whose retraction note quotes the refuted
+phrase in a cell, and the violation **does not reproduce**: four subsequent runs
+— three on the working tree, one with the tree stashed to its pristine state —
+all printed `RESULT: PASS`.
+
+**Not established.** No mechanism was found, and no fix is offered, because a
+guard fix proposed without a reproduction is exactly the `af08ff7` shape this
+project exists to avoid. It is written down so that if it recurs, the next person
+knows it has been seen once and did not survive inspection.

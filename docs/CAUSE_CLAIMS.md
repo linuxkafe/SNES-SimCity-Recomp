@@ -476,7 +476,7 @@ better-posed question.
 | **last change** | **f3381** |
 | **identical presents after it** | **1 619** |
 | the burst | a 106-frame gap, then **17 consecutive changes, f3365 → f3381**, then silence |
-| `make clock`'s own date crop | last change at **f3378** — **inside** the burst |
+| `make clock`'s own date crop | last change at present index **f3378** = frame **f3379** — **inside** the burst |
 | C-055's `+96` updater, picture side | f1302, 1307, 1398, 1403, 1494, 1499, 1590, 1595, 1686, 1691 — period **exactly 96**, five times. C-055's **writer** stops at f1685; the **picture** stops showing it at f1691 — **two instruments, within 6 frames** |
 | the dense run | f2637–f3259, **ends on f3259** — the one and only write of the city-state block (C-052/C-053/C-058). **Animation and initialiser stop on the same frame** |
 
