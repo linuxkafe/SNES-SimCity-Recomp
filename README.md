@@ -246,6 +246,75 @@ The rest of this section is the evidence:
 | **Our build's clock** | **DOES NOT RUN** [MEASURED, Deck-native] — the tick instruction executes **0** times in **14 000** frames; bank `$03` executes **nothing at all** in f3272–f13080; the city-state block is written **once** at f3259 and **not once in the following 10 741 frames** |
 | **Why our simulation does not advance** | **OPEN** — no cause is asserted anywhere in this repository |
 
+### How far the search has actually got
+
+The search is **not** a list of guesses; it is a chain in which each link has been
+measured and several have been retracted. Read this before reading any narrative
+elsewhere. **Every claim below names the file that carries the full evidence**, and
+the retraction ledger is the source of truth where this prose and it disagree.
+
+**What is established [MEASURED, Deck-native]:**
+
+- **The display path is intact, and it is HDMA.** Poking `$0B53` (year) renders
+  `1952`; poking `$0B55` (month) renders `1900 MAY`, 100 px changed. `$0B51` is only
+  the counter — poking it changes **0 of 151 frames, bit-identical**. So the HUD
+  reads the *derived* words, and **C-006 is one bug, not two** (R-045 retracted the
+  claim that no live path to the screen exists — HDMA writes VRAM, which is exactly
+  why no CPU `$2119` write ever appears).
+- **`$0B53`/`$0B55` are written once**, around f3259 by the new-city routine
+  (`LDA #$076C / STA $0B53`, `LDA #$0001 / STA $0B55`), and **never again** — while
+  HDMA keeps copying the same bytes forever. Hence 1 distinct date image.
+- **There is no year transform.** `$0B53` **is** a plain binary-decimal year: the
+  game's own milestone table at `$03:C4DC` reads `1900 1900 1900 1901 1901 1905`
+  and `$03:C490 CMP ($C4DC),Y` compares `$0B53` against it **16-bit** (R-047
+  retracted my "the HUD does not render the raw value" premise). What `1952` is
+  from `$0FA0` is **NOT ESTABLISHED**.
+- **Bank `$03` stops executing at f3271** and is the code that would derive the date
+  words. In the **peer** it stays alive: `$03:8222` spans **f3068–f8881** (56 logged
+  writes, the tail of the COP/RTI dispatcher) and `$03:8029` — the tick itself —
+  spans **f3857–f8990** (54).
+- **Our per-frame engine is NOT broken.** In f3400–f9000 it executes **1228 distinct
+  PCs** across banks `$00`/`$01`, ~40.4M steps, at a control rate of
+  **17 483 747 / 9000 = 1942.6 per frame** against a known-good 1929.9/f (**+0.66%**).
+  The divergence is **entirely** that our bank `$03` never re-enters after the
+  one-shot city-creation phase.
+- **`$0012` is a one-shot latch, not the gate** (R-046). Written **exactly twice** in
+  both builds and never cleared in either: f0 and f3271 in ours, f0 and **f2998** in
+  the peer — where bank `$03` keeps running. **A flag that never returns to 0 cannot
+  gate an action that must repeat.** The peer killed this hypothesis.
+- **`$00:8061` `Init_Hardware` runs once and its `RTS` at `$00:80B1` runs zero
+  times.** The last instruction before the stall is `$00:80AD JSL $018907` at f3340 —
+  but `$018907` **completes**: it is city initialisation (a finite 1024-iteration loop
+  at `$01F1E4-$01F1EA`, then HDMA setup). Control **bypasses** `$80B1`; it is not
+  lost. `S` is **not restored** (`$00AF` written once, never again).
+- **The stack-corruption hypothesis is dead.** `$00:86A4` is **OBSERVED** (reached at
+  `IPC=00821E`, COP dispatch, 862 118 write lines) and it writes `$7E:2000-$21FF` —
+  the stack page `$01xx-$02xx` is **untouched**.
+- **`$00:804D` (`MainLoop`) is called by nobody.** JSR/JMP abs, JSL/JML long, and all
+  four indirect forms: **zero hits in 512 KB**. It is reached by **fall-through once**
+  from the boot routine at `$00:8000`. It is not a per-frame loop in either build.
+
+**What remains OPEN, and it is narrower than it was:**
+
+> **Why does `$03:8222` execute in the peer and never in ours?** The peer is the
+> control that makes this decisive, and **its own evidence is not yet established** —
+> every peer write-watch to date covered only `$0010-$001F` or `$0B51-$0B52`, while
+> `$03:8222` writes `STZ $0E15`. **No peer watch has ever covered that address.** A
+> `$0E15` peer watch is the single next measurement.
+>
+> **OPEN, and not answered by any run in this tree:** the 273-frame timing difference
+> (the peer latches `$0012` at f2998, we do at f3271) — whether that is the gate or
+> merely a correlate; why `$03:8222` logs only 56 writes across 5814 frames in the
+> peer; whether `$03:8007` is the city-creation routine the peer takes and we do not;
+> and why `S` is never restored.
+
+**Where the evidence lives:** `docs/measurements/2026-10-03-t112-0012-is-a-latch-not-a-gate.md`,
+`…-t113-init-hardware-stalls-at-jsl-018907.md`,
+`…-t113-peer-bank03-entry.md`, `…-t114-018907-never-returns-to-80b1.md`,
+`…-t115-perframe-engine-ours.md`, and `docs/RE_CITY_FREEZE.md` for the full history
+including every retracted claim and its refutation.
+
+
 ![SimCity title screen](docs/screenshots/title.png)
 
 ⚠️ **Not deliverable.** Our date stays `1900 JAN` forever — the seasons never
