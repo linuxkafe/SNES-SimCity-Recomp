@@ -19,7 +19,7 @@ supply; the ROM and any ripped assets are never included. Built on the
 > 0 is that **no criterion may be satisfied by a claim — only by a command that
 > exits 0**.
 >
-> This project has retracted **34** claims out of **42** ledger rows (computed,
+> This project has retracted **35** claims out of **43** ledger rows (computed,
 > `make retraction-count` — never a hand-written number; the other 8 rows are 6
 > `superseded` and 2 `invalidated-premise`, which is not a retraction). Where an
 > old claim is quoted below it is labelled **RETRACTED** and is printed as
@@ -1019,9 +1019,19 @@ something already committed:
   two independent instruments agree on where something stopped.**
 
 **And `make clock` independently reports the date crop's last change at f3378** —
-which lands **inside** the f3365–f3381 burst. **Two instruments — a
-full-framebuffer `crc32` per present, and the gate's own date-crop hash — agree
-on the same boundary to within 3 frames.**
+which lands **inside** the f3365–f3381 burst.
+
+> ### ⚠️⚠️ **RETRACTED by T109: "two instruments, one boundary, within 3 frames" is WRONG.**
+> It is **two different events, in two different places on the screen, two frames
+> apart.** The gate's crop is **x 55–125, y 2–21**. The last change anywhere on
+> screen is at **f3381** and it is at **x 165–178, y 124–136** — **outside the
+> crop**, and it is **the tile cursor being drawn**. The crop's own last change is
+> **f3379**, and it is **the last frame of the game's own brightness fade**
+> (§T109 below). The gate's header says the crop "covers the date and nothing
+> else", so the cursor is invisible to it **by construction**. **Two instruments
+> reporting the last thing that happened inside their own rectangle is not two
+> instruments agreeing on one boundary.** See
+> [`2026-10-03-t109-seventeen-pictures.md`](docs/measurements/2026-10-03-t109-seventeen-pictures.md).
 
 **A correction to T107's reasoning, carried here because T107's conclusion is
 still live and one of its two legs was void:**
@@ -1038,6 +1048,125 @@ be carried.** **[Derived, Deck-native, from two measurements already committed]*
 **Named as a lead for C-006 with no claim attached.** This says *when* the picture
 stops and that the stopping is abrupt. **It does not say why**, it is **not** a
 cause, and C-006 stays **OPEN**.
+
+### T109: the seventeen pictures — **a cursor**, and a fade, and one wrong number
+
+**Deck-native**, `build-instr`, `scripts/d_city.script`, four runs, **every one
+with its own `COUNT_PC=0x009311` control**; the three 3 400-frame runs read it
+**byte-identically at 6 804 046** = 2 001.2/frame, inside the established
+1 929.9–2 007.9 band. **Host-only: none.** **[MEASURED, Deck-native]** —
+[`docs/measurements/2026-10-03-t109-seventeen-pictures.md`](docs/measurements/2026-10-03-t109-seventeen-pictures.md).
+
+**`SCREENSHOT_DIR` over f3360–f3390, 31 presents, pairwise-diffed pixel by pixel:**
+
+| frame | changed px | bounding box | what |
+|---|---|---|---|
+| f3360–f3364 | — | — | **`crc32 = 00000000`, `luma = 0.000` — the frame is entirely black** |
+| f3365 | 27 017 | x 40–295, y 0–223 | **the city appears**, `luma` 0 → 3.591 |
+| f3366 / f3367 | 27 017 / 53 619 | x 40–295, y 0–223 | `luma` → 7.278 → 17.476 |
+| f3368 … f3378 | **52 215 each**, 11 frames | x 48–295, y 7–223 | `luma` 23.3 → 82.4, **+5.9/frame** |
+| **f3379** | 52 215 | x 48–295, y 7–223 | `luma` → 88.627 — **last change inside the date crop** |
+| **f3380** | **0** | — | **bit-identical to f3379.** `crc32 5509053c` at both |
+| **f3381** | **120** | **x 165–178, y 124–136** | **the tile cursor is drawn** |
+| f3382 → f3390 | **0** | — | identical, and identical for the remaining 1 619 presents |
+
+> **The city's last visible act before the framebuffer goes bit-identical for
+> 1 619 presents is: the guest draws its tile cursor, once, at f3381.** **Not the
+> date. Not the money. Not the RCI toolbar. A cursor** — a 14×13 yellow reticle
+> with black corners over the empty-terrain dither, with the tool palette reading
+> `Bulldoze / Area / $ 1`. And **T108's "17 consecutive changes" is 16 changes
+> over 17 frames**, because f3380 changes nothing.
+
+**The 15-frame burst is ONE REGISTER'S BRIGHTNESS NIBBLE, measured at the PPU**
+(`WLOG_ADDR="2100:213F"`, bank `$00` lines only):
+
+| frames | `$2100` = INIDISP |
+|---|---|
+| **f3258 – f3362** | **`$038F` — bit 7 set: the screen is FORCED BLANK** |
+| f3363 … f3378 | **`$0300` → `$030F`, one step per frame: brightness 0 → 15** |
+| f3379 onward | `$030F`, never written again |
+
+**The `luma` column tracks it frame for frame.** And **the same register is ramped
+seven times in one run** — f300→f505 up, f506→f520 down, f565→f580 up,
+f1132→f1146 down, f1148→f1163 up, f3244→f3258 down, **f3363→f3378 up**.
+**Menus fade the same way the city does.**
+
+> ### ⚠️ So `make clock`'s "last change" is **the end of a fade, not a date advance.**
+> Hashing the gate's own crop over the 31 pictures: it changes on **every** frame
+> f3365…f3379 and **never again**. **The date glyphs did not move; the light
+> changed.**
+>
+> **This does not weaken the gate and nothing here weakens it.** The gate requires
+> ≥2 distinct date images **after f3600**, and there are none — the correct
+> verdict for a frozen city. **What is wrong is the number the gate prints.**
+
+**⚠️ CONF-24: every frame number `make clock` prints is off by one.**
+`clock-gate.sh` captures with `SCREENSHOT_FROM=0`; `SNESRECOMP_SCREENSHOT_DIR`
+names files `present_NNNNNN.ppm` where **NNNNNN is a window index, not a frame**;
+and the detector derives the frame from the filename
+(`clock-gate.sh:212`) while `presents.csv` sits unread in the same directory.
+**Measured directly**: a 40-frame run with `SCREENSHOT_FROM=0` gives
+`present 0 → frame 1`. **So `LAST_CHANGE` is always `frame − 1`, and the
+"last change f3378" quoted in three documents is f3379.** It changes no verdict
+and the gate is still red; **the number should not be quoted as a frame.**
+
+#### Where the rendered date comes from — **NOT ESTABLISHED**, and here is why
+
+**The strongest statement available is a negative one, and it is stronger than
+T107's:** **nothing redraws the date glyphs after the city is built.**
+`WLOG_ADDR="2100:437F"` over 3 400 frames, 1 050 742 logged writes:
+
+- **CPU writes to `$2119` (VMDATA) — the only way a CPU puts a byte in VRAM:
+  2 082, and every one is to bank `$7E`, i.e. WRAM. ZERO to bank `$00`.**
+- HDMA/DMA channel registers `$4300-$4306` and `$4310-$4315` (bank `$00`):
+  **thousands of writes per run.** `$4304/$4305` and `$4314/$4315` exist only on
+  HDMA channels.
+- The steady state is **~29 PPU register writes per frame and not one VRAM data
+  write.**
+
+**So VRAM is filled by HDMA on channels 0 and 1, once, during city creation.**
+There is no live path from `$0B53` to the screen for a poke to travel, which is
+the real support for "the rendered date is not read live from `$0B53`" — **and it
+is a different argument from the one T107 gave.**
+
+> **T107's remaining leg does not survive either.** *"A poke of `$0FA0` into the
+> year field at f4260 left the picture unchanged"* — **the picture's last change
+> is f3381 and the first poke is f4025.** A screen that stopped moving before the
+> poke cannot report that the poke did nothing. **The conclusion may be true;
+> that evidence does not support it and this file does not carry it as support.**
+
+**The next step is one run and it is fully specified:** HDMA channel 0's table
+pointer is `$4302/$4303` and channel 1's is `$4312/$4313`, both written every
+frame, so `WLOG_ADDR="4300:4315"` names the table's WRAM address; then
+`SNESRECOMP_WRAM_DUMP_AT=<frame>` (**decimal** — CONF-22) reads the table, whose
+entries are `header` (bits 0-6 line count, 0 = 256; bit 5 indirect; bit 7
+do-not-repeat) plus `line_count+1` data bytes. **The entry covering the HUD
+scanlines names the source offset. Not done here, and not guessed.**
+
+#### Three traps this section paid for, all of them instrument-shaped
+
+1. **The 32 768-write "VRAM upload" at f3271–f3277 is a DELAY LOOP.** ~4 822
+   writes of **`$0000` to `$00:2118`** per frame for seven frames, **32 768 in
+   total, `Y` counting `$8000 → $0000`**. The ROM agrees (LoROM offset
+   `0x00690`): `LDY #$8000 / STX $2118 / DEY / BNE $869D`. **32 768 × 2 bytes =
+   65 536 = exactly the size of VRAM** — a write census alone would have reported
+   *"a full 64 KB VRAM upload on the frame bank `$03` dies"*, which is a very good
+   story and completely false. **Third instance of C-054's / R-034's shape: a loop
+   that writes N times is not a transfer.** The only real work there is `$00:86AD`
+   clearing two 64-byte WRAM shadow blocks to `$80`.
+2. **`WLOG_ADDR` filters on the 16-bit address and IGNORES THE BANK**
+   (`cpu_state.c:157-159`), so a `2100:437F` range also catches the game's
+   **WRAM shadow of the PPU registers at `$7E:2100-$213F`**, written every frame.
+   Read carelessly, `7E:2100=0F` is a beautiful `INIDISP = $0F`; it is **a byte
+   written to WRAM**. **Every register claim above is from bank `$00` lines
+   only.** CONF-20's shape again: a filter that matches a string without matching
+   the thing the string is about.
+3. **The positive control read `0`** on the 40-frame run. **Legitimately**:
+   `scripts/d_city.script` begins `wait 250`, so `$00:9311` has not been reached.
+   Falsified by measuring the ramp rather than asserting it — **f40 → 0, f200 →
+   67 382, f400 → 544 150, f3 300 → 6 626 029, f3 400 → 6 804 046.** **So the
+   control has no known-good value below ~f250**, and the rule is *"reproduce the
+   known-good value **or explain the difference**"* — not *"it must be non-zero"*.
 
 #### Three discrepancies T108 did **not** resolve — recorded, not smoothed
 
@@ -1060,7 +1189,10 @@ cause, and C-006 stays **OPEN**.
    separate invocation printed section 3's heading as `… disagrees with the ledger
    (42)` where it now consistently prints `(34)`. **Eight subsequent runs — five
    with the file untracked, one staged, two earlier — all printed `census: 42
-   rows = 34 refuted`, heading `(34)`, `RESULT: PASS`, no violations.** **So it
+   rows = 34 refuted`, heading `(34)`, `RESULT: PASS`, no violations.** (Those are
+   the numbers the guard **printed at the time** — the ledger now holds 43 rows /
+   35 refuted, which the same command prints; **a historical transcript is not
+   re-baselined**, and that is why this one still says 34.) **So it
    does not reproduce, no cause was established, and none is offered**; the
    candidate (a partial or stale read of the ledger or of a file in scope) is
    **UNVERIFIED**. **Filed rather than dismissed because the guard that produced
@@ -1244,7 +1376,7 @@ is that re-run, not a carry-over:
 | `make review-check` | the 2026-10-02 review's BLOCKERs are closed | **PASS — 17 confirmed, 0 refuted**; 3 ROM-dependent checks skipped (no `--rom`) | 0 |
 | `make review-check-c041` | the C-041 review's claims reproduce | **PASS (bounded) — 26 confirmed, 0 refuted**; it refuses to total, and rubric **E-04 stays UNVERIFIED** | 0 |
 | `make clock-self-test` | the clock detector still sees a live screen | PASS — 16 distinct date images over 1 200 frames, last change f1163 | 0 |
-| `make retraction-count` | the retraction count, computed | **42 rows = 34 refuted + 6 superseded + 2 invalidated-premise** | 0 |
+| `make retraction-count` | the retraction count, computed | **43 rows = 35 refuted + 6 superseded + 2 invalidated-premise** | 0 |
 
 **⚠️ Read the two PASS rows at the top of that table with the preamble above in
 hand.** `make check-claims` and `make check-causes` **both passed on a 0-byte

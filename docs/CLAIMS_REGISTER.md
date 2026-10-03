@@ -868,4 +868,5 @@ under "what this does NOT establish". T105 traces X to **`$8DF3`** over 36 340
 strictly monotonic iterations. **`$14FF` was a `WLOG_ADDR` 16-bit range limit,
 not a property of the loop** — an instrument ceiling presented as a bound.
 
-Ledger: **42 rows, 34 refuted** (R-040, R-041, R-042 added by T106).
+Ledger: **43 rows, 35 refuted** (R-040, R-041, R-042 added by T106; **R-043 by
+T109**).

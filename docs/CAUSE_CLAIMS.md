@@ -508,3 +508,102 @@ relationship between the two has never been examined.**
 measuring a display path rather than the simulation** — which does **not**
 weaken the gate, it *re-scopes* what the gate proves. **That is a claim to be
 measured, not asserted, and nothing in this file asserts it.**
+
+---
+
+## T109 — the freeze described from the pictures, and one T108 reading retracted
+
+**Deck-native**, `scripts/d_city.script`, four runs, every one carrying its own
+`COUNT_PC=0x009311` control; the three 3 400-frame runs read it
+**byte-identically at 6 804 046** = **2 001.2/frame**, inside the established
+1 929.9–2 007.9 band. Transcript:
+`docs/measurements/2026-10-03-t109-seventeen-pictures.md`.
+
+### The city's last visible act is a cursor
+
+**MEASURED (Deck-native).** `SCREENSHOT_DIR` over f3360–f3390, 31 presents,
+pairwise-diffed pixel by pixel:
+
+| | |
+|---|---|
+| f3360–f3364 | **`crc32 = 00000000`, `luma = 0.000` — entirely black** |
+| f3365 → f3379 | the city appears and **fades up**: 52 215 pixels change every frame for 11 consecutive frames, `luma` **+5.9/frame**, constant bbox x 48–295 / y 7–223 |
+| f3379 | `luma` 88.627 — **the last change inside the gate's date crop** |
+| **f3380** | **0 changed pixels. Bit-identical to f3379** |
+| **f3381** | **120 pixels, bbox x 165–178, y 124–136** — a **14×13 yellow reticle with black corners** appears over empty-terrain dither. **The tile cursor**, with the tool palette reading `Bulldoze / Area / $ 1` |
+| f3382 → f3390 and on | **0.** Identical for the remaining **1 619** presents |
+
+**Not the date, not the money, not the RCI toolbar. A cursor, drawn once.**
+
+### The fade is `$2100`'s brightness nibble — one register, one byte
+
+**MEASURED (Deck-native), `WLOG_ADDR="2100:213F"`, bank `$00` lines only:**
+
+| frames | `$2100` = INIDISP |
+|---|---|
+| **f3258 – f3362** | **`$038F`, bit 7 set — the screen is FORCED BLANK** |
+| **f3363 → f3378** | **`$0300` → `$030F`, one step per frame** (brightness 0 → 15) |
+| f3379 onward | never written again |
+
+**The same register is ramped seven times in the run** (f300, f506, f565, f1132,
+f1148, f3244, f3363). **Menus fade the way the city does.**
+
+> **MEASURED (Deck-native): therefore the date crop's "last change" is the end
+> of a fade.** Hashing the
+> gate's own rectangle over the 31 pictures: it changes on **every** frame
+> f3365…f3379 and **never again**. **The date glyphs did not move; the light
+> changed.** This does **not** weaken the gate — it requires ≥2 distinct date
+> images after f3600 and there are none — but the number it *prints* is a fade
+> boundary presented as a date boundary, and it is off by one (CONF-24).
+
+### ⚠️ RETRACTED: "two instruments, one boundary, within 3 frames"
+
+T108 §2. **Two different events, in two different rectangles, two frames apart.**
+The crop is **x 55–125, y 2–21**; the last change anywhere is at **x 165–178** —
+**outside it**, and it is the cursor. **The gate's own header says the crop
+"covers the date and nothing else", so the cursor is invisible to it by
+construction.** Two instruments reporting the last thing inside their own
+rectangle is not agreement. **What survives:** the freeze is a short,
+frame-resolved event at the end of a fade. **What does not:** the word "agree",
+and the inference that the crop boundary and the full-framebuffer boundary are
+one thing.
+
+### Where the rendered date comes from: a stronger negative, and the question still OPEN
+
+**MEASURED (Deck-native), `WLOG_ADDR="2100:437F"`, 3 400 frames, 1 050 742 logged
+writes:**
+
+- **CPU writes to `$2119` (VMDATA): 2 082, every one to bank `$7E` (WRAM). ZERO to
+  bank `$00`.** The CPU **never writes the VRAM data port once in 3 400 frames.**
+- HDMA/DMA registers `$4300-$4306` and `$4310-$4315` (bank `$00`): thousands of
+  writes; `$4304/$4305` and `$4314/$4315` exist only on HDMA channels.
+- Steady state f3355–f3390: **~29 PPU register writes per frame, not one VRAM data
+  write.**
+
+**So VRAM is filled by HDMA on channels 0 and 1 during city creation, and the
+date glyphs are never rewritten.** **That is the support for "the rendered date is
+not read live from `$0B53`"** — and it is a *different argument* from T107's.
+
+> **T107's remaining leg does not survive.** *"A poke of `$0FA0` into the year
+> field at f4260 left the picture unchanged"* — **the picture's last change is
+> f3381 and the first poke is f4025.** A screen that stopped before the poke
+> cannot report the poke did nothing. **The conclusion may be true; that evidence
+> does not support it.**
+
+**STILL OPEN, and named as such: the specific WRAM/ROM source of the date glyphs
+is not established.** The next measurement is one run —
+`WLOG_ADDR="4300:4315"` names HDMA channel 0/1's table pointer, and
+`WRAM_DUMP_AT=<decimal frame>` reads the table; its entries name the source
+offset per scanline. **No cause is asserted and none is implied.**
+
+### Two more retractions-by-near-miss, recorded because they nearly were claims
+
+1. **The 32 768-write "64 KB VRAM upload" at f3271–f3277 is a DELAY LOOP.**
+   `LDY #$8000 / STX $2118 / DEY / BNE $869D` at `$00:8690` (LoROM `0x00690`),
+   writing **`$0000`** 32 768 times — and **32 768 × 2 bytes = 65 536 = exactly
+   the size of VRAM.** **Third instance of C-054's / R-034's shape: a loop that
+   writes N times is not a transfer.**
+2. **`WLOG_ADDR` ignores the bank** (`cpu_state.c:157-159`), so `2100:437F` also
+   catches the game's **WRAM shadow of the PPU registers** at `$7E:2100-$213F`.
+   `7E:2100=0F` is **not** `INIDISP`. **Every register claim above is from bank
+   `$00` lines only.**

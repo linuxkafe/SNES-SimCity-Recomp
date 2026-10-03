@@ -1491,3 +1491,76 @@ quoted from exists in any meaningful sense.**
 - **No claim is made about why the commit's own gate output was pasted as green.**
   The output in `5cbf5fd`'s message was **true when it was run** — that is the
   finding. The gates were not wrong. **The file was.**
+---
+
+## CONF-24 · severity MEDIUM · `clock-gate.sh` prints **present indices** as frame numbers — every frame number it reports is one too small
+
+**The conflict, measured 2026-10-03 (T109).** `clock-gate.sh` captures its
+screenshots with `SNESRECOMP_SCREENSHOT_FROM=0` (`clock-gate.sh:161-162`), and
+`SNESRECOMP_SCREENSHOT_DIR` names the files **`present_NNNNNN.ppm`** where
+`NNNNNN` is a **counter over captured presents** (`host_main.c:1663-1665`) — it
+is *not* the frame. The detector then derives the frame from the filename:
+
+```python
+# scripts/clock-gate.sh:212
+frame = int(os.path.basename(f).split("_")[-1].split(".")[0])
+```
+
+**`presents.csv` is written into the same directory and carries the true frame in
+its second column. Nothing reads it.**
+
+**Measured directly, Deck-native, 40 frames, `SCREENSHOT_FROM=0`, own positive
+control carried:**
+
+```
+present,frame,alpha,crc32,luma
+0,1,1.0000,00000000,0.000
+1,2,1.0000,00000000,0.000
+...
+39,40,1.0000,00000000,0.000
+```
+
+**`present 0` is frame 1. `LAST_CHANGE` is therefore `frame − 1`, always.**
+Cross-checked against an independent measurement of the same window: T109 hashed
+the gate's own crop over its own pictures and got a last crop change at **f3379**;
+the gate prints **3378**.
+
+### Why it matters more than an off-by-one
+
+**Because three documents quote the number as a frame, and T108 built a finding
+on the agreement between it and another instrument.**
+
+- `README.md`, `docs/CAUSE_CLAIMS.md`, `docs/ROADMAP.md` and
+  `docs/measurements/2026-10-03-t108-present-crc-timeline.md` all carry
+  *"last change f3378"*.
+- T108 §2 turned that into *"two instruments, one boundary, within 3 frames"* —
+  **and T109 refuted the finding itself on independent grounds** (the two
+  instruments measure different rectangles; see the T109 measurement file). **So
+  the off-by-one did not cause a wrong conclusion here — but it was one
+  un-rechecked digit away from doing so, and the guard that would have caught it
+  is a `grep`.**
+
+### What it does *not* change
+
+- **No verdict moves.** `CITY_FRAME = 3600` becomes 3 601, which is still far from
+  both boundaries; the gate still requires ≥2 distinct date images after it and
+  still finds 1. **`make clock` is still red, and still must be.**
+- **`LAST_CHANGE` is still a useful diagnostic** — it is the last change *in the
+  dump*, which is exactly what a person debugging a capture wants. **It is not a
+  frame number and must not be cited as one.**
+
+### Not fixed here
+
+It is a one-line change in `scripts/clock-gate.sh` — read `presents.csv` and join
+on the present index instead of parsing the filename — plus a `--self-test` case.
+**It is deliberately not done inside a measurement ticket**, because this project
+has already produced two numbers for one thing twice (`1 430 539` vs `1 430 540`,
+and the `26`/`28`/`30`/`34` prose counts) and the fix needs its own falsification,
+not a drive-by edit inside T109's commit.
+
+**The generalisable half, and it is CONF-20's shape a third time:** *an
+identifier that looks like the thing you want is not the thing you want.* The
+filename looks like a frame number. The WRAM shadow at `$7E:2100` looks like
+`INIDISP`. `32 768` writes of `2` bytes looks like a 64 KB VRAM upload. **All
+three were caught, and all three by asking "what is this number *actually* a
+count of?" rather than by reading the code that produced it.**
