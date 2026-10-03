@@ -124,3 +124,6 @@ R-044	phrase	refuted	rendered frames, 256x210 BGRA	study/peer-linux/README.md:13
 R-045	phrase	refuted	date glyphs thereafter never rewritten, so no poke can move them	docs/measurements/2026-10-03-t111-date-display-path.md
 R-046	phrase	refuted	$0012 is the re-entry gate for	docs/measurements/2026-10-03-t112-0012-is-a-latch-not-a-gate.md:10
 R-047	phrase	refuted	the HUD does not render the raw decimal	docs/measurements/2026-10-03-t112-0012-is-a-latch-not-a-gate.md:389
+R-048	phrase	refuted	The instruction at $03:8222 is STZ $0E15 (ROM byte 64 15)	docs/measurements/2026-10-03-t116-0E15-watch.md:17
+R-049	phrase	refuted	0x9C is STZ $sr,S, store-zero relative to stack	docs/measurements/2026-10-03-t117-8222-disassembly.md:22
+R-050	phrase	refuted	$03:8222 executes 56 times	docs/measurements/2026-10-03-t116-0E15-watch.md:21
