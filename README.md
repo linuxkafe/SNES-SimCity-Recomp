@@ -693,10 +693,191 @@ A 9 000-frame settle protocol on the Deck (162.5 s wall, real save
 `$0BA5` = 0, `$0B9D` = 20 000, with 19–34 bytes changing per snapshot (0.02%).
 **[MEASURED]** — a real save state does not advance the clock either.
 
+### T107: a third-party cheat table, verified from the outside
+
+**Deck-native, Release `build/`, headless, `scripts/cheat_probe.script`, three
+runs, `EXIT=0` and `exit: RUN_FRAMES reached` on all three**, each carrying its
+own `COUNT_PC=0x009311` positive control (**10 239 582** over 5 200 frames =
+**1 969.2/frame**, and **9 667 063** over 4 900 frames = **1 972.9/frame**, twice,
+byte-identical to each other). **[MEASURED, Deck-native]** — transcript
+[`docs/measurements/2026-10-03-t107-cheat-verification.md`](docs/measurements/2026-10-03-t107-cheat-verification.md),
+verdict on every row in [`docs/CHEAT_CODES.md`](docs/CHEAT_CODES.md).
+
+> **A control compared the wrong way looks like a failing control.** The known-good
+> readings are **6 626 029** / 3 300 f (**2 007.9/f**) and **27 019 166** / 14 000 f
+> (**1 929.9/f**). These runs land inside that band but are *not* byte-identical to
+> it, **because the frame counts differ.** Comparing per-frame is the only honest
+> comparison here, and a raw total is the wrong one.
+
+**The plaintext `7E AA BB CC` reading is CONFIRMED — and the byte order is
+measured, from outside, on a detail a looser test could not see.**
+
+```
+7E AA BB CC   ->   write $CC to the 16-bit WRAM address $AABB
+```
+
+Sixteen WRAM dumps of `$0B40`–`$0C00` over a 1 000-frame window. **Exactly five
+bytes differ between the first and the last dump — `$0B53`, `$0B54`, `$0BA5`,
+`$0BA6`, `$0BF9` — and they are exactly the five that were poked.** The game
+rewrote none of them. **[MEASURED, Deck-native.]**
+
+| | measured | |
+|---|---|---|
+| f3900 / f4020 / f4030, before | `$0B53 = $76`, `$0B54 = $07` | 16-bit at `$0B53` = **`$076C` = 1 900** |
+| **f4140 — after the first poke only** | **`$0B53 = $A0`**, `$0B54 = $07` | **`$07A0`** |
+| f4260 onward — after both | `$0B53 = $A0`, **`$0B54 = $0F`** | **`$0FA0` = 4 000** |
+
+**The low byte went to `$0B53`.** Under a big-endian reading the same two
+published codes would have produced `$A00F` = **40 975** with an intermediate of
+`$760F`. Only one of those is what the machine did. And `$0B53` read
+**`$076C` = 1 900** *before* the poke — this project's own independently measured
+year for this ROM (T101/T102), which is what ties the address to the **meaning**
+rather than to a writable 16-bit field that happens to sit there. **[MEASURED,
+Deck-native.]** A source with no access to this project's disassembly landed on
+the right address twice; **that is the strongest argument for the format being
+real, and it is also why the two open rows below are left open rather than
+guessed.**
+
+### The table, with a verdict on every row
+
+| entry | verdict | what was measured |
+|---|---|---|
+| **`7E0B53A0` + `7E0B540F`** — "year 4000" | **VERIFIED** | `$0B53`/`$0B54` went `$076C` → **`$0FA0`** at the predicted frames and **persisted to f4899**; the game never rewrote them. The byte order is confirmed by the f4140 intermediate **`$07A0`** above. Corroborated from the inside: `$0B53` = 1 900 is our own measured year at city load. **Caveat: the picture did not change — see below, and that caveat is why this row's *label* is settled by corroboration and not by its screen effect** |
+| **`7E0BA520` + `7E0BA64E`** — "population 20000" | **PARTIAL** | The **mechanics** are confirmed — `$0BA5`/`$0BA6` → **`$4E20`** = 20 000 little-endian, with a visible intermediate (`$0020` at f4380), persisted to f4899. **The label is not.** **`$0B9D` is also `$4E20` = 20 000**, and this project measures `$0B9D` as funds in **every** sample of **both** builds across hundreds of samples — so the cheat writes the value funds already holds into a field that reads 0. Either `$0BA5` is a population that legitimately starts at 0 while the treasury starts at 20 000, or the published table means `$0B9D` and mis-transcribed. **Nothing here settles it and this file does not pretend to.** What would settle it is a run in which the city renders and `$0BA5` is seen non-zero with no poke — **that is C-006** |
+| **`7E0B-F9EB`** — "start with $49 000" | **UNRESOLVED** | `$0BF9` is real, writable 16-bit WRAM: it read **`$0000`** before and **`$00EB`** after, and persisted. **The arithmetic fails: 49 000 = `$BF68`**, and `0xBF98` = 49 048 does not close it either. Readings still open — a different field than the label names; an obfuscated entry that this table renders in plaintext while its others are plaintext, which would itself be inconsistent; or a wrong published entry. **Measured as far as it can be measured here, and no substitute entry is invented** |
+| **`7E03-F501` … `7E03-F50A`** — "special buildings" | **UNVERIFIED**; the **"bank 3" characterisation is REFUTED** | Ten codes, values `$01`…`$0A`, all to one address — and under the format confirmed above, `AA BB` is a **16-bit WRAM address**, so this is **WRAM `$03F5`**, not anything in ROM bank 3. One 8-bit field written with ten different values is a **selector**, which is coherent. But `$03F5` read **`$00` both before and ~29 frames after** the poke, and the `poke` verb is **proven live in the same script in the same run** (five other pokes landed inside the 120-frame dump spacing). So either it is **overwritten within ~30 frames** or the write is masked — **these are not separated.** A `WLOG_ADDR="03F5:03F5"` run would separate them in one pass and **was not run.** Recorded as a gap |
+| **`DD67-DFAA` / `DE67-DFAA`** | **REFUTED as characterised**; the *decoding* is **UNVERIFIED** | **The "RAM-injection codes patching instructions at `$67DF`" framing does not survive the address.** `$67DF` **cannot be a code address in this ROM**: bank `$67` is ROM, this ROM is 524 288 bytes (banks `$00`–`$3F`), and LoROM `offset = bank*0x8000 + (addr & 0x7FFF)` puts bank `$67` at file offset **`0x338000`, past the end of the file. There is nothing there to patch.** `DD`/`DE` are a 16-bit and an 8-bit **compare-and-freeze** pair on a 16-bit WRAM address under the standard published type table — *"freeze WRAM `$67DF` when it equals `$AA`"*, a different thing entirely. That type table is **general published format knowledge, cited as such, and is not evidence for anything measured here.** What `$67DF` *is*: **not established** |
+| **`C28A-AD61` / `E28A-AD61`** | **UNVERIFIED**, with one measured connection | Both say *"write `$61` to WRAM `$8AAD`"*. **`$8AAD` lies inside the region our own emulator destroyed** — T105 traced the `$03C87x` zero-fill across `$6B00`–`$F8F3`, and `$8AAD` is inside it. So in *this build* there is nothing at `$8AAD` for the cheat to modify. **That is arithmetic over two measurements, offered as a connection and not as a claim about what `$8AAD` means** |
+
+#### ⚠️ THE LEAD NOBODY ASKED FOR — the rendered date is not read live from `$0B53`
+
+`md5` over **1 877 consecutive presents** (f0–f4890):
+
+```
+18 distinct picture states; the last one begins at frame 1459.
+```
+
+**Every cheat poke landed after f4025, and the framebuffer was pixel-identical
+for 3 400+ frames spanning all seven of them — including a write of `$0FA0` into
+the field this project has independently measured to be the year.** **[MEASURED,
+Deck-native.]**
+
+**This is not evidence that the cheats are wrong** — the WRAM dumps prove they
+landed. It is evidence about **our build**, and it is the biggest open thread in
+the project:
+
+1. **The rendered date is not read live from `$0B53` each frame.**
+2. **`make clock` reads the date off a screen crop** — `scripts/clock-gate.sh`
+   crops the HUD at x 55–125, y 2–21 of the 336×224 framebuffer and hashes it. So
+   **the gate and the memory are reading different things, and that relationship
+   is unexamined.**
+3. **Therefore no cheat in this table can be verified by its screen effect in
+   this build** — which is exactly why the "population" label and the `$0BF9`
+   value are left open above rather than guessed at.
+
+**Recorded as a lead for C-006 and with no claim attached to it.** The two
+readings this permits have very different consequences, and separating them is
+the next measurement, not a conclusion: either the rendered date's *own source*
+is frozen (in which case the crop is measuring something real and **C-006 is
+unchanged**), or it is frozen for a different reason — a cached tilemap, a
+dirty-flag never set, a DMA never triggered — in which case **`make clock` may be
+measuring a display path rather than the simulation**, and the finding belongs to
+the display.
+
+#### DoD Rule 0b, and the guard that enforces it
+
+> **A cheat must never make `make clock` pass.** The delivery gate must keep
+> requiring the clock to advance **on a stock build, in a stock configuration,
+> with no cheats and no pokes.** A cheat or a WRAM poke that turns the gate green
+> is a **DIAGNOSTIC** — it names the flag that holds the gate. It is **not**
+> evidence that the game works, **not** evidence that the emulation is faithful,
+> and it must never be reported as either. `make clock` is red today and stays red.
+
+Stated as **Rule 0b** in [`docs/DEFINITION_OF_DONE.md`](docs/DEFINITION_OF_DONE.md)
+and at the top of [`docs/CHEAT_CODES.md`](docs/CHEAT_CODES.md), and enforced
+mechanically by [`scripts/check-cheat-gate.sh`](scripts/check-cheat-gate.sh)
+(`make check-cheat-gate`): it fails if any script under `scripts/` acquires the
+ability to write guest memory on a run it drives, and if the rule is deleted from
+either document. **It reads code, it does not run the game, and it is lexical — a
+floor, not a proof.**
+
+**The guard was itself wrong three times, and its self-test caught all three** —
+which is the only reason it is in the tree at all:
+
+1. **It cried wolf on this project's own delivery gate.** `clock-gate.sh` passes
+   `"$PWD/scripts/d_city.script"`; the checker could not resolve the literal
+   `$PWD` and reported the gate as unsafe. **A guard that cries wolf on the
+   project's own corpus is worse than the hole it closes** — CONF-14's lesson,
+   learned again one commit after it was written down.
+2. **A leading dot hid a gate script from it.** `scripts/*.sh` does not match
+   `scripts/.hidden.sh`, so a hidden script invoking a write knob passed silently.
+   Fixed with `dotglob`; the case is now a permanent self-test assertion.
+3. **A defect in the self-test itself**: `"$0" | grep -q …` under `set -o
+   pipefail` reported FAIL while the guard was working, because `grep -q` exits
+   at the first match and SIGPIPEs the producer.
+
+`make check-cheat-gate-self-test` → **`SELFTEST PASS: 5/5`**, including a
+**positive control** (a script with no write verb is *not* flagged) and both new
+checks demonstrated on **untracked** files (CONF-11).
+
+#### Two things this ticket found that are not about cheats
+
+**Our own shipped `SIMCITY_GODMODE` pokes an address nobody has ever verified.**
+`src/gen_stubs.c:70-73` writes `999,999` to `$7E:04B7`–`$04B9` under the comment
+*"game uses 24-bit at `$7E:04B7`"*. **`$04B7` appears nowhere else in this
+repository** — measured: `grep -rn '04B7' docs/ README.md scripts/` returns
+nothing — **and it contradicts the measured address**, which is **`$0B9D`**
+(`$4E20` = 20 000, every sample, both builds). Rubric **E-06** and **E-01** failing
+on shipped source. **Recorded, not patched** — the fix is not "change `$04B7` to
+`$0B9D`", it is to *establish* which address is money, and the evidence that would
+do that requires a city that renders. **C-006 again.**
+
+**The debug menu was NOT reached, and the blocker is one line.**
+`snesrecomp/runner/src/desktop/host_main.c:3774`:
+
+```c
+uint32 inputs = human | (g_gamepad[1].axis_buttons << 12);
+```
+
+`GamepadInfo` carries `modifiers` — the **button** mask — and `axis_buttons`, the
+d-pad-as-axis mask used by the mouse shim. **Line 3774 reads only `axis_buttons`
+for the second pad**, so **controller 2's face buttons are dropped on the floor**;
+the script language's `press` verb sets `g_pad_buttons`, which feeds **player 1**
+only (`host_main.c:1690`). **So eight of the presses the published sequence needs
+— A, Y, B, X, Select, Start, R, L — cannot be delivered at all.** **[MEASURED by
+reading, 2026-10-03.]** **Size estimate, not done:** read `g_gamepad[1].modifiers`
+into the pad-2 half of the joypad word (**~2 lines**, layout in
+`snes/joypad.h`) plus a script verb targeting pad 2 (**~10 lines**) — **~15–30
+lines in the submodule, plus a verification run.** **It is not a one-line change,
+because the joypad word packs two pads and getting the byte order wrong produces a
+controller that answers to the wrong player — a bug that looks exactly like "the
+cheat did not work."** And even with it, the menu may be unreachable, because
+reaching the *"See you soon!"* screen needs **END** chosen and this project's route
+never gets there. **Recorded as the blocker it is, not worked around.**
+
+#### Is PAR / Game Genie support worth implementing? — no, and not for the usual reason
+
+Not for player convenience: **the game does not run**, so there is no city to cheat
+in (`make clock` red, C-006 OPEN). Cheats for a city that does not simulate are a
+UI for a feature that does not exist. What the verification *did* establish is the
+size, and it is small:
+
+| piece | cost |
+|---|---|
+| the whole `7E` family | **zero new code** — it is `poke`, which already exists (`host_main.c:823`) |
+| arithmetic / logic (`01`/`03`/`05`/`D0`/`D1`/`D3`) | **~80–120 lines** — a small op table beside `ParseHexBytes` |
+| compare-and-freeze (`DD`/`DE`) | **~40–60 lines** — a per-frame predicate against `g_ram` |
+| ROM patches (`80`–`BF`) | **~150–250 lines**, plus a decision about when re-application is correct on a faulted code page — the only genuinely invasive part |
+| **total** | **≈ 300–450 lines, all in the submodule, none in this repository** |
+
+**What would change the answer:** the game simulating, plus a player asking.
+Neither has happened. The probe is a **script**, not a gate; no `make` target runs
+it, and `make check-cheat-gate` exists precisely to keep it that way.
+
 ### Where the record lives
 
-This file is the entry point and is **not** the maintained record. Ten files
-are:
+This file is the entry point and is **not** the maintained record. Thirteen
+entries, covering fifteen files, are:
 
 | file | what it holds |
 |---|---|
